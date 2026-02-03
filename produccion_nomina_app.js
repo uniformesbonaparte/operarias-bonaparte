@@ -2119,11 +2119,10 @@ function formatearFechaCorta(fechaStr) {
 // INICIAR SERVIDOR
 // =========================
 
+const BASE_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+
 app.listen(PORT, () => {
-  console.log("╔════════════════════════════════════════════════╗");
-  console.log("║  🚀 Servidor V5 - Producción y Nómina        ║");
-  console.log("║  📍 Puerto: " + PORT + "                              ║");
-  console.log("║  🌐 URL: http://localhost:" + PORT + "              ║");
-  console.log("║  ✅ Sistema completo con pagos y gestión     ║");
-  console.log("╚════════════════════════════════════════════════╝");
+console.log(`📍 Puerto: ${PORT}`);
+console.log("🌐 URL:", BASE_URL);
+
 });
