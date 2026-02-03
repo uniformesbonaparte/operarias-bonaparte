@@ -6,9 +6,15 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const { createClient } = require("@supabase/supabase-js");
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_ENABLED = !!(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
+const supabase = SUPABASE_ENABLED ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) : null;
+
 const app = express();
 const PORT = process.env.PORT || 8080;
-
 
 app.use(express.json());
 
@@ -139,6 +145,160 @@ let usuarios = [
   { id: 2, nombre: "encargada", password: "enc2025", tipo: "encargada" }
 ];
 
+
+
+// =========================
+// SUPABASE (REMOTE) - FALLBACK AUTOMÁTICO
+// =========================
+async function cargarDatosDesdeSupabase() {
+  if (!SUPABASE_ENABLED) return false;
+
+  const [ops, maq, peds, regs, prnds, usrs] = await Promise.all([
+    supabase.from("operarias").select("*").order("id", { ascending: true }),
+    supabase.from("maquinas").select("*").order("nombre", { ascending: true }),
+    supabase.from("pedidos").select("*").order("id", { ascending: true }),
+    supabase.from("registros").select("*").order("id", { ascending: true }),
+    supabase.from("prendas").select("*").order("id", { ascending: true }),
+    supabase.from("usuarios").select("*").order("id", { ascending: true })
+  ]);
+
+  if (ops.error) throw ops.error;
+  if (maq.error) throw maq.error;
+  if (peds.error) throw peds.error;
+  if (regs.error) throw regs.error;
+  if (prnds.error) throw prnds.error;
+  if (usrs.error) throw usrs.error;
+
+  // Si está vacío (primera vez), no sobre-escribimos con vacío
+  const vacioTotal =
+    (ops.data?.length || 0) === 0 &&
+    (peds.data?.length || 0) === 0 &&
+    (regs.data?.length || 0) === 0;
+
+  if (vacioTotal) return false;
+
+  operarias = (ops.data || []).map(o => ({
+    id: Number(o.id),
+    nombre: o.nombre,
+    password: o.password,
+    usuario: o.usuario || null,
+    rol: o.rol || "operaria",
+    pagoPorPrenda: Number(o.pagoporprenda || 0),
+    activa: o.activa !== undefined ? !!o.activa : true
+  }));
+
+  maquinas = (maq.data || []).map(m => m.nombre);
+
+  pedidos = (peds.data || []).map(p => ({
+    id: Number(p.id),
+    escuela: p.escuela,
+    folio: p.folio,
+    prendas: Array.isArray(p.prendas) ? p.prendas.map(n => Number(n)) : [],
+    estado: p.estado || "activo",
+    fechaTerminado: p.fechaterminado ? new Date(p.fechaterminado).toISOString() : (p.fechaterminado || null),
+    pagoPorPieza: Number(p.pagoporpieza || 0)
+  }));
+
+  registros = (regs.data || []).map(r => ({
+    id: Number(r.id),
+    operariaId: Number(r.operariaid),
+    pedidoId: Number(r.pedidoid),
+    prendaId: (r.prendaid === null || r.prendaid === undefined) ? null : Number(r.prendaid),
+    maquina: r.maquina,
+    descripcion: r.descripcion,
+    cantidad: Number(r.cantidad),
+    pagoPorPieza: Number(r.pagoporpieza || 0),
+    totalGanado: Number(r.totalganado || 0),
+    fecha: r.fecha ? new Date(r.fecha).toISOString() : new Date().toISOString(),
+    fuente: r.fuente || "operaria",
+    estadoPago: r.estadopago || "pendiente",
+    semanaPago: r.semanapago || null,
+    fechaPago: r.fechapago || null
+  }));
+
+  prendas = (prnds.data || []).map(p => ({ id: Number(p.id), nombre: p.nombre }));
+  usuarios = (usrs.data || []).map(u => ({ id: Number(u.id), nombre: u.nombre, password: u.password, tipo: u.tipo }));
+
+  operariaIdCounter = Math.max(0, ...operarias.map(o => o.id)) + 1;
+  pedidoIdCounter = Math.max(0, ...pedidos.map(p => p.id)) + 1;
+  registroIdCounter = Math.max(0, ...registros.map(r => r.id)) + 1;
+
+  console.log("✅ Datos cargados desde Supabase");
+  console.log(`   - ${operarias.length} operarias`);
+  console.log(`   - ${pedidos.length} pedidos`);
+  console.log(`   - ${registros.length} registros`);
+  return true;
+}
+
+async function guardarTodoASupabase() {
+  if (!SUPABASE_ENABLED) return;
+
+  const ops = operarias.map(o => ({
+    id: o.id,
+    nombre: o.nombre,
+    password: o.password,
+    usuario: o.usuario || null,
+    rol: o.rol || "operaria",
+    pagoporprenda: Number(o.pagoPorPrenda || 0),
+    activa: o.activa !== undefined ? !!o.activa : true
+  }));
+
+  const maq = maquinas.map(n => ({ nombre: n }));
+
+  const prnds = prendas.map(p => ({ id: p.id, nombre: p.nombre }));
+
+  const usrs = usuarios.map(u => ({
+    id: u.id,
+    nombre: u.nombre,
+    password: u.password,
+    tipo: u.tipo
+  }));
+
+  const peds = pedidos.map(p => ({
+    id: p.id,
+    escuela: p.escuela,
+    folio: p.folio,
+    prendas: Array.isArray(p.prendas) ? p.prendas.map(n => Number(n)) : [],
+    estado: p.estado || "activo",
+    fechaterminado: p.fechaTerminado ? new Date(p.fechaTerminado).toISOString() : null,
+    pagoporpieza: Number(p.pagoPorPieza || 0)
+  }));
+
+  const regs = registros.map(r => ({
+    id: r.id,
+    operariaid: r.operariaId,
+    pedidoid: r.pedidoId,
+    prendaid: r.prendaId,
+    maquina: r.maquina,
+    descripcion: r.descripcion,
+    cantidad: Number(r.cantidad),
+    pagoporpieza: Number(r.pagoPorPieza || 0),
+    totalganado: Number(r.totalGanado || 0),
+    fecha: r.fecha ? new Date(r.fecha).toISOString() : new Date().toISOString(),
+    fuente: r.fuente || "operaria",
+    estadopago: r.estadoPago || "pendiente",
+    semanapago: r.semanaPago || null,
+    fechapago: r.fechaPago || null
+  }));
+
+  // Upserts (por bloques para evitar límites)
+  const upsertChunked = async (table, rows, onConflict, chunkSize = 500) => {
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      const { error } = await supabase.from(table).upsert(chunk, { onConflict });
+      if (error) throw error;
+    }
+  };
+
+  await upsertChunked("operarias", ops, "id");
+  await upsertChunked("maquinas", maq, "nombre");
+  await upsertChunked("prendas", prnds, "id");
+  await upsertChunked("usuarios", usrs, "id");
+  await upsertChunked("pedidos", peds, "id");
+  await upsertChunked("registros", regs, "id", 300);
+
+  console.log("💾 Datos guardados en Supabase");
+}
 // =========================
 // PERSISTENCIA OPTIMIZADA CON CACHÉ
 // =========================
@@ -260,7 +420,26 @@ function guardarDatosAhora() {
     registroIdCounter
   };
 
-  try {
+  
+// ✅ Si estamos en Render con variables SUPABASE_*, guardamos remoto y NO escribimos JSON
+if (SUPABASE_ENABLED) {
+  (async () => {
+    try {
+      await guardarTodoASupabase();
+    } catch (err) {
+      console.error("❌ Error guardando en Supabase:", err.message || err);
+    } finally {
+      guardadoPendiente = false;
+      if (guardadoReintentar) {
+        guardadoReintentar = false;
+        setTimeout(() => guardarDatosAhora(), 0);
+      }
+    }
+  })();
+  return;
+}
+
+try {
     const json = JSON.stringify(data, null, 2);
     const tempFile = DATA_FILE + ".tmp";
     const backupFile = DATA_FILE + ".bak";
@@ -352,13 +531,17 @@ setInterval(() => {
 process.on('SIGINT', () => {
   console.log('\n🛑 Cerrando servidor...');
   console.log('💾 Guardando datos finales...');
-  
-  // Cancelar timeout y guardar inmediatamente
-  if (timeoutGuardado) {
-    clearTimeout(timeoutGuardado);
+
+  // Si está Supabase activo (Render), guardamos remoto best-effort y salimos.
+  if (SUPABASE_ENABLED) {
+    try {
+      forzarGuardado(); // dispara guardarDatosAhora() debounced
+    } catch (e) {}
+    setTimeout(() => process.exit(0), 1500);
+    return;
   }
-  
-  // Guardado SÍNCRONO al cerrar (para garantizar que se guarda)
+
+  // Local: Guardado SÍNCRONO al cerrar (para garantizar que se guarda)
   const data = {
     operarias,
     maquinas,
@@ -370,7 +553,7 @@ process.on('SIGINT', () => {
     pedidoIdCounter,
     registroIdCounter
   };
-  
+
   try {
     const json = JSON.stringify(data, null, 2);
     fs.writeFileSync(DATA_FILE, json, "utf8");
@@ -378,18 +561,26 @@ process.on('SIGINT', () => {
   } catch (err) {
     console.error('❌ Error guardando datos finales:', err.message);
   }
-  
+
   process.exit(0);
 });
+
 
 process.on('SIGTERM', () => {
   forzarGuardado();
   setTimeout(() => process.exit(0), 1000);
 });
 
-// Cargar datos al iniciar
-cargarDatos();
-
+// Cargar datos al iniciar (Supabase en Render / JSON en local)
+(async () => {
+  try {
+    const ok = await cargarDatosDesdeSupabase();
+    if (!ok) cargarDatos();
+  } catch (e) {
+    console.error("❌ Error cargando desde Supabase:", e.message || e);
+    cargarDatos();
+  }
+})();
 // =========================
 // CREDENCIALES (compatibilidad)
 // =========================
@@ -525,6 +716,38 @@ app.post("/api/login", (req, res) => {
     idOperaria: operaria.id,
     id: operaria.id
   });
+});
+
+
+
+// =========================
+// MIGRACIÓN (1 sola vez) - OPCIONAL
+// =========================
+// Para migrar tu JSON local a Supabase:
+// 1) En Render agrega ENV: MIGRATION_KEY
+// 2) Haz POST a /api/migrar con header: x-migration-key: TU_CLAVE
+// 3) Cuando termine, borra este endpoint y la ENV.
+app.post("/api/migrar", async (req, res) => {
+  try {
+    if (!SUPABASE_ENABLED) {
+      return res.status(400).json({ ok: false, mensaje: "Supabase no está configurado (ENV faltante)" });
+    }
+
+    const key = req.headers["x-migration-key"];
+    if (!process.env.MIGRATION_KEY || key !== process.env.MIGRATION_KEY) {
+      return res.status(401).json({ ok: false, mensaje: "No autorizado" });
+    }
+
+    // Cargar desde JSON local
+    cargarDatos();
+
+    // Guardar todo a Supabase
+    await guardarTodoASupabase();
+
+    return res.json({ ok: true, mensaje: "Migración completada a Supabase" });
+  } catch (e) {
+    return res.status(500).json({ ok: false, mensaje: e.message || String(e) });
+  }
 });
 
 // =========================
@@ -2119,10 +2342,12 @@ function formatearFechaCorta(fechaStr) {
 // INICIAR SERVIDOR
 // =========================
 
-const BASE_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-
 app.listen(PORT, () => {
-console.log(`📍 Puerto: ${PORT}`);
-console.log("🌐 URL:", BASE_URL);
-
+  console.log("╔════════════════════════════════════════════════╗");
+  console.log("║  🚀 Servidor V5 - Producción y Nómina        ║");
+  console.log("║  📍 Puerto: " + PORT + "                              ║");
+    const BASE_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+  console.log("║  🌐 URL: " + BASE_URL + "              ║");
+  console.log("║  ✅ Sistema completo con pagos y gestión     ║");
+  console.log("╚════════════════════════════════════════════════╝");
 });
