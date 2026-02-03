@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>📦 Pedidos · Uniformes Bonaparte</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg-dark: #0a0e27;
+      --bg-darker: #050811;
+      --glass: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.2);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, var(--bg-darker) 0%, var(--bg-dark) 100%);
+      color: var(--text-main);
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before, body::after {
+      content: '';
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::before {
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+      top: -250px;
+      right: -250px;
+      animation: float 8s ease-in-out infinite;
+    }
+
+    body::after {
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(245, 158, 11, 0.15) 0%, transparent 70%);
+      bottom: -200px;
+      left: -200px;
+      animation: float 10s ease-in-out infinite reverse;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(5deg); }
+    }
+
+    .shell {
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 24px;
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding: 16px 20px;
+      border-radius: 20px;
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn-back {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      border: 1px solid var(--glass-border);
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-size: 20px;
+    }
+
+    .btn-back:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateX(-2px);
+    }
+
+    .header-info h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 2px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-info span {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    main {
+      padding-bottom: 40px;
+    }
+
+    .card {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border-radius: 24px;
+      border: 1px solid var(--glass-border);
+      padding: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      margin-bottom: 16px;
+      animation: fadeInUp 0.5s ease-out backwards;
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .subtext {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .form-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 14px;
+      border: 1px solid var(--glass-border);
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--text-main);
+      font-size: 15px;
+      outline: none;
+      transition: all 0.3s;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      background: rgba(0, 0, 0, 0.4);
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 16px;
+      border-radius: 16px;
+      border: none;
+      background: linear-gradient(135deg, var(--accent), #2563eb);
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      padding: 8px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(59, 130, 246, 0.3);
+    }
+
+    .btn-secondary.active {
+      background: rgba(59, 130, 246, 0.4);
+      color: white;
+    }
+
+    .btn-warning {
+      padding: 8px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-warning:hover {
+      background: rgba(245, 158, 11, 0.3);
+    }
+
+    .btn-success {
+      padding: 8px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: rgba(16, 185, 129, 0.2);
+      color: #6ee7b7;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-success:hover {
+      background: rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-danger {
+      padding: 8px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-edit {
+      padding: 8px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: rgba(139, 92, 246, 0.2);
+      color: #c4b5fd;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-edit:hover {
+      background: rgba(139, 92, 246, 0.3);
+    }
+
+    .pedido-item {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 16px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 12px;
+    }
+
+    .pedido-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+
+    .pedido-escuela {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+
+    .pedido-folio {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .badge-proceso {
+      background: rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+    }
+
+    .badge-terminado {
+      background: rgba(107, 114, 128, 0.2);
+      color: #9ca3af;
+    }
+
+    .pedido-info {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .pedido-info strong {
+      color: var(--text-main);
+    }
+
+    .pedido-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .mensaje-error, .mensaje-exito {
+      padding: 12px 16px;
+      border-radius: 14px;
+      margin-bottom: 16px;
+      display: none;
+      font-size: 13px;
+    }
+
+    .mensaje-error {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+    }
+
+    .mensaje-exito {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #6ee7b7;
+    }
+
+    .oculto {
+      display: none !important;
+    }
+
+    .ocultar-dinero {
+      display: none !important;
+    }
+
+    .filtros-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .filtros-row button {
+      flex: 1;
+    }
+
+    .prendas-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .prenda-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .prenda-checkbox:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--accent);
+    }
+
+    .prenda-checkbox input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .prenda-checkbox label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-main);
+      cursor: pointer;
+      text-transform: none;
+      letter-spacing: 0;
+      margin: 0;
+    }
+
+    .prendas-lista {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .prenda-tag {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+    }
+
+    .desglose-prendas {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .desglose-titulo {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .desglose-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      font-size: 13px;
+    }
+
+    .desglose-prenda {
+      color: var(--text-muted);
+    }
+
+    .desglose-monto {
+      color: var(--success);
+      font-weight: 600;
+    }
+
+    /* Modal de Edición */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .modal-content {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border-radius: 24px;
+      border: 1px solid var(--glass-border);
+      padding: 24px;
+      max-width: 500px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      animation: slideUp 0.3s ease-out;
+    }
+
+    @keyframes slideUp {
+      from { 
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+      }
+      to { 
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid var(--glass-border);
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-size: 20px;
+    }
+
+    .modal-close:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: rotate(90deg);
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .modal-actions button {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <button class="btn-back" id="btn-volver">←</button>
+      <div class="header-info">
+        <h1>📦 Pedidos</h1>
+        <span>Usuario: <strong id="nombre-usuario"></strong></span>
+      </div>
+    </header>
+
+    <main>
+      <div class="mensaje-error" id="mensaje-error"></div>
+      <div class="mensaje-exito" id="mensaje-exito"></div>
+
+      <!-- Formulario nuevo pedido (solo admin/encargada) -->
+      <section class="card oculto" id="card-nuevo-pedido">
+        <div class="card-title">➕ Nuevo Pedido</div>
+        <p class="subtext">Registra un nuevo pedido y selecciona las prendas</p>
+
+        <div class="form-row">
+          <label for="input-escuela">🏫 Escuela</label>
+          <input type="text" id="input-escuela" placeholder="Nombre de la escuela" />
+        </div>
+
+        <div class="form-row">
+          <label for="input-folio">📄 Folio</label>
+          <input type="text" id="input-folio" placeholder="Folio del pedido" />
+        </div>
+
+        <div class="form-row">
+          <label>🧥 Prendas del Pedido</label>
+          <div class="prendas-grid" id="prendas-grid"></div>
+        </div>
+
+        <button class="btn-primary" id="btn-guardar-pedido">💾 Guardar Pedido</button>
+      </section>
+
+      <!-- Filtros (admin/encargada) -->
+      <section class="card oculto" id="card-filtros">
+        <div class="card-title">🔍 Filtros</div>
+        <div class="filtros-row">
+          <button class="btn-secondary active" id="filtro-proceso">En Proceso</button>
+          <button class="btn-secondary" id="filtro-terminado">Terminados</button>
+          <button class="btn-secondary" id="filtro-todos">Todos</button>
+        </div>
+      </section>
+
+      <!-- Lista de pedidos -->
+      <section class="card">
+        <div class="card-title">📋 Lista de Pedidos</div>
+        <p class="subtext" id="subtext-lista">Pedidos registrados</p>
+        <div id="lista-pedidos"></div>
+      </section>
+    </main>
+
+    <!-- Modal de Edición -->
+    <div id="modal-editar" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-title">✏️ Editar Pedido</div>
+          <div class="modal-close" id="modal-close">×</div>
+        </div>
+
+        <div class="form-row">
+          <label for="edit-escuela">🏫 Escuela</label>
+          <input type="text" id="edit-escuela" placeholder="Nombre de la escuela" />
+        </div>
+
+        <div class="form-row">
+          <label for="edit-folio">📋 Folio</label>
+          <input type="text" id="edit-folio" placeholder="Número de folio" />
+        </div>
+
+        <div class="form-row">
+          <label>👕 Prendas del Pedido</label>
+          <div id="edit-prendas-grid" class="prendas-grid"></div>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-danger" id="btn-cancelar-editar">❌ Cancelar</button>
+          <button class="btn-primary" id="btn-guardar-editar">💾 Guardar Cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      // Validar sesión
+      let usuarioActual;
+      try {
+        const dataUsuario = localStorage.getItem("usuarioActual");
+        if (!dataUsuario) throw new Error("No hay sesión");
+        usuarioActual = JSON.parse(dataUsuario);
+        if (!usuarioActual.tipo || !usuarioActual.nombre) throw new Error("Sesión inválida");
+      } catch (err) {
+        console.error("Error de sesión:", err);
+        localStorage.removeItem("usuarioActual");
+        alert("Sesión inválida. Por favor inicia sesión nuevamente.");
+        window.location.href = "/login.html";
+        return;
+      }
+
+      // Elementos DOM
+      const spanNombreUsuario = document.getElementById("nombre-usuario");
+      const cardNuevoPedido = document.getElementById("card-nuevo-pedido");
+      const cardFiltros = document.getElementById("card-filtros");
+      const listaPedidos = document.getElementById("lista-pedidos");
+      const subtextLista = document.getElementById("subtext-lista");
+      const mensajeError = document.getElementById("mensaje-error");
+      const mensajeExito = document.getElementById("mensaje-exito");
+      const btnVolver = document.getElementById("btn-volver");
+      const prendasGrid = document.getElementById("prendas-grid");
+      
+      // Elementos del modal de edición
+      const modalEditar = document.getElementById("modal-editar");
+      const modalClose = document.getElementById("modal-close");
+      const btnCancelarEditar = document.getElementById("btn-cancelar-editar");
+      const btnGuardarEditar = document.getElementById("btn-guardar-editar");
+      const editPrendasGrid = document.getElementById("edit-prendas-grid");
+
+      // Verificar que los elementos existan
+      console.log("Modal editar:", modalEditar ? "✓" : "✗");
+      console.log("Botón guardar editar:", btnGuardarEditar ? "✓" : "✗");
+      console.log("Edit prendas grid:", editPrendasGrid ? "✓" : "✗");
+
+      let filtroActual = "activo";
+      let pedidoEditando = null;
+      const esEncargada = usuarioActual.tipo === "encargada";
+      const esAdmin = usuarioActual.tipo === "admin";
+
+      if (spanNombreUsuario) spanNombreUsuario.textContent = usuarioActual.nombre || "";
+
+      // Mostrar formulario para admin/encargada
+      if (esAdmin || esEncargada) {
+        cardNuevoPedido.classList.remove("oculto");
+        await cargarPrendas();
+      }
+
+      // Mostrar filtros para admin/encargada
+      if (esAdmin || esEncargada) {
+        cardFiltros.classList.remove("oculto");
+      }
+
+      // Para operarias, siempre filtrar solo pedidos activos
+      if (usuarioActual.tipo === "operaria") {
+        filtroActual = "activo";
+      }
+
+      // Cargar catálogo de prendas
+      async function cargarPrendas() {
+        try {
+          const res = await fetch("/api/prendas");
+          if (!res.ok) throw new Error("Error al cargar prendas");
+          const prendas = await res.json();
+          
+          const prendasHTML = prendas.map(p => `
+            <div class="prenda-checkbox">
+              <input type="checkbox" id="prenda-${p.id}" value="${p.id}" />
+              <label for="prenda-${p.id}">${p.nombre}</label>
+            </div>
+          `).join("");
+          
+          prendasGrid.innerHTML = prendasHTML;
+          editPrendasGrid.innerHTML = prendasHTML.replace(/prenda-/g, 'edit-prenda-');
+        } catch (err) {
+          console.error("Error cargando prendas:", err);
+        }
+      }
+
+      // Guardar nuevo pedido
+      document.getElementById("btn-guardar-pedido")?.addEventListener("click", async () => {
+        const escuela = document.getElementById("input-escuela").value.trim();
+        const folio = document.getElementById("input-folio").value.trim();
+        
+        // Obtener prendas seleccionadas
+        const prendasSeleccionadas = Array.from(document.querySelectorAll('#prendas-grid input[type="checkbox"]:checked'))
+          .map(cb => parseInt(cb.value));
+
+        if (!escuela || !folio) {
+          mostrarError("❌ Completa todos los campos");
+          return;
+        }
+
+        if (prendasSeleccionadas.length === 0) {
+          mostrarError("❌ Selecciona al menos una prenda");
+          return;
+        }
+
+        const btnGuardar = document.getElementById("btn-guardar-pedido");
+        btnGuardar.disabled = true;
+        btnGuardar.textContent = "⏳ Guardando...";
+
+        try {
+          const res = await fetch("/api/pedidos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              escuela,
+              folio,
+              prendas: prendasSeleccionadas
+            })
+          });
+
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Error al guardar");
+
+          mostrarExito("✅ Pedido creado correctamente");
+          
+          // Limpiar formulario
+          document.getElementById("input-escuela").value = "";
+          document.getElementById("input-folio").value = "";
+          document.querySelectorAll('#prendas-grid input[type="checkbox"]').forEach(cb => cb.checked = false);
+
+          // Recargar lista
+          await cargarPedidos();
+
+        } catch (err) {
+          mostrarError("❌ " + err.message);
+        } finally {
+          btnGuardar.disabled = false;
+          btnGuardar.textContent = "💾 Guardar Pedido";
+        }
+      });
+
+      // Filtros
+      document.getElementById("filtro-proceso")?.addEventListener("click", () => {
+        cambiarFiltro("activo", "filtro-proceso");
+      });
+
+      document.getElementById("filtro-terminado")?.addEventListener("click", () => {
+        cambiarFiltro("terminado", "filtro-terminado");
+      });
+
+      document.getElementById("filtro-todos")?.addEventListener("click", () => {
+        cambiarFiltro("todos", "filtro-todos");
+      });
+
+      function cambiarFiltro(nuevoFiltro, btnId) {
+        filtroActual = nuevoFiltro;
+        
+        document.querySelectorAll(".filtros-row button").forEach(btn => {
+          btn.classList.remove("active");
+        });
+        document.getElementById(btnId).classList.add("active");
+        
+        cargarPedidos();
+      }
+
+      // Cargar pedidos
+      async function cargarPedidos() {
+        console.log("📋 Iniciando carga de pedidos...");
+        try {
+          let url = `/api/pedidos?conTotales=true&conPrendas=true&conDesglose=true`;
+          
+          if (usuarioActual.tipo === "operaria") {
+            url += `&estado=activo`;
+          } else {
+            url += `&estado=${filtroActual}`;
+          }
+
+          console.log("Fetching:", url);
+          const res = await fetch(url);
+          if (!res.ok) throw new Error("Error al cargar pedidos");
+          
+          const pedidos = await res.json();
+          console.log("Pedidos recibidos:", pedidos.length);
+          console.log("Detalle del pedido ID 2:", pedidos.find(p => p.id === 2));
+          
+          if (pedidos.length === 0) {
+            listaPedidos.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px;">No hay pedidos</p>';
+            return;
+          }
+
+          listaPedidos.innerHTML = pedidos.map(p => {
+            let desglosePrendas = '';
+            if (!esEncargada && p.desglosePrendas && p.desglosePrendas.length > 0) {
+              desglosePrendas = `
+                <div class="desglose-prendas">
+                  <div class="desglose-titulo">💰 Desglose por Prenda:</div>
+                  ${p.desglosePrendas.map(d => `
+                    <div class="desglose-item">
+                      <span class="desglose-prenda">${d.prenda}</span>
+                      <span class="desglose-monto">$${d.total.toFixed(2)}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              `;
+            }
+
+            return `
+              <div class="pedido-item">
+                <div class="pedido-header">
+                  <div>
+                    <div class="pedido-escuela">${p.escuela}</div>
+                    <div class="pedido-folio">Folio: ${p.folio}</div>
+                  </div>
+                  <span class="badge ${p.estado === 'activo' ? 'badge-proceso' : 'badge-terminado'}">
+                    ${p.estado === 'activo' ? '🔄 En Proceso' : '✅ Terminado'}
+                  </span>
+                </div>
+                
+                ${p.prendas && p.prendas.length > 0 ? `
+                  <div class="pedido-info">
+                    <strong>Prendas:</strong>
+                    <div class="prendas-lista">
+                      ${p.prendas.map(prenda => `<span class="prenda-tag">${prenda}</span>`).join('')}
+                    </div>
+                  </div>
+                ` : ''}
+                
+                <div class="pedido-info">
+                  📦 Total piezas: <strong>${p.totalPiezas || 0}</strong>
+                </div>
+                <div class="pedido-info">
+                  👥 Operarias: <strong>${p.numeroOperarias || 0}</strong>
+                </div>
+                
+                ${!esEncargada ? `
+                  <div class="pedido-info">
+                    💵 Total pagado: <strong>$${(p.totalPagado || 0).toFixed(2)}</strong>
+                  </div>
+                  ${desglosePrendas}
+                ` : ''}
+                
+                ${(esAdmin || esEncargada) ? `
+                  <div class="pedido-actions">
+                    <button class="btn-edit" onclick="abrirModalEditar(${p.id})">✏️ Editar</button>
+                    ${p.estado === 'activo' ? 
+                      `<button class="btn-warning" onclick="marcarTerminado(${p.id})">✅ Marcar Terminado</button>` :
+                      `<button class="btn-success" onclick="marcarActivo(${p.id})">🔄 Reactivar</button>`
+                    }
+                    ${esAdmin ? `<button class="btn-danger" onclick="eliminarPedido(${p.id})">🗑️ Eliminar</button>` : ''}
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join("");
+          console.log("✅ HTML de pedidos actualizado");
+
+        } catch (err) {
+          console.error("❌ Error en cargarPedidos:", err);
+          mostrarError("Error cargando pedidos: " + err.message);
+        }
+      }
+
+      // Funciones globales
+      window.marcarTerminado = async function(pedidoId) {
+        if (!confirm("¿Marcar este pedido como terminado? Ya no aparecerá para las operarias.")) return;
+
+        try {
+          const res = await fetch(`/api/pedidos/${pedidoId}/estado`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ estado: "terminado" })
+          });
+
+          if (!res.ok) throw new Error("Error al cambiar estado");
+
+          mostrarExito("✅ Pedido marcado como terminado");
+          await cargarPedidos();
+        } catch (err) {
+          mostrarError("❌ " + err.message);
+        }
+      };
+
+      window.marcarActivo = async function(pedidoId) {
+        if (!confirm("¿Reactivar este pedido?")) return;
+
+        try {
+          const res = await fetch(`/api/pedidos/${pedidoId}/estado`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ estado: "activo" })
+          });
+
+          if (!res.ok) throw new Error("Error al cambiar estado");
+
+          mostrarExito("✅ Pedido reactivado");
+          await cargarPedidos();
+        } catch (err) {
+          mostrarError("❌ " + err.message);
+        }
+      };
+
+      window.eliminarPedido = async function(pedidoId) {
+        if (!confirm("¿Estás seguro de eliminar este pedido? Esta acción no se puede deshacer.")) return;
+
+        try {
+          const res = await fetch(`/api/pedidos/${pedidoId}`, {
+            method: "DELETE"
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            throw new Error(data.error || "Error al eliminar");
+          }
+
+          mostrarExito("✅ Pedido eliminado");
+          await cargarPedidos();
+        } catch (err) {
+          mostrarError("❌ " + err.message);
+        }
+      };
+
+      // Funciones del modal de edición
+      window.abrirModalEditar = async function(pedidoId) {
+        console.log("🟢 Abriendo modal para pedido:", pedidoId);
+        try {
+          // Cargar datos del pedido
+          const res = await fetch(`/api/pedidos/${pedidoId}?conPrendas=true`);
+          if (!res.ok) throw new Error("Error al cargar pedido");
+          
+          pedidoEditando = await res.json();
+          console.log("Pedido cargado:", pedidoEditando);
+          
+          // Llenar formulario
+          document.getElementById("edit-escuela").value = pedidoEditando.escuela;
+          document.getElementById("edit-folio").value = pedidoEditando.folio;
+          
+          // Desmarcar todas las prendas primero
+          document.querySelectorAll('#edit-prendas-grid input[type="checkbox"]').forEach(cb => {
+            cb.checked = false;
+          });
+          
+          // Marcar las prendas del pedido
+          if (pedidoEditando.prendasIds && pedidoEditando.prendasIds.length > 0) {
+            pedidoEditando.prendasIds.forEach(prendaId => {
+              const checkbox = document.getElementById(`edit-prenda-${prendaId}`);
+              if (checkbox) checkbox.checked = true;
+            });
+          }
+          
+          // Mostrar modal
+          modalEditar.classList.add("active");
+        } catch (err) {
+          mostrarError("❌ Error al cargar datos del pedido: " + err.message);
+        }
+      };
+
+      // Cerrar modal
+      function cerrarModal() {
+        modalEditar.classList.remove("active");
+        pedidoEditando = null;
+      }
+
+      modalClose.addEventListener("click", cerrarModal);
+      btnCancelarEditar.addEventListener("click", cerrarModal);
+
+      // Cerrar modal al hacer click fuera
+      modalEditar.addEventListener("click", (e) => {
+        if (e.target === modalEditar) {
+          cerrarModal();
+        }
+      });
+
+      // Guardar cambios del pedido
+      btnGuardarEditar.addEventListener("click", async () => {
+        console.log("🔵 Click en botón guardar editar");
+        console.log("Pedido editando:", pedidoEditando);
+        
+        if (!pedidoEditando) {
+          console.log("❌ No hay pedido editando");
+          return;
+        }
+
+        const escuela = document.getElementById("edit-escuela").value.trim();
+        const folio = document.getElementById("edit-folio").value.trim();
+        const prendasSeleccionadas = Array.from(document.querySelectorAll('#edit-prendas-grid input[type="checkbox"]:checked'))
+          .map(cb => parseInt(cb.value));
+
+        console.log("Datos a enviar:", { escuela, folio, prendas: prendasSeleccionadas });
+
+        if (!escuela || !folio) {
+          mostrarError("❌ Completa todos los campos");
+          return;
+        }
+
+        if (prendasSeleccionadas.length === 0) {
+          mostrarError("❌ Selecciona al menos una prenda");
+          return;
+        }
+
+        btnGuardarEditar.disabled = true;
+        btnGuardarEditar.textContent = "⏳ Guardando...";
+
+        try {
+          const url = `/api/pedidos/${pedidoEditando.id}`;
+          console.log("Enviando PUT a:", url);
+          
+          const res = await fetch(url, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              escuela,
+              folio,
+              prendas: prendasSeleccionadas
+            })
+          });
+
+          console.log("Respuesta del servidor:", res.status);
+          const data = await res.json();
+          console.log("Datos recibidos:", data);
+          
+          if (!res.ok) throw new Error(data.error || "Error al actualizar");
+
+          console.log("✅ Guardado exitoso, mostrando mensaje...");
+          mostrarExito("✅ Pedido actualizado correctamente");
+          
+          console.log("🔄 Cerrando modal...");
+          cerrarModal();
+          
+          console.log("🔄 Recargando lista de pedidos...");
+          await cargarPedidos();
+          console.log("✅ Lista recargada");
+
+        } catch (err) {
+          console.error("Error al guardar:", err);
+          mostrarError("❌ " + err.message);
+        } finally {
+          btnGuardarEditar.disabled = false;
+          btnGuardarEditar.textContent = "💾 Guardar Cambios";
+        }
+      });
+
+      function mostrarError(mensaje) {
+        mensajeError.textContent = mensaje;
+        mensajeError.style.display = "block";
+        mensajeExito.style.display = "none";
+        setTimeout(() => { mensajeError.style.display = "none"; }, 5000);
+      }
+
+      function mostrarExito(mensaje) {
+        mensajeExito.textContent = mensaje;
+        mensajeExito.style.display = "block";
+        mensajeError.style.display = "none";
+        setTimeout(() => { mensajeExito.style.display = "none"; }, 3000);
+      }
+
+      btnVolver.addEventListener("click", () => {
+        window.location.href = "/dashboard";
+      });
+
+      await cargarPedidos();
+    });
+  </script>
+</body>
+</html>

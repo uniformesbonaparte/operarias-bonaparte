@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Login · Uniformes Bonaparte</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg-dark: #0a0e27;
+      --bg-darker: #050811;
+      --glass: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.2);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --success: #10b981;
+      --danger: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, var(--bg-darker) 0%, var(--bg-dark) 100%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    body::before, body::after {
+      content: '';
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::before {
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+      top: -250px;
+      right: -250px;
+      animation: float 8s ease-in-out infinite;
+    }
+
+    body::after {
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
+      bottom: -200px;
+      left: -200px;
+      animation: float 10s ease-in-out infinite reverse;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(5deg); }
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 400px;
+      padding: 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .logo h1 {
+      font-size: 32px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+
+    .logo p {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .card {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border-radius: 24px;
+      border: 1px solid var(--glass-border);
+      padding: 32px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      margin-bottom: 16px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 4px;
+      border-radius: 12px;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .tab.active {
+      background: var(--accent);
+      color: white;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--glass-border);
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--text-main);
+      font-size: 15px;
+      outline: none;
+      transition: all 0.3s;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, var(--accent), #2563eb);
+      color: white;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-top: 8px;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .mensaje-error {
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    .oculto {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="logo">
+      <h1>👔 Bonaparte</h1>
+      <p>Sistema de Producción y Nómina</p>
+    </div>
+
+    <div class="card">
+      <div class="tabs">
+        <button class="tab active" id="tab-admin">Admin</button>
+        <button class="tab" id="tab-encargada">Encargada</button>
+        <button class="tab" id="tab-operaria">Operaria</button>
+      </div>
+
+      <div class="mensaje-error" id="mensaje-error"></div>
+
+      <!-- Formulario Admin -->
+      <form id="form-admin">
+        <div class="form-group">
+          <label for="password-admin">🔐 Contraseña</label>
+          <input type="password" id="password-admin" placeholder="Ingresa tu contraseña" required />
+        </div>
+        <button type="submit" class="btn-primary" id="btn-login-admin">Iniciar Sesión</button>
+      </form>
+
+      <!-- Formulario Encargada -->
+      <form id="form-encargada" class="oculto">
+        <div class="form-group">
+          <label for="password-encargada">🔐 Contraseña</label>
+          <input type="password" id="password-encargada" placeholder="Ingresa tu contraseña" required />
+        </div>
+        <button type="submit" class="btn-primary" id="btn-login-encargada">Iniciar Sesión</button>
+      </form>
+
+      <!-- Formulario Operaria -->
+      <form id="form-operaria" class="oculto">
+        <div class="form-group">
+          <label for="select-operaria">👤 Operaria</label>
+          <select id="select-operaria" required>
+            <option value="">-- Selecciona tu nombre --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="password-operaria">🔐 Contraseña</label>
+          <input type="password" id="password-operaria" placeholder="Ingresa tu contraseña" required />
+        </div>
+        <button type="submit" class="btn-primary" id="btn-login-operaria">Iniciar Sesión</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const tabAdmin = document.getElementById("tab-admin");
+    const tabEncargada = document.getElementById("tab-encargada");
+    const tabOperaria = document.getElementById("tab-operaria");
+    
+    const formAdmin = document.getElementById("form-admin");
+    const formEncargada = document.getElementById("form-encargada");
+    const formOperaria = document.getElementById("form-operaria");
+    
+    const mensajeError = document.getElementById("mensaje-error");
+
+    // Cambiar entre tabs
+    tabAdmin.addEventListener("click", () => {
+      activarTab("admin");
+    });
+
+    tabEncargada.addEventListener("click", () => {
+      activarTab("encargada");
+    });
+
+    tabOperaria.addEventListener("click", () => {
+      activarTab("operaria");
+      cargarOperarias();
+    });
+
+    function activarTab(tipo) {
+      // Desactivar todos
+      tabAdmin.classList.remove("active");
+      tabEncargada.classList.remove("active");
+      tabOperaria.classList.remove("active");
+      
+      formAdmin.classList.add("oculto");
+      formEncargada.classList.add("oculto");
+      formOperaria.classList.add("oculto");
+
+      // Activar el seleccionado
+      if (tipo === "admin") {
+        tabAdmin.classList.add("active");
+        formAdmin.classList.remove("oculto");
+      } else if (tipo === "encargada") {
+        tabEncargada.classList.add("active");
+        formEncargada.classList.remove("oculto");
+      } else if (tipo === "operaria") {
+        tabOperaria.classList.add("active");
+        formOperaria.classList.remove("oculto");
+      }
+
+      ocultarError();
+    }
+
+    // Cargar operarias
+    async function cargarOperarias() {
+      try {
+        const res = await fetch("/api/operarias");
+        const operarias = await res.json();
+        
+        const select = document.getElementById("select-operaria");
+        select.innerHTML = '<option value="">-- Selecciona tu nombre --</option>';
+        
+        operarias.forEach(op => {
+          if (op.activa) {
+            const option = document.createElement("option");
+            option.value = op.id;
+            option.textContent = op.nombre;
+            select.appendChild(option);
+          }
+        });
+      } catch (err) {
+        mostrarError("Error cargando operarias: " + err.message);
+      }
+    }
+
+    // Login Admin
+    formAdmin.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const password = document.getElementById("password-admin").value;
+      const btn = document.getElementById("btn-login-admin");
+
+      btn.disabled = true;
+      btn.textContent = "⏳ Verificando...";
+
+      try {
+        const res = await fetch("/api/login/admin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password })
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.ok) {
+          localStorage.setItem("usuarioActual", JSON.stringify({
+            tipo: "admin",
+            nombre: data.nombre || "Admin"
+          }));
+          window.location.href = "/dashboard";
+        } else {
+          mostrarError(data.error || "Contraseña incorrecta");
+        }
+      } catch (err) {
+        mostrarError("Error de conexión: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Iniciar Sesión";
+      }
+    });
+
+    // Login Encargada
+    formEncargada.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const password = document.getElementById("password-encargada").value;
+      const btn = document.getElementById("btn-login-encargada");
+
+      btn.disabled = true;
+      btn.textContent = "⏳ Verificando...";
+
+      try {
+        const res = await fetch("/api/login/encargada", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password })
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.ok) {
+          localStorage.setItem("usuarioActual", JSON.stringify({
+            tipo: "encargada",
+            nombre: data.nombre || "Encargada"
+          }));
+          window.location.href = "/dashboard";
+        } else {
+          mostrarError(data.error || "Contraseña incorrecta");
+        }
+      } catch (err) {
+        mostrarError("Error de conexión: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Iniciar Sesión";
+      }
+    });
+
+    // Login Operaria
+    formOperaria.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const operariaId = document.getElementById("select-operaria").value;
+      const password = document.getElementById("password-operaria").value;
+      const btn = document.getElementById("btn-login-operaria");
+
+      if (!operariaId) {
+        mostrarError("Selecciona una operaria");
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "⏳ Verificando...";
+
+      try {
+        const res = await fetch("/api/login/operaria", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            operariaId: Number(operariaId), 
+            password 
+          })
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.ok) {
+          localStorage.setItem("usuarioActual", JSON.stringify({
+            tipo: "operaria",
+            id: data.operaria.id,
+            nombre: data.operaria.nombre
+          }));
+          window.location.href = "/dashboard";
+        } else {
+          mostrarError(data.error || "Contraseña incorrecta");
+        }
+      } catch (err) {
+        mostrarError("Error de conexión: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Iniciar Sesión";
+      }
+    });
+
+    function mostrarError(mensaje) {
+      mensajeError.textContent = mensaje;
+      mensajeError.style.display = "block";
+      setTimeout(() => {
+        mensajeError.style.display = "none";
+      }, 5000);
+    }
+
+    function ocultarError() {
+      mensajeError.style.display = "none";
+    }
+  </script>
+</body>
+</html>

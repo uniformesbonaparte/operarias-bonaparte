@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test Diagnóstico</title></head>
+<body>
+<h1>Test de Endpoint</h1>
+<button onclick="probar()">Probar Consulta</button>
+<pre id="resultado"></pre>
+
+<script>
+async function probar() {
+  const resultado = document.getElementById('resultado');
+  
+  try {
+    // Prueba 1: Sin filtro de fuente
+    resultado.textContent = 'Probando sin fuente...\n';
+    let url1 = '/api/reporte-semanal?semana=2025-W50&estado=pendiente';
+    let res1 = await fetch(url1);
+    let data1 = await res1.json();
+    resultado.textContent += `✅ Prueba 1: ${JSON.stringify(data1, null, 2)}\n\n`;
+    
+    // Prueba 2: Con fuente="todos"
+    resultado.textContent += 'Probando con fuente=todos...\n';
+    let url2 = '/api/reporte-semanal?semana=2025-W50&estado=pendiente&fuente=todos';
+    let res2 = await fetch(url2);
+    let data2 = await res2.json();
+    resultado.textContent += `✅ Prueba 2: ${JSON.stringify(data2, null, 2)}\n\n`;
+    
+  } catch (err) {
+    resultado.textContent += `❌ ERROR: ${err.message}\n`;
+    resultado.textContent += `${err.stack}\n`;
+  }
+}
+</script>
+</body>
+</html>

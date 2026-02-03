@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>📝 Producción · Uniformes Bonaparte</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg-dark: #0a0e27;
+      --bg-darker: #050811;
+      --glass: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.2);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, var(--bg-darker) 0%, var(--bg-dark) 100%);
+      color: var(--text-main);
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before, body::after {
+      content: '';
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::before {
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+      top: -250px;
+      right: -250px;
+      animation: float 8s ease-in-out infinite;
+    }
+
+    body::after {
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
+      bottom: -200px;
+      left: -200px;
+      animation: float 10s ease-in-out infinite reverse;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(5deg); }
+    }
+
+    .shell {
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 24px;
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding: 16px 20px;
+      border-radius: 20px;
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn-back {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      border: 1px solid var(--glass-border);
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-size: 20px;
+    }
+
+    .btn-back:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateX(-2px);
+    }
+
+    .header-info {
+      flex: 1;
+    }
+
+    .header-info h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 2px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-info span {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    main {
+      padding-bottom: 40px;
+    }
+
+    .card {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border-radius: 24px;
+      border: 1px solid var(--glass-border);
+      padding: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      margin-bottom: 16px;
+      animation: fadeInUp 0.5s ease-out backwards;
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .subtext {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .form-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 14px;
+      border: 1px solid var(--glass-border);
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--text-main);
+      font-size: 15px;
+      outline: none;
+      transition: all 0.3s;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--success);
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+      background: rgba(0, 0, 0, 0.4);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 16px;
+      border-radius: 16px;
+      border: none;
+      background: linear-gradient(135deg, var(--success), #059669);
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      padding: 8px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(59, 130, 246, 0.3);
+    }
+
+    .btn-secondary.active {
+      background: rgba(59, 130, 246, 0.4);
+      color: white;
+    }
+
+    .btn-danger {
+      padding: 8px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.3);
+    }
+
+    .costura-item {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 16px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 12px;
+    }
+
+    .costura-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+
+    .costura-operaria {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .costura-fecha {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .costura-info {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .costura-info strong {
+      color: var(--text-main);
+    }
+
+    .costura-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .precio-input {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    .precio-input input {
+      flex: 1;
+      margin: 0;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .badge-success {
+      background: rgba(16, 185, 129, 0.2);
+      color: #6ee7b7;
+    }
+
+    .badge-warning {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+    }
+
+    .badge-operaria {
+      background: rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+    }
+
+    .badge-encargada {
+      background: rgba(168, 85, 247, 0.2);
+      color: #c084fc;
+    }
+
+    .mensaje-error, .mensaje-exito {
+      padding: 12px 16px;
+      border-radius: 14px;
+      margin-bottom: 16px;
+      display: none;
+      font-size: 13px;
+    }
+
+    .mensaje-error {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+    }
+
+    .mensaje-exito {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #6ee7b7;
+    }
+
+    .oculto {
+      display: none !important;
+    }
+
+    .filtros-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .filtros-row select {
+      flex: 1;
+      min-width: 150px;
+    }
+
+    .filtros-row button {
+      flex: 1;
+      min-width: 120px;
+    }
+
+    /* Modal de edición */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(5px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border-radius: 24px;
+      border: 1px solid var(--glass-border);
+      padding: 24px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      animation: modalIn 0.3s ease-out;
+    }
+
+    @keyframes modalIn {
+      from {
+        opacity: 0;
+        transform: scale(0.9) translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #10b981, #059669);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .btn-close-modal {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: none;
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      font-size: 20px;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-close-modal:hover {
+      background: rgba(239, 68, 68, 0.3);
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .modal-actions button {
+      flex: 1;
+    }
+
+    .btn-edit {
+      padding: 8px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-edit:hover {
+      background: rgba(245, 158, 11, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <button class="btn-back" id="btn-volver">←</button>
+      <div class="header-info">
+        <h1 id="titulo-pagina">Producción</h1>
+        <span>Usuario: <strong id="nombre-usuario"></strong></span>
+      </div>
+    </header>
+
+    <main>
+      <div class="mensaje-error" id="mensaje-error"></div>
+      <div class="mensaje-exito" id="mensaje-exito"></div>
+
+      <!-- VISTA OPERARIA: Formulario de registro -->
+      <div id="vista-operaria" class="oculto">
+        <section class="card">
+          <div class="card-title">✂️ Registrar Costura</div>
+          <p class="subtext">Completa los campos (el precio lo asignará el admin)</p>
+
+          <div class="form-row">
+            <label for="select-pedido">📦 Pedido</label>
+            <select id="select-pedido">
+              <option value="">-- Selecciona un pedido --</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <label for="select-prenda">🧥 Prenda</label>
+            <select id="select-prenda">
+              <option value="">-- Primero selecciona un pedido --</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <label for="select-maquina">🔧 Máquina</label>
+            <select id="select-maquina">
+              <option value="">-- Selecciona una máquina --</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <label for="input-descripcion">📝 Descripción</label>
+            <textarea id="input-descripcion" placeholder="Describe el trabajo realizado..."></textarea>
+          </div>
+
+          <div class="form-row">
+            <label for="input-cantidad">🔢 Cantidad de Piezas</label>
+            <input type="number" id="input-cantidad" placeholder="0" min="1" />
+          </div>
+
+          <button class="btn-primary" id="btn-guardar">💾 Guardar Costura</button>
+        </section>
+
+        <!-- Mis costuras (solo operaria ve las suyas) -->
+        <section class="card">
+          <div class="card-title">📋 Mis Costuras Recientes</div>
+          <p class="subtext">Puedes editar tus costuras antes de que se asigne el precio</p>
+          <div id="lista-mis-costuras"></div>
+        </section>
+      </div>
+
+      <!-- VISTA ENCARGADA: Solo lista de registros (sin precios) -->
+      <div id="vista-encargada" class="oculto">
+        <!-- Lista de costuras registradas (sin precios) -->
+        <section class="card">
+          <div class="card-title">📊 Mis Registros</div>
+          <p class="subtext">Costuras que has registrado (sin información de precios)</p>
+          
+          <div class="filtros-row">
+            <select id="filtro-estado-enc">
+              <option value="todos">Todos los registros</option>
+              <option value="pendiente">Sin precio asignado</option>
+            </select>
+
+            <select id="filtro-operaria-enc">
+              <option value="">Todas las operarias</option>
+            </select>
+          </div>
+          
+          <div id="lista-costuras-encargada"></div>
+        </section>
+      </div>
+
+      <!-- VISTA ADMIN: Lista de costuras con SEPARACIÓN DE FUENTES -->
+      <div id="vista-admin" class="oculto">
+        <section class="card">
+          <div class="card-title">📊 Gestión de Costuras</div>
+          <p class="subtext">Asigna precios y gestiona las costuras (bases de datos separadas)</p>
+          
+          <div class="filtros-row">
+            <select id="filtro-estado">
+              <option value="sinPrecio">Sin precio asignado</option>
+              <option value="todos">Todas las costuras</option>
+            </select>
+
+            <select id="filtro-operaria">
+              <option value="">Todas las operarias</option>
+            </select>
+          </div>
+
+          <!-- FILTRO DE FUENTE: SEPARACIÓN DE BASES DE DATOS (Solo Admin) -->
+          <div class="filtros-row" id="filtros-fuente">
+            <button class="btn-secondary active" id="filtro-fuente-operaria">👩‍🏭 Registros Operarias</button>
+            <button class="btn-secondary" id="filtro-fuente-encargada">👤 Registros Encargada</button>
+          </div>
+          
+          <div id="lista-costuras-admin"></div>
+        </section>
+      </div>
+    </main>
+
+    <!-- Modal de Edición -->
+    <div class="modal-overlay" id="modal-editar">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-title">✏️ Editar Costura</div>
+          <button class="btn-close-modal" id="btn-cerrar-modal">×</button>
+        </div>
+
+        <div class="form-row">
+          <label for="edit-pedido">📦 Pedido</label>
+          <select id="edit-pedido"></select>
+        </div>
+
+        <div class="form-row">
+          <label for="edit-prenda">🧥 Prenda</label>
+          <select id="edit-prenda"></select>
+        </div>
+
+        <div class="form-row">
+          <label for="edit-maquina">🔧 Máquina</label>
+          <select id="edit-maquina"></select>
+        </div>
+
+        <div class="form-row">
+          <label for="edit-descripcion">📝 Descripción</label>
+          <textarea id="edit-descripcion"></textarea>
+        </div>
+
+        <div class="form-row">
+          <label for="edit-cantidad">🔢 Cantidad</label>
+          <input type="number" id="edit-cantidad" min="1" />
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-danger" id="btn-cancelar-edit">❌ Cancelar</button>
+          <button class="btn-primary" id="btn-guardar-edit">💾 Guardar Cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      // Validar sesión
+      let usuarioActual;
+      try {
+        const dataUsuario = localStorage.getItem("usuarioActual");
+        if (!dataUsuario) throw new Error("No hay sesión");
+        usuarioActual = JSON.parse(dataUsuario);
+        if (!usuarioActual.tipo || !usuarioActual.nombre) throw new Error("Sesión inválida");
+      } catch (err) {
+        console.error("Error de sesión:", err);
+        localStorage.removeItem("usuarioActual");
+        alert("Sesión inválida. Por favor inicia sesión nuevamente.");
+        window.location.href = "/login.html";
+        return;
+      }
+
+      // Elementos DOM
+      const spanNombreUsuario = document.getElementById("nombre-usuario");
+      const tituloPagina = document.getElementById("titulo-pagina");
+      const vistaOperaria = document.getElementById("vista-operaria");
+      const vistaEncargada = document.getElementById("vista-encargada");
+      const vistaAdmin = document.getElementById("vista-admin");
+      const mensajeError = document.getElementById("mensaje-error");
+      const mensajeExito = document.getElementById("mensaje-exito");
+      const btnVolver = document.getElementById("btn-volver");
+
+      let filtroFuenteActual = "operaria"; // "operaria" o "encargada"
+
+      if (spanNombreUsuario) spanNombreUsuario.textContent = usuarioActual.nombre || "";
+
+      // Determinar vista según rol
+      if (usuarioActual.tipo === "admin") {
+        tituloPagina.textContent = "Gestión de Producción";
+        vistaAdmin.classList.remove("oculto");
+        await inicializarVistaAdmin();
+      } else if (usuarioActual.tipo === "encargada") {
+        tituloPagina.textContent = "Producción - Mis Registros";
+        vistaEncargada.classList.remove("oculto"); // Usar su propia vista (solo lista)
+        await inicializarVistaEncargada();
+      } else if (usuarioActual.tipo === "operaria") {
+        tituloPagina.textContent = "Registrar Costura";
+        vistaOperaria.classList.remove("oculto");
+        await inicializarVistaOperaria();
+      }
+
+      // Funciones auxiliares
+      function mostrarError(mensaje) {
+        mensajeError.textContent = mensaje;
+        mensajeError.style.display = "block";
+        mensajeExito.style.display = "none";
+        setTimeout(() => { mensajeError.style.display = "none"; }, 5000);
+      }
+
+      function mostrarExito(mensaje) {
+        mensajeExito.textContent = mensaje;
+        mensajeExito.style.display = "block";
+        mensajeError.style.display = "none";
+        setTimeout(() => { mensajeExito.style.display = "none"; }, 3000);
+      }
+
+      // ==========================================
+      // VISTA OPERARIA
+      // ==========================================
+      async function inicializarVistaOperaria() {
+        await cargarPedidosActivos("select-pedido");
+        await cargarMaquinas("select-maquina");
+        await cargarMisCosturas();
+
+        // Event listener para cargar prendas cuando se selecciona pedido
+        document.getElementById("select-pedido").addEventListener("change", async (e) => {
+          const pedidoId = e.target.value;
+          const selectPrenda = document.getElementById("select-prenda");
+          
+          if (!pedidoId) {
+            selectPrenda.innerHTML = '<option value="">-- Primero selecciona un pedido --</option>';
+            return;
+          }
+          
+          try {
+            const res = await fetch(`/api/pedidos/${pedidoId}`);
+            if (!res.ok) throw new Error("Error al cargar pedido");
+            const pedido = await res.json();
+            
+            if (!pedido.prendas || pedido.prendas.length === 0) {
+              selectPrenda.innerHTML = '<option value="">-- Este pedido no tiene prendas --</option>';
+              return;
+            }
+            
+            const resPrendas = await fetch("/api/prendas");
+            const todasPrendas = await resPrendas.json();
+            
+            selectPrenda.innerHTML = '<option value="">-- Selecciona una prenda --</option>';
+            pedido.prendas.forEach(prendaId => {
+              const prenda = todasPrendas.find(p => p.id === prendaId);
+              if (prenda) {
+                const opt = document.createElement("option");
+                opt.value = prenda.id;
+                opt.textContent = prenda.nombre;
+                selectPrenda.appendChild(opt);
+              }
+            });
+          } catch (err) {
+            console.error("Error cargando prendas del pedido:", err);
+          }
+        });
+
+        document.getElementById("btn-guardar").addEventListener("click", () => guardarCostura(usuarioActual.id, "operaria"));
+      }
+
+      async function cargarMisCosturas() {
+        try {
+          // SOLO VER COSTURAS CON FUENTE: OPERARIA
+          const res = await fetch(`/api/registros?operariaId=${usuarioActual.id}&fuente=operaria&estadoPago=pendiente`);
+          if (!res.ok) throw new Error("Error al cargar costuras");
+          
+          const registros = await res.json();
+          const lista = document.getElementById("lista-mis-costuras");
+          
+          if (registros.length === 0) {
+            lista.innerHTML = '<p style="text-align: center; color: var(--text-muted);">No tienes costuras registradas</p>';
+            return;
+          }
+
+          lista.innerHTML = registros.slice(0, 5).map(r => `
+            <div class="costura-item">
+              <div class="costura-info">
+                <strong>${r.escuela || "Pedido"}</strong> - ${r.prenda || r.prendaNombre || "Prenda"} - ${r.descripcion}
+              </div>
+              <div class="costura-info">
+                📦 Cantidad: <strong>${r.cantidad} piezas</strong> | 🔧 ${r.maquina}
+              </div>
+              <div class="costura-info">
+                📅 ${new Date(r.fecha).toLocaleDateString("es-MX")}
+                ${r.pagoPorPieza > 0 ? 
+                  `<span class="badge badge-success">Precio: $${r.pagoPorPieza.toFixed(2)}</span>` : 
+                  `<span class="badge badge-warning">Sin precio</span>`
+                }
+              </div>
+              ${r.pagoPorPieza === 0 ? `
+                <div class="costura-actions">
+                  <button class="btn-edit" onclick="abrirModalEditar(${r.id})">✏️ Editar</button>
+                  <button class="btn-danger" onclick="eliminarCostura(${r.id})">🗑️ Eliminar</button>
+                </div>
+              ` : ''}
+            </div>
+          `).join("");
+        } catch (err) {
+          console.error("Error cargando mis costuras:", err);
+        }
+      }
+
+      // ==========================================
+      // VISTA ENCARGADA - SOLO LISTA (sin precios, sin formulario)
+      // ==========================================
+      async function inicializarVistaEncargada() {
+        // Solo inicializar lista de costuras (sin formulario)
+        await cargarOperariasParaFiltroEncargada();
+        await cargarCosturasEncargada();
+        
+        document.getElementById("filtro-estado-enc").addEventListener("change", cargarCosturasEncargada);
+        document.getElementById("filtro-operaria-enc").addEventListener("change", cargarCosturasEncargada);
+      }
+
+      async function cargarOperariasParaFiltroEncargada() {
+        try {
+          const res = await fetch("/api/operarias");
+          if (!res.ok) throw new Error("Error al cargar operarias");
+          const operarias = await res.json();
+          
+          const select = document.getElementById("filtro-operaria-enc");
+          select.innerHTML = '<option value="">Todas las operarias</option>';
+          
+          operarias.filter(op => op.activa).forEach(op => {
+            const option = document.createElement("option");
+            option.value = op.id;
+            option.textContent = op.nombre;
+            select.appendChild(option);
+          });
+        } catch (err) {
+          console.error("Error cargando operarias:", err);
+        }
+      }
+
+      async function cargarCosturasEncargada() {
+        try {
+          const filtroEstado = document.getElementById("filtro-estado-enc").value;
+          const filtroOperaria = document.getElementById("filtro-operaria-enc").value;
+          
+          const estadoPago = filtroEstado === "todos" ? "todos" : "pendiente";
+          
+          // SOLO VER REGISTROS DE LA BASE DE DATOS DE ENCARGADA
+          let url = `/api/registros?estadoPago=${estadoPago}&fuente=encargada`;
+          if (filtroOperaria) {
+            url += `&operariaId=${filtroOperaria}`;
+          }
+          
+          const res = await fetch(url);
+          if (!res.ok) throw new Error("Error al cargar costuras");
+          
+          const registros = await res.json();
+          const lista = document.getElementById("lista-costuras-encargada");
+          
+          if (registros.length === 0) {
+            lista.innerHTML = '<p style="text-align: center; color: var(--text-muted);">No hay costuras registradas</p>';
+            return;
+          }
+
+          // MOSTRAR SIN PRECIOS NI OPCIONES DE ASIGNAR PRECIO
+          lista.innerHTML = registros.map(r => `
+            <div class="costura-item">
+              <div class="costura-header">
+                <div>
+                  <div class="costura-operaria">${r.operariaNombre}</div>
+                  <div class="costura-fecha">${new Date(r.fecha).toLocaleDateString("es-MX")}</div>
+                </div>
+                <div>
+                  <span class="badge badge-encargada">👤 Encargada</span>
+                </div>
+              </div>
+              
+              <div class="costura-info">
+                <strong>${r.escuela || "Pedido"}</strong> - ${r.prenda || r.prendaNombre || "Prenda"} - ${r.descripcion}
+              </div>
+              <div class="costura-info">
+                📦 Cantidad: <strong>${r.cantidad} piezas</strong> | 🔧 ${r.maquina}
+              </div>
+              
+              <div class="costura-actions">
+                <button class="btn-edit" onclick="abrirModalEditar(${r.id})">✏️ Corregir</button>
+                <button class="btn-danger" onclick="eliminarCostura(${r.id})">🗑️ Eliminar</button>
+              </div>
+            </div>
+          `).join("");
+        } catch (err) {
+          mostrarError("Error cargando costuras: " + err.message);
+        }
+      }
+
+      // ==========================================
+      // VISTA ADMIN - SEPARACIÓN DE BASES DE DATOS
+      // ==========================================
+      async function inicializarVistaAdmin() {
+        await cargarOperariasParaFiltro();
+        await cargarCosturasAdmin();
+        
+        document.getElementById("filtro-estado").addEventListener("change", cargarCosturasAdmin);
+        document.getElementById("filtro-operaria").addEventListener("change", cargarCosturasAdmin);
+        
+        // FILTROS DE FUENTE: SEPARAR BASES DE DATOS
+        document.getElementById("filtro-fuente-operaria").addEventListener("click", () => {
+          cambiarFiltroFuente("operaria");
+        });
+        
+        document.getElementById("filtro-fuente-encargada").addEventListener("click", () => {
+          cambiarFiltroFuente("encargada");
+        });
+      }
+
+      function cambiarFiltroFuente(fuente) {
+        filtroFuenteActual = fuente;
+        
+        // Actualizar botones activos
+        document.getElementById("filtro-fuente-operaria").classList.toggle("active", fuente === "operaria");
+        document.getElementById("filtro-fuente-encargada").classList.toggle("active", fuente === "encargada");
+        
+        cargarCosturasAdmin();
+      }
+
+      async function cargarOperariasParaFiltro() {
+        try {
+          const res = await fetch("/api/operarias");
+          if (!res.ok) throw new Error("Error al cargar operarias");
+          const operarias = await res.json();
+          
+          const select = document.getElementById("filtro-operaria");
+          select.innerHTML = '<option value="">Todas las operarias</option>';
+          
+          operarias.filter(op => op.activa).forEach(op => {
+            const option = document.createElement("option");
+            option.value = op.id;
+            option.textContent = op.nombre;
+            select.appendChild(option);
+          });
+        } catch (err) {
+          console.error("Error cargando operarias:", err);
+        }
+      }
+
+      async function cargarCosturasAdmin() {
+        try {
+          const filtroEstado = document.getElementById("filtro-estado").value;
+          const filtroOperaria = document.getElementById("filtro-operaria").value;
+          
+          // Siempre traer todos los registros pendientes (sin importar precio)
+          let url = `/api/registros?estadoPago=pendiente&fuente=${filtroFuenteActual}`;
+          if (filtroOperaria) {
+            url += `&operariaId=${filtroOperaria}`;
+          }
+          
+          const res = await fetch(url);
+          if (!res.ok) throw new Error("Error al cargar costuras");
+          
+          let registros = await res.json();
+          
+          // FILTRAR EN EL FRONTEND por precio asignado
+          if (filtroEstado === "sinPrecio") {
+            registros = registros.filter(r => r.pagoPorPieza === 0);
+          }
+          // Si filtroEstado === "todos", mostrar todos (con y sin precio)
+          
+          const lista = document.getElementById("lista-costuras-admin");
+          
+          if (registros.length === 0) {
+            lista.innerHTML = '<p style="text-align: center; color: var(--text-muted);">No hay costuras</p>';
+            return;
+          }
+
+          lista.innerHTML = registros.map(r => `
+            <div class="costura-item">
+              <div class="costura-header">
+                <div>
+                  <div class="costura-operaria">${r.operariaNombre}</div>
+                  <div class="costura-fecha">${new Date(r.fecha).toLocaleDateString("es-MX")}</div>
+                </div>
+                <div>
+                  ${r.pagoPorPieza > 0 ? 
+                    `<span class="badge badge-success">$${r.totalGanado.toFixed(2)}</span>` : 
+                    `<span class="badge badge-warning">Sin precio</span>`
+                  }
+                  <span class="badge ${r.fuente === 'encargada' ? 'badge-encargada' : 'badge-operaria'}">
+                    ${r.fuente === 'encargada' ? '👤 Encargada' : '👩‍🏭 Operaria'}
+                  </span>
+                </div>
+              </div>
+              
+              <div class="costura-info">
+                <strong>${r.escuela || "Pedido"}</strong> - ${r.prenda || r.prendaNombre || "Prenda"} - ${r.descripcion}
+              </div>
+              <div class="costura-info">
+                📦 Cantidad: <strong>${r.cantidad} piezas</strong> | 🔧 ${r.maquina}
+              </div>
+              
+              ${r.pagoPorPieza === 0 ? `
+                <div class="precio-input">
+                  <input 
+                    type="number" 
+                    id="precio-${r.id}" 
+                    placeholder="Precio por pieza" 
+                    step="0.01" 
+                    min="0"
+                  />
+                  <button class="btn-secondary" onclick="asignarPrecio(${r.id})">💰 Asignar</button>
+                </div>
+                <div class="costura-actions">
+                  <button class="btn-edit" onclick="abrirModalEditar(${r.id})">✏️ Corregir</button>
+                  <button class="btn-danger" onclick="eliminarCostura(${r.id})">🗑️ Eliminar</button>
+                </div>
+              ` : `
+                <div class="costura-info">
+                  💰 Precio: <strong>$${r.pagoPorPieza.toFixed(2)}</strong> por pieza
+                </div>
+                <div class="precio-input">
+                  <input 
+                    type="number" 
+                    id="precio-${r.id}" 
+                    placeholder="Nuevo precio" 
+                    step="0.01" 
+                    min="0"
+                    value="${r.pagoPorPieza}"
+                  />
+                  <button class="btn-secondary" onclick="asignarPrecio(${r.id})">✏️ Cambiar Precio</button>
+                </div>
+                <div class="costura-actions">
+                  <button class="btn-edit" onclick="abrirModalEditar(${r.id})">✏️ Corregir Datos</button>
+                  <button class="btn-danger" onclick="eliminarCostura(${r.id})">🗑️ Eliminar</button>
+                </div>
+              `}
+            </div>
+          `).join("");
+        } catch (err) {
+          mostrarError("Error cargando costuras: " + err.message);
+        }
+      }
+
+      // ==========================================
+      // FUNCIONES COMPARTIDAS
+      // ==========================================
+      async function cargarPedidosActivos(selectId) {
+        try {
+          const res = await fetch("/api/pedidos?estado=activo");
+          if (!res.ok) throw new Error("Error al cargar pedidos");
+          const pedidos = await res.json();
+          
+          const select = document.getElementById(selectId);
+          select.innerHTML = '<option value="">-- Selecciona un pedido --</option>';
+          
+          pedidos.forEach(p => {
+            const opt = document.createElement("option");
+            opt.value = p.id;
+            opt.textContent = `${p.escuela} - ${p.folio}`;
+            select.appendChild(opt);
+          });
+        } catch (err) {
+          mostrarError("Error cargando pedidos: " + err.message);
+        }
+      }
+
+      async function cargarMaquinas(selectId) {
+        try {
+          const res = await fetch("/api/maquinas");
+          if (!res.ok) throw new Error("Error al cargar máquinas");
+          const maquinas = await res.json();
+          
+          const select = document.getElementById(selectId);
+          select.innerHTML = '<option value="">-- Selecciona una máquina --</option>';
+          
+          maquinas.forEach(m => {
+            const opt = document.createElement("option");
+            opt.value = m;
+            opt.textContent = m;
+            select.appendChild(opt);
+          });
+        } catch (err) {
+          mostrarError("Error cargando máquinas: " + err.message);
+        }
+      }
+
+      async function cargarOperarias(selectId) {
+        try {
+          const res = await fetch("/api/operarias");
+          if (!res.ok) throw new Error("Error al cargar operarias");
+          const operarias = await res.json();
+          
+          const select = document.getElementById(selectId);
+          select.innerHTML = '<option value="">-- Selecciona una operaria --</option>';
+          
+          operarias.filter(op => op.activa).forEach(op => {
+            const opt = document.createElement("option");
+            opt.value = op.id;
+            opt.textContent = op.nombre;
+            select.appendChild(opt);
+          });
+        } catch (err) {
+          mostrarError("Error cargando operarias: " + err.message);
+        }
+      }
+
+      async function guardarCostura(operariaId, fuente) {
+        const pedidoId = document.getElementById("select-pedido").value;
+        const prendaId = document.getElementById("select-prenda").value;
+        const maquina = document.getElementById("select-maquina").value;
+        const descripcion = document.getElementById("input-descripcion").value.trim();
+        const cantidad = Number(document.getElementById("input-cantidad").value);
+
+        if (!pedidoId || !prendaId || !maquina || !descripcion || !cantidad || cantidad <= 0) {
+          mostrarError("❌ Completa todos los campos correctamente");
+          return;
+        }
+
+        const btnGuardar = document.getElementById("btn-guardar");
+        btnGuardar.disabled = true;
+        btnGuardar.textContent = "⏳ Guardando...";
+
+        try {
+          const nuevoRegistro = {
+            operariaId: operariaId,
+            pedidoId: Number(pedidoId),
+            prendaId: Number(prendaId),
+            maquina: maquina,
+            descripcion: descripcion,
+            cantidad: cantidad,
+            pagoPorPieza: 0,
+            fuente: fuente // "operaria" - BASE DE DATOS SEPARADA
+          };
+
+          const res = await fetch("/api/registros", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(nuevoRegistro)
+          });
+
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Error al guardar");
+
+          mostrarExito("✅ Costura registrada correctamente");
+          
+          // Limpiar formulario
+          document.getElementById("select-pedido").value = "";
+          document.getElementById("select-prenda").value = "";
+          document.getElementById("select-maquina").value = "";
+          document.getElementById("input-descripcion").value = "";
+          document.getElementById("input-cantidad").value = "";
+
+          await cargarMisCosturas();
+
+        } catch (err) {
+          mostrarError("❌ " + err.message);
+        } finally {
+          btnGuardar.disabled = false;
+          btnGuardar.textContent = "💾 Guardar Costura";
+        }
+      }
+
+      // Funciones globales
+      window.asignarPrecio = async function(registroId) {
+        const input = document.getElementById(`precio-${registroId}`);
+        const precio = Number(input.value);
+        
+        if (!precio || precio <= 0) {
+          mostrarError("❌ Ingresa un precio válido");
+          return;
+        }
+
+        try {
+          const resGet = await fetch(`/api/registros?estadoPago=todos`);
+          const registros = await resGet.json();
+          const registro = registros.find(r => r.id === registroId);
+          
+          if (!registro) throw new Error("Registro no encontrado");
+
+          const resPut = await fetch(`/api/registros/${registroId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              pagoPorPieza: precio,
+              totalGanado: registro.cantidad * precio
+            })
+          });
+
+          if (!resPut.ok) throw new Error("Error al asignar precio");
+
+          mostrarExito("✅ Precio asignado correctamente");
+          await cargarCosturasAdmin();
+        } catch (err) {
+          mostrarError("❌ " + err.message);
+        }
+      };
+
+      window.eliminarCostura = async function(id) {
+        if (!confirm("¿Estás seguro de eliminar esta costura?")) return;
+
+        try {
+          const res = await fetch(`/api/registros/${id}`, { method: "DELETE" });
+          if (!res.ok) throw new Error("Error al eliminar");
+
+          mostrarExito("✅ Costura eliminada");
+          
+          if (usuarioActual.tipo === "admin") {
+            await cargarCosturasAdmin();
+          } else if (usuarioActual.tipo === "encargada") {
+            await cargarCosturasEncargada();
+          } else {
+            await cargarMisCosturas();
+          }
+        } catch (err) {
+          mostrarError("❌ " + err.message);
+        }
+      };
+
+      // Botón volver
+      btnVolver.addEventListener("click", () => {
+        window.location.href = "/dashboard";
+      });
+
+      // ==========================================
+      // MODAL DE EDICIÓN
+      // ==========================================
+      const modalEditar = document.getElementById("modal-editar");
+      const btnCerrarModal = document.getElementById("btn-cerrar-modal");
+      const btnCancelarEdit = document.getElementById("btn-cancelar-edit");
+      const btnGuardarEdit = document.getElementById("btn-guardar-edit");
+      const editPedido = document.getElementById("edit-pedido");
+      const editMaquina = document.getElementById("edit-maquina");
+      const editDescripcion = document.getElementById("edit-descripcion");
+      const editCantidad = document.getElementById("edit-cantidad");
+
+      let registroEditando = null;
+
+      window.abrirModalEditar = async function(registroId) {
+        try {
+          // Obtener el registro completo
+          const res = await fetch(`/api/registros?estadoPago=todos`);
+          const registros = await res.json();
+          registroEditando = registros.find(r => r.id === registroId);
+          
+          if (!registroEditando) {
+            mostrarError("❌ Registro no encontrado");
+            return;
+          }
+
+          // Cargar pedidos y máquinas en el modal
+          await cargarPedidosEnModal();
+          await cargarMaquinasEnModal();
+
+          // Rellenar campos con datos actuales
+          editPedido.value = registroEditando.pedidoId;
+          editMaquina.value = registroEditando.maquina;
+          editDescripcion.value = registroEditando.descripcion;
+          editCantidad.value = registroEditando.cantidad;
+
+          // Mostrar modal
+          modalEditar.classList.add("active");
+        } catch (err) {
+          mostrarError("❌ Error al cargar datos: " + err.message);
+        }
+      };
+
+      async function cargarPedidosEnModal() {
+        try {
+          const res = await fetch("/api/pedidos?estado=activo");
+          if (!res.ok) throw new Error("Error al cargar pedidos");
+          const pedidos = await res.json();
+          
+          editPedido.innerHTML = '<option value="">-- Selecciona un pedido --</option>';
+          pedidos.forEach(p => {
+            const opt = document.createElement("option");
+            opt.value = p.id;
+            opt.textContent = `${p.escuela} - ${p.folio}`;
+            editPedido.appendChild(opt);
+          });
+        } catch (err) {
+          console.error("Error cargando pedidos:", err);
+        }
+      }
+
+      async function cargarMaquinasEnModal() {
+        try {
+          const res = await fetch("/api/maquinas");
+          if (!res.ok) throw new Error("Error al cargar máquinas");
+          const maquinas = await res.json();
+          
+          editMaquina.innerHTML = '<option value="">-- Selecciona una máquina --</option>';
+          maquinas.forEach(m => {
+            const opt = document.createElement("option");
+            opt.value = m;
+            opt.textContent = m;
+            editMaquina.appendChild(opt);
+          });
+        } catch (err) {
+          console.error("Error cargando máquinas:", err);
+        }
+      }
+
+      function cerrarModal() {
+        modalEditar.classList.remove("active");
+        registroEditando = null;
+        editPedido.value = "";
+        editMaquina.value = "";
+        editDescripcion.value = "";
+        editCantidad.value = "";
+      }
+
+      btnCerrarModal.addEventListener("click", cerrarModal);
+      btnCancelarEdit.addEventListener("click", cerrarModal);
+
+      // Cerrar modal al hacer clic fuera
+      modalEditar.addEventListener("click", (e) => {
+        if (e.target === modalEditar) {
+          cerrarModal();
+        }
+      });
+
+      btnGuardarEdit.addEventListener("click", async () => {
+        if (!registroEditando) return;
+
+        const pedidoId = Number(editPedido.value);
+        const maquina = editMaquina.value;
+        const descripcion = editDescripcion.value.trim();
+        const cantidad = Number(editCantidad.value);
+
+        if (!pedidoId || !maquina || !descripcion || !cantidad || cantidad <= 0) {
+          mostrarError("❌ Completa todos los campos correctamente");
+          return;
+        }
+
+        btnGuardarEdit.disabled = true;
+        btnGuardarEdit.textContent = "⏳ Guardando...";
+
+        try {
+          const res = await fetch(`/api/registros/${registroEditando.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              pedidoId,
+              maquina,
+              descripcion,
+              cantidad
+            })
+          });
+
+          if (!res.ok) throw new Error("Error al actualizar");
+
+          mostrarExito("✅ Costura actualizada correctamente");
+          cerrarModal();
+
+          // Recargar lista según el rol
+          if (usuarioActual.tipo === "admin") {
+            await cargarCosturasAdmin();
+          } else if (usuarioActual.tipo === "encargada") {
+            await cargarCosturasEncargada();
+          } else if (usuarioActual.tipo === "operaria") {
+            await cargarMisCosturas();
+          }
+
+        } catch (err) {
+          mostrarError("❌ " + err.message);
+        } finally {
+          btnGuardarEdit.disabled = false;
+          btnGuardarEdit.textContent = "💾 Guardar Cambios";
+        }
+      });
+    });
+  </script>
+</body>
+</html>

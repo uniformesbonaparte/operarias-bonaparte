@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Operarias · Uniformes Bonaparte</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    :root {
+      --bg-dark: #0a0e27;
+      --bg-darker: #050811;
+      --glass: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.2);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #a855f7;
+      --accent-hover: #9333ea;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, var(--bg-darker) 0%, var(--bg-dark) 100%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Efectos de fondo animados */
+    body::before {
+      content: '';
+      position: fixed;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(168, 85, 247, 0.15) 0%, transparent 70%);
+      border-radius: 50%;
+      top: -250px;
+      right: -250px;
+      animation: float 8s ease-in-out infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(236, 72, 153, 0.15) 0%, transparent 70%);
+      border-radius: 50%;
+      bottom: -200px;
+      left: -200px;
+      animation: float 10s ease-in-out infinite reverse;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(5deg); }
+    }
+
+    .app-shell {
+      width: 100%;
+      max-width: 520px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header mejorado */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding: 16px 20px;
+      border-radius: 20px;
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #a855f7, #ec4899);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 4px 12px rgba(168, 85, 247, 0.4);
+      flex-shrink: 0;
+    }
+
+    .header-text {
+      flex: 1;
+    }
+
+    .header-text h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 2px;
+      background: linear-gradient(135deg, #a855f7, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .header-text span {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Contenido scrolleable */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding-bottom: 16px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    }
+
+    .content::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .content::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+    }
+
+    /* Cards glassmorphism */
+    .card {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 24px;
+      border: 1px solid var(--glass-border);
+      padding: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      margin-bottom: 16px;
+      animation: fadeInUp 0.5s ease-out backwards;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .card:nth-child(1) { animation-delay: 0.1s; }
+    .card:nth-child(2) { animation-delay: 0.15s; }
+    .card:nth-child(3) { animation-delay: 0.2s; }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .subtext {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    /* Lista de operarias */
+    .operaria-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 240px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .operaria-list::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .operaria-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+    }
+
+    .operaria-item {
+      padding: 14px 16px;
+      border-radius: 16px;
+      border: 1px solid var(--glass-border);
+      background: rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .operaria-item::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(236, 72, 153, 0.1));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .operaria-item:hover {
+      transform: translateX(4px);
+      border-color: var(--accent);
+      box-shadow: 0 4px 16px rgba(168, 85, 247, 0.2);
+    }
+
+    .operaria-item:hover::before {
+      opacity: 1;
+    }
+
+    .operaria-item.active {
+      border-color: var(--accent);
+      background: rgba(168, 85, 247, 0.15);
+      box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.3);
+    }
+
+    .op-line-main {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .op-nombre {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-main);
+    }
+
+    .op-id {
+      font-size: 11px;
+      color: rgba(148, 163, 184, 0.7);
+    }
+
+    /* Perfil / resumen */
+    .perfil-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .perfil-nombre {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .perfil-id {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .tabs-fuente {
+      display: inline-flex;
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid var(--glass-border);
+      background: rgba(0, 0, 0, 0.3);
+      gap: 4px;
+    }
+
+    .tab-fuente {
+      font-size: 11px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.3s;
+      font-weight: 600;
+    }
+
+    .tab-fuente.active {
+      background: var(--accent);
+      color: white;
+    }
+
+    .perfil-totales {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .perfil-box {
+      flex: 1;
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid var(--glass-border);
+      background: rgba(0, 0, 0, 0.3);
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .perfil-box span.value {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-main);
+      background: linear-gradient(135deg, #a855f7, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .perfil-registros {
+      margin-top: 12px;
+      max-height: 180px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .perfil-registros::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .perfil-registros::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+    }
+
+    .reg-item {
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(168, 85, 247, 0.2);
+      background: rgba(0, 0, 0, 0.3);
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 10px;
+      transition: all 0.3s;
+    }
+
+    .reg-item:hover {
+      border-color: var(--accent);
+      background: rgba(168, 85, 247, 0.1);
+    }
+
+    .reg-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .reg-escuela {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .reg-folio {
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+
+    .reg-mid {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .reg-desc {
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+
+    .reg-cant {
+      font-weight: 600;
+      color: #e5e7eb;
+      font-size: 12px;
+    }
+
+    .reg-total {
+      font-size: 12px;
+      font-weight: 600;
+      color: #c084fc;
+    }
+
+    /* Formulario */
+    .form-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 14px;
+      border: 1px solid var(--glass-border);
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--text-main);
+      font-size: 15px;
+      outline: none;
+      transition: all 0.3s;
+    }
+
+    input::placeholder {
+      color: var(--text-muted);
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1);
+      background: rgba(0, 0, 0, 0.4);
+    }
+
+    .pill-muted {
+      margin: 12px 0 16px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: rgba(168, 85, 247, 0.1);
+      border-left: 3px solid var(--accent);
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pill-muted::before {
+      content: '💡';
+      font-size: 16px;
+    }
+
+    /* Botones */
+    .btn-primary,
+    .btn-secondary,
+    .btn-danger {
+      width: 100%;
+      margin-top: 12px;
+      padding: 14px 20px;
+      border-radius: 14px;
+      border: none;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #ec4899);
+      color: white;
+      box-shadow: 0 4px 16px rgba(168, 85, 247, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(168, 85, 247, 0.4);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .btn-secondary {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      color: var(--text-main);
+      border: 1px solid var(--glass-border);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: var(--accent);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: var(--danger);
+    }
+
+    /* Status bar */
+    .status-bar {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: 14px;
+      font-size: 13px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .status-bar.ok {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #6ee7b7;
+    }
+
+    .status-bar.ok::before {
+      content: '✅';
+    }
+
+    .status-bar.error {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+    }
+
+    .status-bar.error::before {
+      content: '⚠️';
+    }
+
+    /* Bottom nav */
+    .bottom-nav-wrapper {
+      margin-top: 16px;
+      padding-top: 16px;
+    }
+
+    .bottom-nav {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 20px;
+      border: 1px solid var(--glass-border);
+      padding: 12px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .nav-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .nav-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: all 0.3s;
+    }
+
+    .nav-item.active {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .nav-item.active .nav-dot {
+      width: 24px;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--accent);
+      box-shadow: 0 0 12px rgba(168, 85, 247, 0.6);
+    }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+      .app-shell {
+        padding: 16px;
+      }
+
+      .perfil-totales {
+        flex-direction: column;
+        gap: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+
+    <!-- ENCABEZADO -->
+    <header class="header">
+      <div class="avatar">👥</div>
+      <div class="header-text">
+        <h1>Operarias</h1>
+        <span>Equipo de producción</span>
+      </div>
+    </header>
+
+    <!-- CONTENIDO -->
+    <main class="content">
+
+      <!-- LISTA DE OPERARIAS -->
+      <section class="card">
+        <div class="card-title">👷‍♀️ Operarias registradas</div>
+        <p class="subtext">Toca una operaria para ver su resumen y editar datos</p>
+
+        <div class="operaria-list" id="lista-operarias">
+          <!-- Se llena por JS -->
+        </div>
+      </section>
+
+      <!-- PERFIL / RESUMEN -->
+      <section class="card">
+        <div class="perfil-header">
+          <div>
+            <div class="perfil-nombre" id="perfil-nombre">Sin operaria seleccionada</div>
+            <div class="perfil-id" id="perfil-id">Selecciona una de la lista de arriba</div>
+          </div>
+          <div class="tabs-fuente">
+            <button class="tab-fuente active" id="tab-operaria">Operaria</button>
+            <button class="tab-fuente" id="tab-encargada">Encargada</button>
+          </div>
+        </div>
+
+        <div class="perfil-totales">
+          <div class="perfil-box">
+            <span>Total piezas</span>
+            <span class="value" id="perfil-piezas">0</span>
+          </div>
+          <div class="perfil-box">
+            <span>Total ganado</span>
+            <span class="value" id="perfil-ganado">$0</span>
+          </div>
+        </div>
+
+        <div class="perfil-registros" id="perfil-registros">
+          <!-- Registros resumidos -->
+        </div>
+      </section>
+
+      <!-- FORMULARIO OPERARIA -->
+      <section class="card">
+        <div class="card-title" id="titulo-form">➕ Nueva operaria</div>
+
+        <div class="form-row">
+          <label for="nombre">👤 Nombre</label>
+          <input id="nombre" type="text" placeholder="Ej: Ana, Laura, Sofía..." />
+        </div>
+
+        <div class="form-row">
+          <label for="password">🔒 Contraseña</label>
+          <input id="password" type="password" placeholder="Contraseña para la app" />
+        </div>
+
+        <div class="pill-muted">
+          La contraseña se usará solo para el login de la operaria
+        </div>
+
+        <button class="btn-primary" id="btn-guardar">
+          💾 Guardar operaria
+        </button>
+
+        <button class="btn-secondary" id="btn-nuevo" style="display:none;">
+          ➕ Limpiar y crear nueva
+        </button>
+
+        <button class="btn-danger" id="btn-eliminar" style="display:none;">
+          🗑️ Eliminar operaria
+        </button>
+
+        <div class="status-bar" id="status-bar"></div>
+      </section>
+
+    </main>
+
+    <!-- MENÚ INFERIOR -->
+    <div class="bottom-nav-wrapper">
+      <nav class="bottom-nav">
+        <div class="nav-item" id="nav-dashboard">
+          <div class="nav-dot"></div>
+          <span>Dashboard</span>
+        </div>
+        <div class="nav-item active">
+          <div class="nav-dot"></div>
+          <span>Operarias</span>
+        </div>
+        <div class="nav-item" id="nav-pedidos">
+          <div class="nav-dot"></div>
+          <span>Pedidos</span>
+        </div>
+        <div class="nav-item" id="nav-produccion">
+          <div class="nav-dot"></div>
+          <span>Producción</span>
+        </div>
+        <div class="nav-item" id="nav-config">
+          <div class="nav-dot"></div>
+          <span>Config.</span>
+        </div>
+      </nav>
+    </div>
+
+  </div>
+
+  <script>
+    // VALIDACIÓN DE SESIÓN
+    (function() {
+      try {
+        const dataUsuario = localStorage.getItem("usuarioActual");
+        if (!dataUsuario) {
+          window.location.href = "/login.html";
+          return;
+        }
+        
+        const usuarioActual = JSON.parse(dataUsuario);
+        
+        if (!usuarioActual.tipo || !usuarioActual.nombre) {
+          throw new Error("Sesión inválida");
+        }
+
+        // Solo admin y encargada pueden ver operarias
+        if (usuarioActual.tipo === "operaria") {
+          alert("No tienes permisos para acceder a esta página");
+          window.location.href = "/dashboard";
+          return;
+        }
+      } catch (err) {
+        console.error("Error de sesión:", err);
+        localStorage.removeItem("usuarioActual");
+        window.location.href = "/login.html";
+        return;
+      }
+    })();
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const listaOperarias = document.getElementById("lista-operarias");
+
+      const perfilNombre = document.getElementById("perfil-nombre");
+      const perfilId = document.getElementById("perfil-id");
+      const perfilPiezas = document.getElementById("perfil-piezas");
+      const perfilGanado = document.getElementById("perfil-ganado");
+      const perfilRegistros = document.getElementById("perfil-registros");
+
+      const tabOperaria = document.getElementById("tab-operaria");
+      const tabEncargada = document.getElementById("tab-encargada");
+
+      const inputNombre = document.getElementById("nombre");
+      const inputPassword = document.getElementById("password");
+      const tituloForm = document.getElementById("titulo-form");
+      const btnGuardar = document.getElementById("btn-guardar");
+      const btnNuevo = document.getElementById("btn-nuevo");
+      const btnEliminar = document.getElementById("btn-eliminar");
+      const statusBar = document.getElementById("status-bar");
+
+      let operarias = [];
+      let operariaSeleccionadaId = null;
+      let fuenteActual = "operaria";
+
+      // Navegación
+      document.getElementById("nav-dashboard").addEventListener("click", () => {
+        window.location.href = "/dashboard";
+      });
+      document.getElementById("nav-pedidos").addEventListener("click", () => {
+        window.location.href = "/pedidos";
+      });
+      document.getElementById("nav-produccion").addEventListener("click", () => {
+        window.location.href = "/produccion";
+      });
+      document.getElementById("nav-config").addEventListener("click", () => {
+        alert("Configuración en desarrollo");
+      });
+
+      function mostrarStatus(tipo, mensaje) {
+        statusBar.textContent = mensaje;
+        statusBar.classList.remove("ok", "error");
+        statusBar.style.display = "flex";
+        if (tipo === "ok") statusBar.classList.add("ok");
+        else statusBar.classList.add("error");
+      }
+
+      function limpiarStatus() {
+        statusBar.style.display = "none";
+        statusBar.classList.remove("ok", "error");
+        statusBar.textContent = "";
+      }
+
+      function limpiarFormulario() {
+        operariaSeleccionadaId = null;
+        tituloForm.textContent = "➕ Nueva operaria";
+        inputNombre.value = "";
+        inputPassword.value = "";
+        btnNuevo.style.display = "none";
+        btnEliminar.style.display = "none";
+        btnGuardar.textContent = "💾 Guardar operaria";
+        limpiarStatus();
+
+        perfilNombre.textContent = "Sin operaria seleccionada";
+        perfilId.textContent = "Selecciona una de la lista de arriba";
+        perfilPiezas.textContent = "0";
+        perfilGanado.textContent = "$0";
+        perfilRegistros.innerHTML = "";
+
+        const items = listaOperarias.querySelectorAll(".operaria-item");
+        items.forEach(it => it.classList.remove("active"));
+      }
+
+      function rellenarFormulario(op) {
+        operariaSeleccionadaId = op.id;
+        tituloForm.textContent = `✏️ Editar operaria #${op.id}`;
+        inputNombre.value = op.nombre || "";
+        inputPassword.value = "";
+        btnNuevo.style.display = "block";
+        btnEliminar.style.display = "block";
+        btnGuardar.textContent = "💾 Guardar cambios";
+        limpiarStatus();
+
+        perfilNombre.textContent = op.nombre || "Operaria";
+        perfilId.textContent = `ID: ${op.id}`;
+        cargarPerfil(op.id, fuenteActual);
+      }
+
+      function renderListaOperarias() {
+        listaOperarias.innerHTML = "";
+
+        if (!operarias || operarias.length === 0) {
+          listaOperarias.innerHTML = `
+            <div class="operaria-item" style="opacity:0.7; cursor:default;">
+              <div class="op-line-main">
+                <span class="op-nombre">Sin operarias registradas</span>
+              </div>
+              <div class="op-id">Usa el formulario de abajo para crear la primera</div>
+            </div>
+          `;
+          return;
+        }
+
+        operarias.forEach(op => {
+          const item = document.createElement("div");
+          item.className = "operaria-item";
+          if (op.id === operariaSeleccionadaId) {
+            item.classList.add("active");
+          }
+
+          item.innerHTML = `
+            <div class="op-line-main">
+              <span class="op-nombre">${op.nombre}</span>
+              <span class="op-id">ID: ${op.id}</span>
+            </div>
+          `;
+
+          item.addEventListener("click", () => {
+            rellenarFormulario(op);
+            const items = listaOperarias.querySelectorAll(".operaria-item");
+            items.forEach(it => it.classList.remove("active"));
+            item.classList.add("active");
+          });
+
+          listaOperarias.appendChild(item);
+        });
+      }
+
+      function cargarOperarias() {
+        fetch("/api/operarias")
+          .then(res => {
+            if (!res.ok) throw new Error("Error al cargar operarias");
+            return res.json();
+          })
+          .then(data => {
+            operarias = Array.isArray(data) ? data : [];
+            console.log("✅ Operarias cargadas:", operarias); // DEBUG
+            renderListaOperarias();
+          })
+          .catch(err => {
+            console.error("❌ Error cargando operarias:", err);
+            mostrarStatus("error", "Error al cargar la lista de operarias");
+          });
+      }
+
+      function cargarPerfil(id, fuente) {
+        if (!id) return;
+
+        perfilRegistros.innerHTML = `<span style="font-size:12px; color:var(--text-muted);">Cargando registros...</span>`;
+
+        fetch(`/api/operarias/${id}/perfil?fuente=${encodeURIComponent(fuente)}`)
+          .then(res => {
+            if (!res.ok) throw new Error("Error al cargar perfil");
+            return res.json();
+          })
+          .then(data => {
+            perfilPiezas.textContent = data.totalPiezas ?? 0;
+            perfilGanado.textContent = "$" + (data.totalGanado ?? 0);
+
+            const regs = Array.isArray(data.registros) ? data.registros : [];
+
+            if (regs.length === 0) {
+              perfilRegistros.innerHTML = `
+                <div class="reg-item" style="opacity:0.8;">
+                  <div>No hay registros para esta fuente</div>
+                </div>
+              `;
+              return;
+            }
+
+            perfilRegistros.innerHTML = "";
+            regs.forEach(r => {
+              const item = document.createElement("div");
+              item.className = "reg-item";
+
+              const escuela = r.escuela || "N/A";
+              const folio = r.folio || "N/A";
+              const desc = r.descripcion || r.maquina || r.comentario || "";
+              const cant = r.cantidad ?? 0;
+              const total = r.totalGanado ?? 0;
+
+              item.innerHTML = `
+                <div class="reg-top">
+                  <span class="reg-escuela">${escuela}</span>
+                  <span class="reg-folio">Folio: ${folio}</span>
+                </div>
+                <div class="reg-mid">
+                  <span class="reg-desc">${desc}</span>
+                  <span class="reg-cant">${cant} pzs</span>
+                </div>
+                <div class="reg-total">Ganado: $${total}</div>
+              `;
+
+              perfilRegistros.appendChild(item);
+            });
+          })
+          .catch(err => {
+            console.error("Error cargando perfil:", err);
+            perfilRegistros.innerHTML = `
+              <div class="reg-item" style="opacity:0.8;">
+                <div>Error al cargar el resumen</div>
+              </div>
+            `;
+          });
+      }
+
+      // Tabs
+      tabOperaria.addEventListener("click", () => {
+        if (fuenteActual === "operaria") return;
+        fuenteActual = "operaria";
+        tabOperaria.classList.add("active");
+        tabEncargada.classList.remove("active");
+        if (operariaSeleccionadaId) {
+          cargarPerfil(operariaSeleccionadaId, fuenteActual);
+        }
+      });
+
+      tabEncargada.addEventListener("click", () => {
+        if (fuenteActual === "encargada") return;
+        fuenteActual = "encargada";
+        tabEncargada.classList.add("active");
+        tabOperaria.classList.remove("active");
+        if (operariaSeleccionadaId) {
+          cargarPerfil(operariaSeleccionadaId, fuenteActual);
+        }
+      });
+
+      // Guardar
+      btnGuardar.addEventListener("click", () => {
+        const nombre = (inputNombre.value || "").trim();
+        const password = (inputPassword.value || "").trim();
+
+        if (!nombre) {
+          mostrarStatus("error", "El nombre de la operaria es obligatorio");
+          return;
+        }
+        if (!operariaSeleccionadaId && !password) {
+          mostrarStatus("error", "La contraseña es obligatoria al crear una nueva operaria");
+          return;
+        }
+
+        const cuerpo = { nombre };
+        if (password) cuerpo.password = password;
+
+        // Generar usuario automáticamente
+        if (!operariaSeleccionadaId) {
+          cuerpo.usuario = nombre.toLowerCase().replace(/\s+/g, '');
+        }
+
+        limpiarStatus();
+        btnGuardar.disabled = true;
+        btnGuardar.textContent = operariaSeleccionadaId
+          ? "💾 Guardando..."
+          : "💾 Guardando...";
+
+        const url = operariaSeleccionadaId
+          ? `/api/operarias/${operariaSeleccionadaId}`
+          : "/api/operarias";
+        const metodo = operariaSeleccionadaId ? "PUT" : "POST";
+
+        fetch(url, {
+          method: metodo,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(cuerpo)
+        })
+          .then(res => res.json().then(body => ({ ok: res.ok, body })))
+          .then(({ ok, body }) => {
+            if (!ok) {
+              console.error("Error al guardar operaria:", body);
+              mostrarStatus("error", body.mensaje || "Error al guardar la operaria");
+            } else {
+              mostrarStatus("ok", body.mensaje || "Operaria guardada correctamente");
+              cargarOperarias();
+              if (!operariaSeleccionadaId) {
+                limpiarFormulario();
+              } else {
+                perfilNombre.textContent = nombre;
+              }
+            }
+          })
+          .catch(err => {
+            console.error("Error de red:", err);
+            mostrarStatus("error", "Error de conexión al guardar");
+          })
+          .finally(() => {
+            btnGuardar.disabled = false;
+            btnGuardar.textContent = operariaSeleccionadaId
+              ? "💾 Guardar cambios"
+              : "💾 Guardar operaria";
+          });
+      });
+
+      // Limpiar
+      btnNuevo.addEventListener("click", () => {
+        limpiarFormulario();
+      });
+
+      // Eliminar
+      btnEliminar.addEventListener("click", () => {
+        if (!operariaSeleccionadaId) {
+          mostrarStatus("error", "No hay operaria seleccionada para eliminar");
+          return;
+        }
+
+        const confirmar = confirm(
+          "¿Seguro que quieres eliminar esta operaria?\nSolo se puede si no tiene registros de costuras."
+        );
+        if (!confirmar) return;
+
+        limpiarStatus();
+        btnEliminar.disabled = true;
+        btnEliminar.textContent = "🗑️ Eliminando...";
+
+        fetch(`/api/operarias/${operariaSeleccionadaId}`, {
+          method: "DELETE"
+        })
+          .then(res => res.json().then(body => ({ ok: res.ok, body })))
+          .then(({ ok, body }) => {
+            if (!ok) {
+              console.error("Error al eliminar:", body);
+              mostrarStatus("error", body.mensaje || "No se pudo eliminar la operaria");
+            } else {
+              mostrarStatus("ok", body.mensaje || "Operaria eliminada correctamente");
+              limpiarFormulario();
+              cargarOperarias();
+            }
+          })
+          .catch(err => {
+            console.error("Error de red:", err);
+            mostrarStatus("error", "Error de conexión al eliminar");
+          })
+          .finally(() => {
+            btnEliminar.disabled = false;
+            btnEliminar.textContent = "🗑️ Eliminar operaria";
+          });
+      });
+
+      // Cargar inicial
+      console.log("🔄 Cargando operarias..."); // DEBUG
+      cargarOperarias();
+    });
+  </script>
+ </body> 
+</html> ```

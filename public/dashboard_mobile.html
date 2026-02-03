@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dashboard · Uniformes Bonaparte</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg-dark: #0a0e27;
+      --bg-darker: #050811;
+      --glass: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.2);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --success: #10b981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, var(--bg-darker) 0%, var(--bg-dark) 100%);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 24px;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+      border-radius: 50%;
+      top: -250px;
+      right: -250px;
+      animation: float 8s ease-in-out infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
+      border-radius: 50%;
+      bottom: -200px;
+      left: -200px;
+      animation: float 10s ease-in-out infinite reverse;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(5deg); }
+    }
+
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+
+    header {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 24px;
+      border: 1px solid var(--glass-border);
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      animation: fadeInDown 0.6s ease-out;
+    }
+
+    @keyframes fadeInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .btn-logout {
+      padding: 8px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--glass-border);
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-logout:hover {
+      background: rgba(239, 68, 68, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .welcome {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .user-name {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .user-role {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .role-admin {
+      background: rgba(139, 92, 246, 0.2);
+      color: #c4b5fd;
+    }
+
+    .role-encargada {
+      background: rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+    }
+
+    .role-operaria {
+      background: rgba(16, 185, 129, 0.2);
+      color: #6ee7b7;
+    }
+
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .menu-btn {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 20px;
+      border: 1px solid var(--glass-border);
+      padding: 24px 20px;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+      text-align: center;
+      animation: fadeInUp 0.6s ease-out backwards;
+      display: none;
+    }
+
+    .menu-btn.visible {
+      display: block;
+    }
+
+    .menu-btn:nth-child(1) { animation-delay: 0.1s; }
+    .menu-btn:nth-child(2) { animation-delay: 0.15s; }
+    .menu-btn:nth-child(3) { animation-delay: 0.2s; }
+    .menu-btn:nth-child(4) { animation-delay: 0.25s; }
+    .menu-btn:nth-child(5) { animation-delay: 0.3s; }
+    .menu-btn:nth-child(6) { animation-delay: 0.35s; }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .menu-btn:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .menu-icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+    }
+
+    .menu-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+
+    .menu-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 16px;
+      }
+
+      .menu-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-top">
+        <div class="logo">Bonaparte</div>
+        <button class="btn-logout" id="btn-logout">Cerrar Sesión</button>
+      </div>
+      <div class="welcome">Bienvenido/a</div>
+      <div class="user-name" id="user-name">Usuario</div>
+      <span class="user-role" id="user-role">Cargando...</span>
+    </header>
+
+    <div class="menu-grid">
+      <!-- REGISTRAR COSTURA - Solo Operarias y Encargada -->
+      <div class="menu-btn" id="btn-registrar-costura" data-roles="operaria,encargada">
+        <div class="menu-icon">✂️</div>
+        <div class="menu-title">Registrar Costura</div>
+        <div class="menu-desc">Captura tu trabajo</div>
+      </div>
+
+      <!-- PRODUCCIÓN - Admin y Encargada -->
+      <div class="menu-btn" id="btn-produccion" data-roles="admin,encargada">
+        <div class="menu-icon">📊</div>
+        <div class="menu-title">Producción</div>
+        <div class="menu-desc">Gestión de costuras</div>
+      </div>
+
+      <!-- OPERARIAS - Solo Admin -->
+      <div class="menu-btn" id="btn-operarias" data-roles="admin">
+        <div class="menu-icon">👥</div>
+        <div class="menu-title">Operarias</div>
+        <div class="menu-desc">Gestionar personal</div>
+      </div>
+
+      <!-- PEDIDOS - Admin y Encargada -->
+      <div class="menu-btn" id="btn-pedidos" data-roles="admin,encargada">
+        <div class="menu-icon">📦</div>
+        <div class="menu-title">Pedidos</div>
+        <div class="menu-desc">Gestionar pedidos</div>
+      </div>
+
+      <!-- REPORTE SEMANAL - Admin y Operaria solamente -->
+      <div class="menu-btn" id="btn-reporte" data-roles="admin,operaria">
+        <div class="menu-icon">📈</div>
+        <div class="menu-title">Reportes</div>
+        <div class="menu-desc">Ver reportes</div>
+      </div>
+
+      <!-- CONFIGURACIÓN - Solo Admin -->
+      <div class="menu-btn" id="btn-configuracion" data-roles="admin">
+        <div class="menu-icon">⚙️</div>
+        <div class="menu-title">Configuración</div>
+        <div class="menu-desc">Ajustes del sistema</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // Validar sesión
+      let usuarioActual;
+      try {
+        const dataUsuario = localStorage.getItem("usuarioActual");
+        if (!dataUsuario) throw new Error("No hay sesión");
+        usuarioActual = JSON.parse(dataUsuario);
+        if (!usuarioActual.tipo || !usuarioActual.nombre) throw new Error("Sesión inválida");
+      } catch (err) {
+        console.error("Error de sesión:", err);
+        localStorage.removeItem("usuarioActual");
+        alert("Sesión inválida. Por favor inicia sesión nuevamente.");
+        window.location.href = "/login.html";
+        return;
+      }
+
+      // Mostrar información del usuario
+      document.getElementById("user-name").textContent = usuarioActual.nombre || "Usuario";
+      
+      const roleSpan = document.getElementById("user-role");
+      const tipo = usuarioActual.tipo || "operaria";
+      
+      roleSpan.textContent = tipo === "admin" ? "Administrador" : 
+                            tipo === "encargada" ? "Encargada" : "Operaria";
+      roleSpan.className = `user-role role-${tipo}`;
+
+      // Mostrar solo botones permitidos según el rol
+      const botones = document.querySelectorAll(".menu-btn");
+      botones.forEach(btn => {
+        const rolesPermitidos = btn.dataset.roles?.split(",") || [];
+        if (rolesPermitidos.includes(tipo)) {
+          btn.classList.add("visible");
+        }
+      });
+
+      // Navegación
+      document.getElementById("btn-registrar-costura")?.addEventListener("click", () => {
+        window.location.href = "/registrar_costura";
+      });
+
+      document.getElementById("btn-produccion")?.addEventListener("click", () => {
+        window.location.href = "/produccion";
+      });
+
+      document.getElementById("btn-operarias")?.addEventListener("click", () => {
+        window.location.href = "/operarias";
+      });
+
+      document.getElementById("btn-pedidos")?.addEventListener("click", () => {
+        window.location.href = "/pedidos";
+      });
+
+      document.getElementById("btn-reporte")?.addEventListener("click", () => {
+        window.location.href = "/reporte_semanal";
+      });
+
+      document.getElementById("btn-configuracion")?.addEventListener("click", () => {
+        window.location.href = "/configuracion";
+      });
+
+      // Cerrar sesión
+      document.getElementById("btn-logout").addEventListener("click", () => {
+        if (confirm("¿Estás seguro que deseas cerrar sesión?")) {
+          localStorage.removeItem("usuarioActual");
+          window.location.href = "/login.html";
+        }
+      });
+    });
+  </script>
+</body>
+</html>
