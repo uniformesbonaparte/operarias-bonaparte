@@ -1256,9 +1256,16 @@
       function generarHTMLDetalleCompleto(data) {
         let registrosHTML = '';
         
+        // Columnas dinámicas para impresión (según cantidad de registros)
+        const totalRegistros = (data?.resumen?.totalRegistros != null)
+          ? data.resumen.totalRegistros
+          : (data?.registrosPorDia || []).reduce((acc, d) => acc + ((d.registros || []).length), 0);
+        const columnasImpresion = totalRegistros > 80 ? 3 : (totalRegistros > 35 ? 2 : 1);
+        const fontImpresion = columnasImpresion === 3 ? 10.5 : 12;
+        
         data.registrosPorDia.forEach(dia => {
           registrosHTML += `
-            <div style="margin-bottom: 20px;">
+            <div class="dia-seccion" style="margin-bottom: 20px;">
               <div style="font-weight: 700; color: #2563eb; font-size: 16px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb;">
                 ${dia.dia} ${formatearFechaDetalle(dia.fecha)}
               </div>
@@ -1329,7 +1336,17 @@
               @media print {
                 body {
                   margin: 0;
-                  padding: 20px;
+                  padding: 16px;
+                  max-width: none;
+                  font-size: ${fontImpresion}px;
+                }
+                .registros-container {
+                  column-count: ${columnasImpresion};
+                  column-gap: 16px;
+                }
+                .dia-seccion {
+                  break-inside: avoid;
+                  page-break-inside: avoid;
                 }
               }
             </style>
@@ -1338,7 +1355,7 @@
             <h1>📋 Detalle de Registros - ${data.operaria.nombre}</h1>
             <div class="subtitle">${data.semana.label}</div>
             
-            ${registrosHTML}
+            <div class="registros-container">${registrosHTML}</div>
             
             <div class="total-general">
               <div class="total-label">TOTAL SEMANA</div>
