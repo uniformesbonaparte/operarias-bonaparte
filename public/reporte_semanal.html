@@ -1260,8 +1260,8 @@
         const totalRegistros = (data?.resumen?.totalRegistros != null)
           ? data.resumen.totalRegistros
           : (data?.registrosPorDia || []).reduce((acc, d) => acc + ((d.registros || []).length), 0);
-        const columnasImpresion = totalRegistros > 80 ? 3 : (totalRegistros > 35 ? 2 : 1);
-        const fontImpresion = columnasImpresion === 3 ? 10.5 : 12;
+        const columnasImpresion = totalRegistros > 10 ? 3 : (totalRegistros > 4 ? 2 : 1);
+        const fontImpresion = columnasImpresion === 3 ? 9.5 : (columnasImpresion === 2 ? 10.5 : 11);
         
         data.registrosPorDia.forEach(dia => {
           registrosHTML += `
@@ -1270,10 +1270,10 @@
                 ${dia.dia} ${formatearFechaDetalle(dia.fecha)}
               </div>
               ${dia.registros.map(reg => `
-                <div style="background: #f9fafb; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e5e7eb;">
+                <div class="registro-card" style="background: #f9fafb; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e5e7eb;">
                   <div style="font-weight: 600; margin-bottom: 4px;">${reg.escuela} - ${reg.prenda}</div>
-                  <div style="color: #6b7280; font-style: italic; font-size: 14px; margin-bottom: 8px;">"${reg.descripcion}"</div>
-                  <div style="display: flex; justify-content: space-between; padding: 8px; background: rgba(37, 99, 235, 0.08); border-radius: 6px;">
+                  <div class="registro-desc" style="color: #6b7280; font-style: italic; font-size: 14px; margin-bottom: 8px;">"${reg.descripcion}"</div>
+                  <div class="registro-line" style="display: flex; justify-content: space-between; padding: 8px; background: rgba(37, 99, 235, 0.08); border-radius: 6px;">
                     <span style="color: #374151;">${reg.cantidad} piezas × $${(reg.pagoPorPieza || 0).toFixed(2)}</span>
                     <span style="font-weight: 600; color: #2563eb;">$${(reg.totalGanado || 0).toFixed(2)}</span>
                   </div>
@@ -1333,22 +1333,39 @@
                 color: #6b7280;
                 font-size: 14px;
               }
+                            @page {
+                size: letter landscape;
+                margin: 0.7cm;
+              }
               @media print {
                 body {
                   margin: 0;
-                  padding: 16px;
+                  padding: 10px;
                   max-width: none;
                   font-size: ${fontImpresion}px;
                 }
                 .registros-container {
                   column-count: ${columnasImpresion};
                   column-gap: 16px;
+                  column-fill: auto;
                 }
                 .dia-seccion {
                   break-inside: avoid;
                   page-break-inside: avoid;
                 }
-              }
+              
+                /* Compactar para que quepa en menos hojas */
+                h1 { font-size: 16px !important; margin: 0 0 6px 0 !important; }
+                .subtitle { font-size: 11px !important; margin: 0 0 10px 0 !important; }
+                .dia-seccion > div:first-child { font-size: 12px !important; margin-bottom: 8px !important; }
+                .registro-card { padding: 6px !important; margin-bottom: 6px !important; border-radius: 6px !important; }
+                .registro-card > div:first-child { font-size: 11px !important; margin-bottom: 3px !important; }
+                .registro-desc { font-size: 10.5px !important; margin-bottom: 5px !important; }
+                .registro-line { padding: 5px !important; }
+                .total-general { padding: 10px !important; margin-top: 10px !important; }
+                .total-label { font-size: 11px !important; }
+                .total-valor { font-size: 18px !important; }
+}
             </style>
           </head>
           <body>
@@ -1548,15 +1565,45 @@
             border-top: 1px solid #ccc;
             padding-top: 10px;
           }
+          .detalle-produccion {
+            /* En pantalla se queda como lista normal */
+          }
+
+          @media print {
+            body {
+              margin: 1.2cm;
+              /* Font size dinámico por variable (pt) */
+              font-size: var(--recibo-fs, 11pt);
+            }
+            .recibo {
+              max-width: none;
+              margin: 0;
+            }
+            .detalle-produccion {
+              column-count: var(--recibo-cols, 1);
+              column-gap: 14px;
+            }
+            .detalle-dia, .registro-item {
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+          }
+
         `;
       }
 
       // Generar HTML del recibo
       function generarReciboHTML(data) {
         const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+        const totalRegistrosRecibo = (data?.resumen?.totalRegistros != null)
+          ? data.resumen.totalRegistros
+          : (data?.registrosPorDia || []).reduce((acc, d) => acc + ((d.registros || []).length), 0);
+        const reciboCols = totalRegistrosRecibo > 80 ? 3 : (totalRegistrosRecibo > 35 ? 2 : 1);
+        const reciboFs = reciboCols === 3 ? '10pt' : (reciboCols === 2 ? '10.5pt' : '11pt');
+
         
         return `
-          <div class="recibo">
+          <div class="recibo" style="--recibo-cols:${reciboCols}; --recibo-fs:${reciboFs};">
             <div class="header">
               <div class="titulo">UNIFORMES BONAPARTE</div>
               <div class="subtitulo">Recibo de Pago Semanal</div>
@@ -1570,6 +1617,7 @@
             
             <div class="detalle-titulo">DETALLE DE PRODUCCIÓN</div>
             
+            <div class="detalle-produccion">
             ${data.registrosPorDia.map(dia => {
               const fecha = new Date(dia.fecha + 'T12:00:00');
               return `
@@ -1585,6 +1633,7 @@
                 </div>
               `;
             }).join('')}
+            </div>
             
             <div class="totales">
               <strong>RESUMEN</strong><br>
