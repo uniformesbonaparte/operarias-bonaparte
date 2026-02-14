@@ -663,16 +663,6 @@
   </div>
 
   <script>
-<script>
-// === FIX FECHAS SUPABASE (timestamptz -> fecha local CDMX) ===
-function fechaLocalDesdeUTC(ts){
-  if(!ts) return "";
-  const d = new Date(ts);
-  const local = new Date(d.getTime() - d.getTimezoneOffset()*60000);
-  return local.toISOString().split("T")[0];
-}
-</script>
-
     document.addEventListener("DOMContentLoaded", async () => {
       // Validar sesión
       let usuarioActual;
@@ -718,12 +708,26 @@ function fechaLocalDesdeUTC(ts){
 
       if (spanNombreUsuario) spanNombreUsuario.textContent = usuarioActual.nombre || "";
 
-      // Fecha de hoy por defecto (hora local CDMX, evita salto por UTC)
-      const now = new Date();
-      const hoyLocal = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-        .toISOString()
-        .split('T')[0];
-      inputFecha.value = hoyLocal;
+      // Fecha de hoy por defecto
+      const hoy = new Date().toISOString().split('T')[0];
+      inputFecha.value = hoy;
+
+      // 🔧 FUNCIÓN HELPER MEJORADA PARA PARSEAR FECHAS
+      // Maneja tanto fechas simples (YYYY-MM-DD) como timestamps UTC (2026-02-14 00:00:43.552+00)
+      function parsearFechaLocal(fechaStr) {
+        if (!fechaStr) return new Date();
+        
+        // Si viene con timestamp UTC (incluye T, +, o espacio con hora)
+        if (fechaStr.includes('T') || fechaStr.includes('+') || (fechaStr.includes(' ') && fechaStr.includes(':'))) {
+          const fecha = new Date(fechaStr);
+          // Extraer solo la fecha LOCAL (sin hora) para evitar problemas de zona horaria
+          return new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+        }
+        
+        // Si viene solo fecha YYYY-MM-DD
+        const [año, mes, dia] = fechaStr.split('-').map(Number);
+        return new Date(año, mes - 1, dia);
+      }
 
       // Mostrar/ocultar filtros según rol
       if (esOperaria) {
@@ -1261,7 +1265,7 @@ function fechaLocalDesdeUTC(ts){
       function formatearFechaDetalle(fechaStr) {
         const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
                        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-        const fecha = new Date(fechaStr + 'T12:00:00');
+        const fecha = parsearFechaLocal(fechaStr);  // 🔧 CORREGIDO: usa parseo local
         return `${fecha.getDate()} de ${meses[fecha.getMonth()]} ${fecha.getFullYear()}`;
       }
 
@@ -1687,7 +1691,7 @@ px;
             
             <div class="detalle-produccion">
             ${data.registrosPorDia.map(dia => {
-              const fecha = new Date(dia.fecha + 'T12:00:00');
+              const fecha = parsearFechaLocal(dia.fecha);  // 🔧 CORREGIDO: usa parseo local
               return `
                 <div class="detalle-dia">
                   <div class="dia-titulo">${dia.dia} ${fecha.getDate()} ${obtenerMesCorto(fecha.getMonth())}</div>
@@ -1732,12 +1736,12 @@ px;
 
       // Funciones helper
       function formatearFecha(fechaStr) {
-        const fecha = new Date(fechaStr + 'T12:00:00');
+        const fecha = parsearFechaLocal(fechaStr);  // 🔧 CORREGIDO: usa parseo local
         return fecha.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
       }
 
       function formatearFechaLarga(fechaStr) {
-        const fecha = new Date(fechaStr + 'T12:00:00');
+        const fecha = parsearFechaLocal(fechaStr);  // 🔧 CORREGIDO: usa parseo local
         return fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
       }
 
