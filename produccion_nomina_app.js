@@ -6,15 +6,24 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const { createClient } = require("@supabase/supabase-js");
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_ENABLED = !!(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
+const supabase = SUPABASE_ENABLED ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) : null;
+
 const app = express();
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
 
 app.use(express.json());
 
 // Servir archivos estáticos si existe la carpeta public
+const path = require("path");
+
 const publicPath = path.join(__dirname, "public");
-if (fs.existsSync(publicPath)) {
-  app.use(express.static(publicPath));
+app.use(express.static(publicPath));
+
 }
 
 // ========================= 
@@ -138,17 +147,180 @@ let usuarios = [
   { id: 2, nombre: "encargada", password: "enc2025", tipo: "encargada" }
 ];
 
+
+
 // =========================
-// PERSISTENCIA CON BACKUP
+// SUPABASE (REMOTE) - FALLBACK AUTOMÁTICO
 // =========================
+async function cargarDatosDesdeSupabase() {
+  if (!SUPABASE_ENABLED) return false;
+
+  const [ops, maq, peds, regs, prnds, usrs] = await Promise.all([
+    supabase.from("operarias").select("*").order("id", { ascending: true }),
+    supabase.from("maquinas").select("*").order("nombre", { ascending: true }),
+    supabase.from("pedidos").select("*").order("id", { ascending: true }),
+    supabase.from("registros").select("*").order("id", { ascending: true }),
+    supabase.from("prendas").select("*").order("id", { ascending: true }),
+    supabase.from("usuarios").select("*").order("id", { ascending: true })
+  ]);
+
+  if (ops.error) throw ops.error;
+  if (maq.error) throw maq.error;
+  if (peds.error) throw peds.error;
+  if (regs.error) throw regs.error;
+  if (prnds.error) throw prnds.error;
+  if (usrs.error) throw usrs.error;
+
+  // Si está vacío (primera vez), no sobre-escribimos con vacío
+  const vacioTotal =
+    (ops.data?.length || 0) === 0 &&
+    (peds.data?.length || 0) === 0 &&
+    (regs.data?.length || 0) === 0;
+
+  if (vacioTotal) return false;
+
+  operarias = (ops.data || []).map(o => ({
+    id: Number(o.id),
+    nombre: o.nombre,
+    password: o.password,
+    usuario: o.usuario || null,
+    rol: o.rol || "operaria",
+    pagoPorPrenda: Number(o.pagoporprenda || 0),
+    activa: o.activa !== undefined ? !!o.activa : true
+  }));
+
+  maquinas = (maq.data || []).map(m => m.nombre);
+
+  pedidos = (peds.data || []).map(p => ({
+    id: Number(p.id),
+    escuela: p.escuela,
+    folio: p.folio,
+    prendas: Array.isArray(p.prendas) ? p.prendas.map(n => Number(n)) : [],
+    estado: p.estado || "activo",
+    fechaTerminado: p.fechaterminado ? new Date(p.fechaterminado).toISOString() : (p.fechaterminado || null),
+    pagoPorPieza: Number(p.pagoporpieza || 0)
+  }));
+
+  registros = (regs.data || []).map(r => ({
+    id: Number(r.id),
+    operariaId: Number(r.operariaid),
+    pedidoId: Number(r.pedidoid),
+    prendaId: (r.prendaid === null || r.prendaid === undefined) ? null : Number(r.prendaid),
+    maquina: r.maquina,
+    descripcion: r.descripcion,
+    cantidad: Number(r.cantidad),
+    pagoPorPieza: Number(r.pagoporpieza || 0),
+    totalGanado: Number(r.totalganado || 0),
+    fecha: r.fecha ? new Date(r.fecha).toISOString() : new Date().toISOString(),
+    fuente: r.fuente || "operaria",
+    estadoPago: r.estadopago || "pendiente",
+    semanaPago: r.semanapago || null,
+    fechaPago: r.fechapago || null
+  }));
+
+  prendas = (prnds.data || []).map(p => ({ id: Number(p.id), nombre: p.nombre }));
+  usuarios = (usrs.data || []).map(u => ({ id: Number(u.id), nombre: u.nombre, password: u.password, tipo: u.tipo }));
+
+  operariaIdCounter = Math.max(0, ...operarias.map(o => o.id)) + 1;
+  pedidoIdCounter = Math.max(0, ...pedidos.map(p => p.id)) + 1;
+  registroIdCounter = Math.max(0, ...registros.map(r => r.id)) + 1;
+
+  console.log("✅ Datos cargados desde Supabase");
+  console.log(`   - ${operarias.length} operarias`);
+  console.log(`   - ${pedidos.length} pedidos`);
+  console.log(`   - ${registros.length} registros`);
+  return true;
+}
+
+async function guardarTodoASupabase() {
+  if (!SUPABASE_ENABLED) return;
+
+  const ops = operarias.map(o => ({
+    id: o.id,
+    nombre: o.nombre,
+    password: o.password,
+    usuario: o.usuario || null,
+    rol: o.rol || "operaria",
+    pagoporprenda: Number(o.pagoPorPrenda || 0),
+    activa: o.activa !== undefined ? !!o.activa : true
+  }));
+
+  const maq = maquinas.map(n => ({ nombre: n }));
+
+  const prnds = prendas.map(p => ({ id: p.id, nombre: p.nombre }));
+
+  const usrs = usuarios.map(u => ({
+    id: u.id,
+    nombre: u.nombre,
+    password: u.password,
+    tipo: u.tipo
+  }));
+
+  const peds = pedidos.map(p => ({
+    id: p.id,
+    escuela: p.escuela,
+    folio: p.folio,
+    prendas: Array.isArray(p.prendas) ? p.prendas.map(n => Number(n)) : [],
+    estado: p.estado || "activo",
+    fechaterminado: p.fechaTerminado ? new Date(p.fechaTerminado).toISOString() : null,
+    pagoporpieza: Number(p.pagoPorPieza || 0)
+  }));
+
+  const regs = registros.map(r => ({
+    id: r.id,
+    operariaid: r.operariaId,
+    pedidoid: r.pedidoId,
+    prendaid: r.prendaId,
+    maquina: r.maquina,
+    descripcion: r.descripcion,
+    cantidad: Number(r.cantidad),
+    pagoporpieza: Number(r.pagoPorPieza || 0),
+    totalganado: Number(r.totalGanado || 0),
+    fecha: r.fecha ? new Date(r.fecha).toISOString() : new Date().toISOString(),
+    fuente: r.fuente || "operaria",
+    estadopago: r.estadoPago || "pendiente",
+    semanapago: r.semanaPago || null,
+    fechapago: r.fechaPago || null
+  }));
+
+  // Upserts (por bloques para evitar límites)
+  const upsertChunked = async (table, rows, onConflict, chunkSize = 500) => {
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      const { error } = await supabase.from(table).upsert(chunk, { onConflict });
+      if (error) throw error;
+    }
+  };
+
+  await upsertChunked("operarias", ops, "id");
+  await upsertChunked("maquinas", maq, "nombre");
+  await upsertChunked("prendas", prnds, "id");
+  await upsertChunked("usuarios", usrs, "id");
+  await upsertChunked("pedidos", peds, "id");
+  await upsertChunked("registros", regs, "id", 300);
+
+  console.log("💾 Datos guardados en Supabase");
+}
+// =========================
+// PERSISTENCIA OPTIMIZADA CON CACHÉ
+// =========================
+
+// Variables para optimización
+let datosEnMemoria = null;
+let ultimoCambio = Date.now();
+let guardadoPendiente = false;
+let timeoutGuardado = null;
+let guardadoReintentar = false; // si hay cambios mientras se guarda
+
 
 /**
  * Carga datos desde el archivo JSON
- * Si no existe, inicializa con datos de ejemplo
+ * Solo carga 1 vez y mantiene en memoria (caché)
  */
 function cargarDatos() {
   try {
     if (fs.existsSync(DATA_FILE)) {
+      console.log("📖 Cargando datos desde " + DATA_FILE + "...");
       const raw = fs.readFileSync(DATA_FILE, "utf8");
       const data = JSON.parse(raw);
 
@@ -163,11 +335,17 @@ function cargarDatos() {
       pedidoIdCounter = data.pedidoIdCounter || (pedidos.length + 1);
       registroIdCounter = data.registroIdCounter || (registros.length + 1);
 
-      console.log("✅ Datos cargados desde " + DATA_FILE);
+      // Guardar en caché
+      datosEnMemoria = data;
+
+      console.log("✅ Datos cargados exitosamente");
+      console.log(`   - ${operarias.length} operarias`);
+      console.log(`   - ${pedidos.length} pedidos`);
+      console.log(`   - ${registros.length} registros`);
       return;
     }
   } catch (err) {
-    console.error("❌ Error cargando datos, se usarán valores por defecto:", err.message);
+    console.error("❌ Error cargando datos:", err.message);
   }
 
   // Si no hay archivo o hubo error, iniciamos con datos base
@@ -199,12 +377,173 @@ function cargarDatos() {
 }
 
 /**
- * Guarda datos en JSON con sistema de backup
- * - Crea archivo temporal (.tmp)
- * - Hace backup del archivo actual (.bak)
- * - Reemplaza el archivo original
+ * Guarda datos en JSON con sistema optimizado
+ * - Guardado ASÍNCRONO (no bloquea el servidor)
+ * - Agrupa múltiples cambios (debouncing)
+ * - Crea backup automático
  */
 function guardarDatos() {
+  // Marcar que hay cambios pendientes
+  ultimoCambio = Date.now();
+  
+  // Si ya hay un guardado programado, cancelarlo
+  if (timeoutGuardado) {
+    clearTimeout(timeoutGuardado);
+  }
+  
+  // Programar guardado después de 200ms
+  // Esto agrupa múltiples cambios en un solo guardado
+  timeoutGuardado = setTimeout(() => {
+    guardarDatosAhora();
+  }, 200);
+}
+
+/**
+ * Ejecuta el guardado inmediatamente
+ */
+function guardarDatosAhora() {
+  if (guardadoPendiente) {
+    // Si llegan más cambios mientras se está guardando, reintentar al finalizar
+    guardadoReintentar = true;
+    return;
+  }
+
+  guardadoPendiente = true;
+
+  const data = {
+    operarias,
+    maquinas,
+    pedidos,
+    registros,
+    prendas,
+    usuarios,
+    operariaIdCounter,
+    pedidoIdCounter,
+    registroIdCounter
+  };
+
+  
+// ✅ Si estamos en Render con variables SUPABASE_*, guardamos remoto y NO escribimos JSON
+if (SUPABASE_ENABLED) {
+  (async () => {
+    try {
+      await guardarTodoASupabase();
+    } catch (err) {
+      console.error("❌ Error guardando en Supabase:", err.message || err);
+    } finally {
+      guardadoPendiente = false;
+      if (guardadoReintentar) {
+        guardadoReintentar = false;
+        setTimeout(() => guardarDatosAhora(), 0);
+      }
+    }
+  })();
+  return;
+}
+
+try {
+    const json = JSON.stringify(data, null, 2);
+    const tempFile = DATA_FILE + ".tmp";
+    const backupFile = DATA_FILE + ".bak";
+
+    // Escribir en archivo temporal (ASÍNCRONO)
+    fs.writeFile(tempFile, json, "utf8", (err) => {
+      if (err) {
+        console.error("❌ Error escribiendo temporal:", err.message);
+        guardadoPendiente = false;
+        if (guardadoReintentar) {
+          guardadoReintentar = false;
+          setTimeout(() => guardarDatosAhora(), 0);
+        }
+        return;
+      }
+
+      // Hacer backup del archivo anterior
+      if (fs.existsSync(DATA_FILE)) {
+        fs.copyFile(DATA_FILE, backupFile, (errBackup) => {
+          if (errBackup) {
+            console.warn("⚠️ No se pudo crear backup:", errBackup.message);
+          }
+          
+          // Reemplazar archivo original
+          fs.rename(tempFile, DATA_FILE, (errRename) => {
+            if (errRename) {
+              console.error("❌ Error renombrando archivo:", errRename.message);
+            } else {
+              // Actualizar caché
+              datosEnMemoria = data;
+              console.log("💾 Datos guardados exitosamente");
+            }
+            guardadoPendiente = false;
+            if (guardadoReintentar) {
+              guardadoReintentar = false;
+              setTimeout(() => guardarDatosAhora(), 0);
+            }
+          });
+        });
+      } else {
+        // Si no existe archivo anterior, solo renombrar
+        fs.rename(tempFile, DATA_FILE, (errRename) => {
+          if (errRename) {
+            console.error("❌ Error creando archivo:", errRename.message);
+          } else {
+            datosEnMemoria = data;
+            console.log("💾 Datos guardados exitosamente");
+          }
+          guardadoPendiente = false;
+          if (guardadoReintentar) {
+            guardadoReintentar = false;
+            setTimeout(() => guardarDatosAhora(), 0);
+          }
+        });
+      }
+    });
+    
+  } catch (err) {
+    console.error("❌ Error preparando datos:", err.message);
+    guardadoPendiente = false;
+    if (guardadoReintentar) {
+      guardadoReintentar = false;
+      setTimeout(() => guardarDatosAhora(), 0);
+    }
+  }
+}
+
+/**
+ * Forzar guardado inmediato (usar solo en casos críticos)
+ */
+function forzarGuardado() {
+  if (timeoutGuardado) {
+    clearTimeout(timeoutGuardado);
+    timeoutGuardado = null;
+  }
+  guardarDatosAhora();
+}
+
+// Guardar automáticamente cada 30 segundos si hay cambios pendientes
+setInterval(() => {
+  const tiempoSinGuardar = Date.now() - ultimoCambio;
+  if (tiempoSinGuardar < 30000 && !guardadoPendiente) {
+    console.log("🔄 Auto-guardado periódico...");
+    guardarDatosAhora();
+  }
+}, 30000);
+
+// Guardar al cerrar el servidor
+process.on('SIGINT', () => {
+  console.log('\n🛑 Cerrando servidor...');
+  console.log('💾 Guardando datos finales...');
+
+  // Si está Supabase activo (Render), guardamos remoto best-effort y salimos.
+  if (SUPABASE_ENABLED) {
+    try {
+      forzarGuardado(); // dispara guardarDatosAhora() debounced
+    } catch (e) {}
+    setTimeout(() => process.exit(0), 1500);
+    return;
+  }
+
+  // Local: Guardado SÍNCRONO al cerrar (para garantizar que se guarda)
   const data = {
     operarias,
     maquinas,
@@ -219,29 +558,31 @@ function guardarDatos() {
 
   try {
     const json = JSON.stringify(data, null, 2);
-    
-    const tempFile = DATA_FILE + ".tmp";
-    const backupFile = DATA_FILE + ".bak";
-
-    // 1) Escribimos primero en un archivo temporal
-    fs.writeFileSync(tempFile, json, "utf8");
-
-    // 2) Hacemos respaldo del archivo anterior (si existe)
-    if (fs.existsSync(DATA_FILE)) {
-      fs.copyFileSync(DATA_FILE, backupFile);
-    }
-
-    // 3) Reemplazamos el archivo original por el temporal
-    fs.renameSync(tempFile, DATA_FILE);
-    
+    fs.writeFileSync(DATA_FILE, json, "utf8");
+    console.log('✅ Datos guardados exitosamente');
   } catch (err) {
-    console.error("❌ Error guardando datos:", err.message);
+    console.error('❌ Error guardando datos finales:', err.message);
   }
-}
 
-// Cargar datos al iniciar
-cargarDatos();
+  process.exit(0);
+});
 
+
+process.on('SIGTERM', () => {
+  forzarGuardado();
+  setTimeout(() => process.exit(0), 1000);
+});
+
+// Cargar datos al iniciar (Supabase en Render / JSON en local)
+(async () => {
+  try {
+    const ok = await cargarDatosDesdeSupabase();
+    if (!ok) cargarDatos();
+  } catch (e) {
+    console.error("❌ Error cargando desde Supabase:", e.message || e);
+    cargarDatos();
+  }
+})();
 // =========================
 // CREDENCIALES (compatibilidad)
 // =========================
@@ -328,7 +669,7 @@ app.post("/api/login", (req, res) => {
 
   // Admin
   if (usuario === "admin") {
-    if (password === ADMIN_PASSWORD) {
+    if (password === getAdminPassword()) {
       return res.json({
         ok: true,
         rol: "admin",
@@ -342,7 +683,7 @@ app.post("/api/login", (req, res) => {
 
   // Encargada
   if (usuario === "encargada") {
-    if (password === ENCARGADA_PASSWORD) {
+    if (password === getEncargadaPassword()) {
       return res.json({
         ok: true,
         rol: "encargada",
@@ -377,6 +718,38 @@ app.post("/api/login", (req, res) => {
     idOperaria: operaria.id,
     id: operaria.id
   });
+});
+
+
+
+// =========================
+// MIGRACIÓN (1 sola vez) - OPCIONAL
+// =========================
+// Para migrar tu JSON local a Supabase:
+// 1) En Render agrega ENV: MIGRATION_KEY
+// 2) Haz POST a /api/migrar con header: x-migration-key: TU_CLAVE
+// 3) Cuando termine, borra este endpoint y la ENV.
+app.post("/api/migrar", async (req, res) => {
+  try {
+    if (!SUPABASE_ENABLED) {
+      return res.status(400).json({ ok: false, mensaje: "Supabase no está configurado (ENV faltante)" });
+    }
+
+    const key = req.headers["x-migration-key"];
+    if (!process.env.MIGRATION_KEY || key !== process.env.MIGRATION_KEY) {
+      return res.status(401).json({ ok: false, mensaje: "No autorizado" });
+    }
+
+    // Cargar desde JSON local
+    cargarDatos();
+
+    // Guardar todo a Supabase
+    await guardarTodoASupabase();
+
+    return res.json({ ok: true, mensaje: "Migración completada a Supabase" });
+  } catch (e) {
+    return res.status(500).json({ ok: false, mensaje: e.message || String(e) });
+  }
 });
 
 // =========================
@@ -584,14 +957,10 @@ app.get("/api/operarias/:id/resumen-dia-semana", (req, res) => {
   }
 
   const hoy = new Date();
-  const hoyStr = hoy.toISOString().slice(0, 10);
+  const hoyStr = ymdHoyCDMX();
 
-  // Calcular inicio de semana (lunes)
-  const day = hoy.getDay();
-  const offset = (day === 0 ? -6 : 1 - day);
-  const inicioSemana = new Date(hoy);
-  inicioSemana.setDate(hoy.getDate() + offset);
-  const inicioSemanaStr = inicioSemana.toISOString().slice(0, 10);
+  // Calcular inicio de semana (lunes) en CDMX
+  const inicioSemanaStr = ymdInicioSemanaLunesCDMX(hoy);
 
   // Filtrar registros pendientes de esta operaria
   const registrosOperaria = registros.filter(r => 
@@ -1167,8 +1536,8 @@ app.post("/api/registros/marcar-semana-pagada", (req, res) => {
   const fin = new Date(inicio);
   fin.setDate(inicio.getDate() + 5);
   
-  const inicioStr = inicio.toISOString().slice(0, 10);
-  const finStr = fin.toISOString().slice(0, 10);
+  const inicioStr = ymdCDMXCivil(inicio);
+  const finStr = ymdCDMXCivil(fin);
   
   // Calcular número de semana (formato: 2024-W03)
   const anio = inicio.getFullYear();
@@ -1274,11 +1643,7 @@ if (semana) {
 
   registros.forEach(r => {
     // Convertir fecha UTC a local para comparar
-    const fechaUTC = new Date(r.fecha);
-    const year = fechaUTC.getFullYear();
-    const month = String(fechaUTC.getMonth() + 1).padStart(2, '0');
-    const day = String(fechaUTC.getDate()).padStart(2, '0');
-    const f = `${year}-${month}-${day}`;
+    const f = ymdCDMXCivil(r.fecha);
     
     if (f < inicioStr || f > finStr) return;
 
@@ -1407,7 +1772,7 @@ app.post("/api/configuracion/cambiar-password", (req, res) => {
   // Por seguridad, esto requeriría variables de entorno
   // Por ahora retornamos mensaje informativo
   res.json({
-    mensaje: "Para cambiar contraseñas de admin/encargada, edita las constantes ADMIN_PASSWORD y ENCARGADA_PASSWORD en el archivo del servidor.",
+    mensaje: "Para cambiar contraseñas de admin/encargada, edita las constantes getAdminPassword() y getEncargadaPassword() en el archivo del servidor.",
     ok: false
   });
 });
@@ -1586,6 +1951,65 @@ app.delete("/api/prendas/:id", (req, res) => {
 // =========================
 // FECHAS (LOCAL / SIN DESFASE UTC)
 // =========================
+
+// =========================
+// HELPERS FECHA (CDMX)
+// =========================
+const TZ_CDMX = "America/Mexico_City";
+const _fmtYmdCDMX = new Intl.DateTimeFormat("sv-SE", { timeZone: TZ_CDMX, year: "numeric", month: "2-digit", day: "2-digit" });
+const _fmtWdCDMX = new Intl.DateTimeFormat("en-US", { timeZone: TZ_CDMX, weekday: "short" });
+const _wdMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+/**
+ * Convierte entrada (Date | 'YYYY-MM-DD' | timestamptz/ISO de Supabase) a un Date anclado a las 12:00 UTC
+ * de la FECHA CIVIL en CDMX. Esto evita desfases por servidor en UTC y cambios de día por UTC.
+ */
+function toUTCNoonFromCDMX(input) {
+  if (input instanceof Date) {
+    const ymd = _fmtYmdCDMX.format(input);
+    const [y, m, d] = ymd.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d, 12, 0, 0, 0));
+  }
+
+  const s = String(input || "");
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3]);
+    return new Date(Date.UTC(y, mo, d, 12, 0, 0, 0));
+  }
+
+  // timestamptz / ISO / otros -> Date normal, luego obtenemos FECHA CIVIL CDMX y la anclamos
+  const dt = new Date(s);
+  if (isNaN(dt.getTime())) return new Date(Date.UTC(1970, 0, 1, 12, 0, 0, 0));
+
+  const ymd = _fmtYmdCDMX.format(dt);
+  const [y, m2, d2] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m2 - 1, d2, 12, 0, 0, 0));
+}
+
+function ymdCDMXCivil(input) {
+  return _fmtYmdCDMX.format(toUTCNoonFromCDMX(input));
+}
+
+function dayOfWeekCDMX(input) {
+  const dt = toUTCNoonFromCDMX(input);
+  const wd = _fmtWdCDMX.format(dt);
+  return _wdMap[wd] ?? 0;
+}
+
+function ymdHoyCDMX() {
+  return ymdCDMXCivil(new Date());
+}
+
+function ymdInicioSemanaLunesCDMX(input) {
+  const base = toUTCNoonFromCDMX(input);
+  const day = dayOfWeekCDMX(base); // 0=Dom
+  const offset = (day === 0 ? -6 : 1 - day);
+  const inicio = new Date(base);
+  inicio.setUTCDate(base.getUTCDate() + offset);
+  return _fmtYmdCDMX.format(inicio);
+}
+
 function parseFechaLocal(input) {
   if (input instanceof Date) return new Date(input);
   const s = String(input || "");
@@ -1608,10 +2032,10 @@ function formatYMDLocal(dateObj) {
 }
 
 function obtenerSemanaLaboral(fecha) {
-  const date = parseFechaLocal(fecha);
-  const day = date.getDay(); // 0=Dom, 6=Sáb
+  // Semana laboral: SÁBADO -> VIERNES (en fecha civil CDMX)
+  const base = toUTCNoonFromCDMX(fecha);
+  const day = dayOfWeekCDMX(base); // 0=Dom, 6=Sáb en CDMX
 
-  // Semana laboral: SÁBADO -> VIERNES
   let diasDesdeInicio;
   if (day === 6) {
     diasDesdeInicio = 0;      // sábado
@@ -1621,21 +2045,22 @@ function obtenerSemanaLaboral(fecha) {
     diasDesdeInicio = day + 1; // lun(1)->2, vie(5)->6
   }
 
-  const inicioSemana = new Date(date);
-  inicioSemana.setDate(date.getDate() - diasDesdeInicio);
-  inicioSemana.setHours(0, 0, 0, 0);
+  const inicioSemana = new Date(base);
+  inicioSemana.setUTCDate(base.getUTCDate() - diasDesdeInicio);
 
   const finSemana = new Date(inicioSemana);
-  finSemana.setDate(inicioSemana.getDate() + 6); // +6 = viernes
-  finSemana.setHours(23, 59, 59, 999);
+  finSemana.setUTCDate(inicioSemana.getUTCDate() + 6); // +6 = viernes
 
-  const year = inicioSemana.getFullYear();
-  const weekNum = obtenerNumeroSemana(inicioSemana);
+  const inicioStr = _fmtYmdCDMX.format(inicioSemana);
+  const finStr = _fmtYmdCDMX.format(finSemana);
+
+  const year = Number(inicioStr.slice(0, 4));
+  const weekNum = obtenerNumeroSemanaUTC(inicioSemana);
 
   return {
     codigo: `${year}-W${String(weekNum).padStart(2, "0")}`,
-    inicio: formatYMDLocal(inicioSemana),
-    fin: formatYMDLocal(finSemana),
+    inicio: inicioStr,
+    fin: finStr,
     inicioDate: inicioSemana,
     finDate: finSemana
   };
@@ -1653,18 +2078,24 @@ function resolverSemanaPorCodigo(codigo) {
   const inicioBusqueda = new Date(year, 0, 1);
   const finBusqueda = new Date(year, 11, 31);
 
-  for (let d = new Date(inicioBusqueda); d <= finBusqueda; d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(inicioBusqueda); d <= finBusqueda; d.setUTCDate(d.getUTCDate() + 1)) {
+    // Evaluar usando fecha civil CDMX del día
     const info = obtenerSemanaLaboral(d);
     if (info.codigo === codigo) return info;
   }
   return null;
 }
 
-function obtenerNumeroSemana(date) {
-  const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
-  const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
-  return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+function obtenerNumeroSemanaUTC(dateUTC) {
+  // Calcula número de semana basado en UTC (dateUTC debe ser Date anclado a UTC noon)
+  const y = dateUTC.getUTCFullYear();
+  const firstDayOfYear = new Date(Date.UTC(y, 0, 1, 12, 0, 0, 0));
+  const pastDaysOfYear = (dateUTC - firstDayOfYear) / 86400000;
+  // Usar día de la semana en UTC del 1 de enero para consistencia
+  const firstDow = firstDayOfYear.getUTCDay();
+  return Math.ceil((pastDaysOfYear + firstDow + 1) / 7);
 }
+
 
 /**
  * Obtiene todas las semanas con registros
@@ -1752,11 +2183,7 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
   // Filtrar registros de la operaria en esa semana
   const registrosSemana = registros.filter(r => {
     // Convertir fecha UTC a fecha local para comparar correctamente
-    const fechaUTC = new Date(r.fecha);
-    const year = fechaUTC.getFullYear();
-    const month = String(fechaUTC.getMonth() + 1).padStart(2, '0');
-    const day = String(fechaUTC.getDate()).padStart(2, '0');
-    const f = `${year}-${month}-${day}`;
+    const f = ymdCDMXCivil(r.fecha);
     
     const estadoMatch = estadoPago ? (r.estadoPago || 'pendiente') === estadoPago : true;
     
@@ -1834,7 +2261,7 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
       fin: semanaInfo.fin,
       label: `Semana ${weekStr} (${formatearFechaCorta(semanaInfo.inicio)} - ${formatearFechaCorta(semanaInfo.fin)})`
     },
-    fechaPago: new Date().toISOString().split('T')[0],
+    fechaPago: ymdHoyCDMX(),
     registrosPorDia: registrosPorDiaArray,
     resumen: {
       totalPiezas,
@@ -1937,7 +2364,7 @@ app.post("/api/pagos/marcar-semana", (req, res) => {
   }
   
   // Marcar como pagados
-  const fechaPago = new Date().toISOString().split('T')[0];
+  const fechaPago = ymdHoyCDMX();
   let totalPagado = 0;
   
   registrosAMarcar.forEach(reg => {
@@ -1975,7 +2402,8 @@ app.listen(PORT, () => {
   console.log("╔════════════════════════════════════════════════╗");
   console.log("║  🚀 Servidor V5 - Producción y Nómina        ║");
   console.log("║  📍 Puerto: " + PORT + "                              ║");
-  console.log("║  🌐 URL: http://localhost:" + PORT + "              ║");
+    const BASE_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+  console.log("║  🌐 URL: " + BASE_URL + "              ║");
   console.log("║  ✅ Sistema completo con pagos y gestión     ║");
   console.log("╚════════════════════════════════════════════════╝");
 });
