@@ -19,12 +19,12 @@ const PORT = process.env.PORT || 8080;
 app.use(express.json());
 
 // Servir archivos estáticos si existe la carpeta public
-const path = require("path");
 
 const publicPath = path.join(__dirname, "public");
-app.use(express.static(publicPath));
-
+if (fs.existsSync(publicPath)) {
+  app.use(express.static(publicPath));
 }
+
 
 // ========================= 
 // RUTAS DEL FRONTEND
