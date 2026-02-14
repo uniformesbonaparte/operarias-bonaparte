@@ -663,6 +663,16 @@
   </div>
 
   <script>
+<script>
+// === FIX FECHAS SUPABASE (timestamptz -> fecha local CDMX) ===
+function fechaLocalDesdeUTC(ts){
+  if(!ts) return "";
+  const d = new Date(ts);
+  const local = new Date(d.getTime() - d.getTimezoneOffset()*60000);
+  return local.toISOString().split("T")[0];
+}
+</script>
+
     document.addEventListener("DOMContentLoaded", async () => {
       // Validar sesión
       let usuarioActual;
