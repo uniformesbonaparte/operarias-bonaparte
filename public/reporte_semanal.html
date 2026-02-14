@@ -708,9 +708,12 @@
 
       if (spanNombreUsuario) spanNombreUsuario.textContent = usuarioActual.nombre || "";
 
-      // Fecha de hoy por defecto
-      const hoy = new Date().toISOString().split('T')[0];
-      inputFecha.value = hoy;
+      // Fecha de hoy por defecto (hora local CDMX, evita salto por UTC)
+      const now = new Date();
+      const hoyLocal = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+        .toISOString()
+        .split('T')[0];
+      inputFecha.value = hoyLocal;
 
       // Mostrar/ocultar filtros según rol
       if (esOperaria) {
@@ -1358,16 +1361,21 @@
     column-fill: auto;
   }
 
-  /* evitar cortes */
-  .dia-seccion,
+  /* evitar cortes (solo tarjetas de registro) */
   .detalle-registro,
-  .registro-card,
-  .detalle-dia {
+  .registro-card {
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
-  /* reducir desperdicio de espacio */
+  /* permitir que un día se reparta en columnas */
+  .dia-seccion,
+  .detalle-dia {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+/* reducir desperdicio de espacio */
   .dia-seccion, .detalle-dia {
     margin: 0 0 6px 0 !important;
     padding: 6px !important;
@@ -1400,8 +1408,8 @@ px;
                   column-fill: auto;
                 }
                 .dia-seccion {
-                  break-inside: avoid;
-                  page-break-inside: avoid;
+                  break-inside: auto;
+                  page-break-inside: auto;
                 }
               
                 /* Compactar para que quepa en menos hojas */
