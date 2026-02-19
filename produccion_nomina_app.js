@@ -1407,15 +1407,39 @@ app.post("/api/pedidos", (req, res) => {
       const prendaId = Number(item.prendaId);
       const cantidad = Number(item.cantidad) || 0;
       
-      // Si no trae operaciones, cargar de la plantilla
-      let operaciones = item.operaciones || [];
-      if (operaciones.length === 0 && plantillasCosturas[prendaId]) {
-        operaciones = plantillasCosturas[prendaId].map(op => ({
+      // Operaciones: siempre se generan desde la plantilla (por prenda) si existe,
+// y el usuario SOLO puede mandar precios (sin opId) para esa combinación costura+maquina.
+      const opsPrecioMap = new Map(
+        (Array.isArray(item.operaciones) ? item.operaciones : []).map(op => [
+          `${(op.costura || op.descripcion || '').trim()}||${(op.maquina || '').trim()}`,
+          Number(op.precio) || 0
+        ])
+      );
+
+      let operacionesBase = [];
+      if (plantillasCosturas[prendaId] && plantillasCosturas[prendaId].length > 0) {
+        operacionesBase = plantillasCosturas[prendaId].map(op => ({
           costura: op.costura,
           maquina: op.maquina,
           precio: 0
         }));
+      } else {
+        // Fallback: si no hay plantilla, usa lo que venga en la petición
+        operacionesBase = Array.isArray(item.operaciones) ? item.operaciones.map(op => ({
+          costura: op.costura || op.descripcion || "",
+          maquina: op.maquina || "",
+          precio: Number(op.precio) || 0
+        })) : [];
       }
+
+      // Aplicar precios del cliente sobre la base (por costura+maquina)
+      const operaciones = operacionesBase.map(op => {
+        const k = `${(op.costura || '').trim()}||${(op.maquina || '').trim()}`;
+        const precio = opsPrecioMap.has(k) ? opsPrecioMap.get(k) : (Number(op.precio) || 0);
+        return { ...op, precio };
+      });
+
+      // Asignar opId a cada operación (SIEMPRE desde backend)
 
       // Asignar opId a cada operación
       const opsConId = operaciones.map(op => ({
@@ -1425,7 +1449,11 @@ app.post("/api/pedidos", (req, res) => {
         precio: Number(op.precio) || 0
       }));
 
-      return { prendaId, cantidad, operaciones: opsConId };
+      const tallas = Array.isArray(item.tallas) ? item.tallas.filter(t => (t.talla||'').toString().trim() !== '' && Number(t.cantidad) > 0).map(t => ({ talla: (t.talla||'').toString().trim(), cantidad: Number(t.cantidad) })) : [];
+
+      const cantidadTotal = tallas.length > 0 ? tallas.reduce((s,t)=>s+t.cantidad,0) : cantidad;
+
+      return { prendaId, cantidad: cantidadTotal, tallas, operaciones: opsConId };
     });
 
     // Asegurar backward compat: llenar prendas[] desde items
@@ -1651,7 +1679,7 @@ app.get("/api/registros", (req, res) => {
  * Crea un nuevo registro de producción
  */
 app.post("/api/registros", (req, res) => {
-  const { operariaId, pedidoId, prendaId, operacionId, maquina, descripcion, cantidad, pagoPorPieza, fuente } = req.body;
+  const { operariaId, pedidoId, prendaId, operacionId, maquina, descripcion, cantidad, pagoPorPieza, fuente, talla } = req.body;
 
   // Validaciones básicas
   if (!operariaId || !pedidoId || !cantidad) {
@@ -1690,10 +1718,25 @@ app.post("/api/registros", (req, res) => {
         prendaIdFinal = itemEncontrado.prendaId || prendaIdFinal;
 
         // Validar que no se exceda la cantidad del pedido
+        const tallaNorm = (talla !== undefined && talla !== null) ? String(talla).trim() : null;
+
+        // Sumar piezas ya hechas para esta operación (y talla si aplica)
         const piezasYaHechas = registros
-          .filter(r => r.pedidoId === Number(pedidoId) && r.operacionId === opIdFinal)
+          .filter(r =>
+            r.pedidoId === Number(pedidoId) &&
+            r.operacionId === opIdFinal &&
+            (tallaNorm ? (String(r.talla || '').trim() === tallaNorm) : true)
+          )
           .reduce((sum, r) => sum + r.cantidad, 0);
-        const cantidadDisponible = Math.max(0, itemEncontrado.cantidad - piezasYaHechas);
+
+        // Límite: por talla si el pedido lo trae, si no, por cantidad total del item
+        let limite = Number(itemEncontrado.cantidad) || 0;
+        if (tallaNorm && Array.isArray(itemEncontrado.tallas) && itemEncontrado.tallas.length > 0) {
+          const tObj = itemEncontrado.tallas.find(t => String(t.talla || '').trim() === tallaNorm);
+          if (tObj) limite = Number(tObj.cantidad) || 0;
+        }
+
+        const cantidadDisponible = Math.max(0, limite - piezasYaHechas);
 
         if (cant > cantidadDisponible) {
           return res.status(400).json({
@@ -1715,6 +1758,7 @@ app.post("/api/registros", (req, res) => {
     pedidoId: Number(pedidoId),
     prendaId: prendaIdFinal,
     operacionId: opIdFinal,
+    talla: (talla !== undefined && talla !== null && String(talla).trim() !== '') ? String(talla).trim() : null,
     maquina: maqFinal,
     descripcion: descFinal,
     cantidad: cant,
@@ -1752,6 +1796,7 @@ app.put("/api/registros/:id", (req, res) => {
   const { 
     pedidoId,
     prendaId,
+    talla,
     maquina, 
     descripcion, 
     cantidad, 
@@ -2489,6 +2534,7 @@ app.get("/api/pedidos/:id/operaciones", (req, res) => {
   }
 
   const prendaIdFiltro = req.query.prendaId ? Number(req.query.prendaId) : null;
+  const tallaFiltro = (req.query.talla !== undefined && req.query.talla !== null && String(req.query.talla).trim() !== '') ? String(req.query.talla).trim() : null;
   const regsPedido = registros.filter(r => r.pedidoId === id);
 
   const resultado = [];
@@ -2498,14 +2544,26 @@ app.get("/api/pedidos/:id/operaciones", (req, res) => {
 
     (item.operaciones || []).forEach(op => {
       const piezasHechas = regsPedido
-        .filter(r => r.operacionId === op.opId)
+        .filter(r =>
+          r.operacionId === op.opId &&
+          (tallaFiltro ? (String(r.talla || '').trim() === tallaFiltro) : true)
+        )
         .reduce((sum, r) => sum + r.cantidad, 0);
-      const cantidadFaltante = Math.max(0, item.cantidad - piezasHechas);
+
+      // Límite por talla si aplica
+      let limite = Number(item.cantidad) || 0;
+      if (tallaFiltro && Array.isArray(item.tallas) && item.tallas.length > 0) {
+        const tObj = item.tallas.find(t => String(t.talla || '').trim() === tallaFiltro);
+        if (tObj) limite = Number(tObj.cantidad) || 0;
+      }
+
+      const cantidadFaltante = Math.max(0, limite - piezasHechas);
 
       resultado.push({
         prendaId: item.prendaId,
         prenda: prenda ? prenda.nombre : "Desconocida",
         cantidadPedido: item.cantidad,
+        talla: tallaFiltro,
         opId: op.opId,
         costura: op.costura || op.descripcion,
         maquina: op.maquina,
