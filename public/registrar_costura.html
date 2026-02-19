@@ -529,16 +529,20 @@
           </div>
 
           <div class="form-row">
-            <label for="select-maquina">🔧 Máquina</label>
-            <select id="select-maquina">
-              <option value="">-- Selecciona una máquina --</option>
+            <label for="select-operacion">✂️ Operación (Costura)</label>
+            <select id="select-operacion">
+              <option value="">-- Primero selecciona una prenda --</option>
             </select>
           </div>
 
           <div class="form-row">
-            <label for="input-descripcion">📝 Descripción</label>
-            <textarea id="input-descripcion" placeholder="Describe el trabajo realizado..."></textarea>
+            <label for="select-maquina">🔧 Máquina</label>
+            <select id="select-maquina" disabled>
+              <option value="">-- Se llena automáticamente --</option>
+            </select>
           </div>
+
+          <div id="info-operacion" style="display:none;padding:8px 12px;border-radius:10px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);margin-bottom:12px;font-size:12px;color:#93c5fd;"></div>
 
           <div class="form-row">
             <label for="input-cantidad">🔢 Cantidad de Piezas</label>
@@ -584,16 +588,20 @@
           </div>
 
           <div class="form-row">
-            <label for="select-maquina-enc">🔧 Máquina</label>
-            <select id="select-maquina-enc">
-              <option value="">-- Selecciona una máquina --</option>
+            <label for="select-operacion-enc">✂️ Operación (Costura)</label>
+            <select id="select-operacion-enc">
+              <option value="">-- Primero selecciona una prenda --</option>
             </select>
           </div>
 
           <div class="form-row">
-            <label for="input-descripcion-enc">📝 Descripción</label>
-            <textarea id="input-descripcion-enc" placeholder="Describe el trabajo realizado..."></textarea>
+            <label for="select-maquina-enc">🔧 Máquina</label>
+            <select id="select-maquina-enc" disabled>
+              <option value="">-- Se llena automáticamente --</option>
+            </select>
           </div>
+
+          <div id="info-operacion-enc" style="display:none;padding:8px 12px;border-radius:10px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);margin-bottom:12px;font-size:12px;color:#93c5fd;"></div>
 
           <div class="form-row">
             <label for="input-cantidad-enc">🔢 Cantidad de Piezas</label>
@@ -746,6 +754,10 @@
         document.getElementById("select-pedido").addEventListener("change", async (e) => {
           const pedidoId = e.target.value;
           const selectPrenda = document.getElementById("select-prenda");
+          const selectOp = document.getElementById("select-operacion");
+          selectOp.innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
+          document.getElementById("info-operacion").style.display = "none";
+          document.getElementById("select-maquina").value = "";
           
           if (!pedidoId) {
             selectPrenda.innerHTML = '<option value="">-- Primero selecciona un pedido --</option>';
@@ -757,27 +769,106 @@
             if (!res.ok) throw new Error("Error al cargar pedido");
             const pedido = await res.json();
             
-            if (!pedido.prendas || pedido.prendas.length === 0) {
+            // Si tiene items (nuevo formato), cargar prendas de items
+            if (pedido.items && pedido.items.length > 0) {
+              const resPrendas = await fetch("/api/prendas");
+              const todasPrendas = await resPrendas.json();
+              selectPrenda.innerHTML = '<option value="">-- Selecciona una prenda --</option>';
+              pedido.items.forEach(item => {
+                const prenda = todasPrendas.find(p => p.id === item.prendaId);
+                if (prenda) {
+                  const opt = document.createElement("option");
+                  opt.value = prenda.id;
+                  opt.textContent = `${prenda.nombre} (${item.cantidad} pzas)`;
+                  selectPrenda.appendChild(opt);
+                }
+              });
+            } else if (pedido.prendas && pedido.prendas.length > 0) {
+              // Legacy: cargar prendas por ID
+              const resPrendas = await fetch("/api/prendas");
+              const todasPrendas = await resPrendas.json();
+              selectPrenda.innerHTML = '<option value="">-- Selecciona una prenda --</option>';
+              pedido.prendas.forEach(prendaId => {
+                const prenda = todasPrendas.find(p => p.id === prendaId);
+                if (prenda) {
+                  const opt = document.createElement("option");
+                  opt.value = prenda.id;
+                  opt.textContent = prenda.nombre;
+                  selectPrenda.appendChild(opt);
+                }
+              });
+            } else {
               selectPrenda.innerHTML = '<option value="">-- Este pedido no tiene prendas --</option>';
-              return;
             }
-            
-            const resPrendas = await fetch("/api/prendas");
-            const todasPrendas = await resPrendas.json();
-            
-            selectPrenda.innerHTML = '<option value="">-- Selecciona una prenda --</option>';
-            pedido.prendas.forEach(prendaId => {
-              const prenda = todasPrendas.find(p => p.id === prendaId);
-              if (prenda) {
-                const opt = document.createElement("option");
-                opt.value = prenda.id;
-                opt.textContent = prenda.nombre;
-                selectPrenda.appendChild(opt);
-              }
-            });
           } catch (err) {
             console.error("Error cargando prendas del pedido:", err);
           }
+        });
+
+        // Event listener para cargar operaciones cuando se selecciona prenda
+        document.getElementById("select-prenda").addEventListener("change", async (e) => {
+          const prendaId = e.target.value;
+          const pedidoId = document.getElementById("select-pedido").value;
+          const selectOp = document.getElementById("select-operacion");
+          document.getElementById("info-operacion").style.display = "none";
+          document.getElementById("select-maquina").value = "";
+          
+          if (!prendaId || !pedidoId) {
+            selectOp.innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
+            return;
+          }
+          
+          try {
+            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}`);
+            const ops = await res.json();
+            
+            if (ops.length === 0) {
+              selectOp.innerHTML = '<option value="">-- No hay operaciones definidas --</option>';
+              return;
+            }
+            
+            selectOp.innerHTML = '<option value="">-- Selecciona operación --</option>';
+            ops.forEach(op => {
+              const opt = document.createElement("option");
+              opt.value = op.opId;
+              opt.dataset.maquina = op.maquina;
+              opt.dataset.costura = op.costura;
+              opt.dataset.precio = op.precio;
+              opt.dataset.faltante = op.cantidadFaltante;
+              opt.textContent = `${op.costura} (${op.maquina}) - Faltan ${op.cantidadFaltante}`;
+              if (op.cantidadFaltante === 0) {
+                opt.textContent += " ✅";
+                opt.style.color = "#6ee7b7";
+              }
+              selectOp.appendChild(opt);
+            });
+          } catch (err) {
+            console.error("Error cargando operaciones:", err);
+          }
+        });
+
+        // Al seleccionar operación, auto-llenar máquina e info
+        document.getElementById("select-operacion").addEventListener("change", (e) => {
+          const opt = e.target.selectedOptions[0];
+          const infoDiv = document.getElementById("info-operacion");
+          const selMaq = document.getElementById("select-maquina");
+          
+          if (!opt || !opt.value) {
+            infoDiv.style.display = "none";
+            selMaq.value = "";
+            return;
+          }
+          
+          // Auto-seleccionar máquina
+          const maquina = opt.dataset.maquina;
+          for (let o of selMaq.options) {
+            if (o.value === maquina) { selMaq.value = maquina; break; }
+          }
+          
+          const faltante = opt.dataset.faltante;
+          const precio = opt.dataset.precio;
+          infoDiv.innerHTML = `✂️ <strong>${opt.dataset.costura}</strong> · ${maquina} · Faltan <strong>${faltante}</strong> pzas${precio > 0 ? ` · $${Number(precio).toFixed(2)}/pza` : ''}`;
+          infoDiv.style.display = "block";
         });
 
         document.getElementById("btn-guardar").addEventListener("click", () => guardarCostura(usuarioActual.id, "operaria"));
@@ -839,10 +930,14 @@
         await cargarPedidosActivos("select-pedido-enc");
         await cargarMaquinas("select-maquina-enc");
 
-        // Event listener para cargar prendas (encargada)
+        // Cargar prendas cuando selecciona pedido
         document.getElementById("select-pedido-enc").addEventListener("change", async (e) => {
           const pedidoId = e.target.value;
           const selectPrenda = document.getElementById("select-prenda-enc");
+          const selectOp = document.getElementById("select-operacion-enc");
+          selectOp.innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
+          document.getElementById("info-operacion-enc").style.display = "none";
+          document.getElementById("select-maquina-enc").value = "";
           
           if (!pedidoId) {
             selectPrenda.innerHTML = '<option value="">-- Primero selecciona un pedido --</option>';
@@ -854,27 +949,103 @@
             if (!res.ok) throw new Error("Error al cargar pedido");
             const pedido = await res.json();
             
-            if (!pedido.prendas || pedido.prendas.length === 0) {
+            if (pedido.items && pedido.items.length > 0) {
+              const resPrendas = await fetch("/api/prendas");
+              const todasPrendas = await resPrendas.json();
+              selectPrenda.innerHTML = '<option value="">-- Selecciona una prenda --</option>';
+              pedido.items.forEach(item => {
+                const prenda = todasPrendas.find(p => p.id === item.prendaId);
+                if (prenda) {
+                  const opt = document.createElement("option");
+                  opt.value = prenda.id;
+                  opt.textContent = `${prenda.nombre} (${item.cantidad} pzas)`;
+                  selectPrenda.appendChild(opt);
+                }
+              });
+            } else if (pedido.prendas && pedido.prendas.length > 0) {
+              const resPrendas = await fetch("/api/prendas");
+              const todasPrendas = await resPrendas.json();
+              selectPrenda.innerHTML = '<option value="">-- Selecciona una prenda --</option>';
+              pedido.prendas.forEach(prendaId => {
+                const prenda = todasPrendas.find(p => p.id === prendaId);
+                if (prenda) {
+                  const opt = document.createElement("option");
+                  opt.value = prenda.id;
+                  opt.textContent = prenda.nombre;
+                  selectPrenda.appendChild(opt);
+                }
+              });
+            } else {
               selectPrenda.innerHTML = '<option value="">-- Este pedido no tiene prendas --</option>';
-              return;
             }
-            
-            const resPrendas = await fetch("/api/prendas");
-            const todasPrendas = await resPrendas.json();
-            
-            selectPrenda.innerHTML = '<option value="">-- Selecciona una prenda --</option>';
-            pedido.prendas.forEach(prendaId => {
-              const prenda = todasPrendas.find(p => p.id === prendaId);
-              if (prenda) {
-                const opt = document.createElement("option");
-                opt.value = prenda.id;
-                opt.textContent = prenda.nombre;
-                selectPrenda.appendChild(opt);
-              }
-            });
           } catch (err) {
             console.error("Error cargando prendas del pedido:", err);
           }
+        });
+
+        // Cargar operaciones cuando selecciona prenda
+        document.getElementById("select-prenda-enc").addEventListener("change", async (e) => {
+          const prendaId = e.target.value;
+          const pedidoId = document.getElementById("select-pedido-enc").value;
+          const selectOp = document.getElementById("select-operacion-enc");
+          document.getElementById("info-operacion-enc").style.display = "none";
+          document.getElementById("select-maquina-enc").value = "";
+          
+          if (!prendaId || !pedidoId) {
+            selectOp.innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
+            return;
+          }
+          
+          try {
+            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}`);
+            const ops = await res.json();
+            
+            if (ops.length === 0) {
+              selectOp.innerHTML = '<option value="">-- No hay operaciones definidas --</option>';
+              return;
+            }
+            
+            selectOp.innerHTML = '<option value="">-- Selecciona operación --</option>';
+            ops.forEach(op => {
+              const opt = document.createElement("option");
+              opt.value = op.opId;
+              opt.dataset.maquina = op.maquina;
+              opt.dataset.costura = op.costura;
+              opt.dataset.precio = op.precio;
+              opt.dataset.faltante = op.cantidadFaltante;
+              opt.textContent = `${op.costura} (${op.maquina}) - Faltan ${op.cantidadFaltante}`;
+              if (op.cantidadFaltante === 0) {
+                opt.textContent += " ✅";
+                opt.style.color = "#6ee7b7";
+              }
+              selectOp.appendChild(opt);
+            });
+          } catch (err) {
+            console.error("Error cargando operaciones:", err);
+          }
+        });
+
+        // Auto-llenar máquina al seleccionar operación
+        document.getElementById("select-operacion-enc").addEventListener("change", (e) => {
+          const opt = e.target.selectedOptions[0];
+          const infoDiv = document.getElementById("info-operacion-enc");
+          const selMaq = document.getElementById("select-maquina-enc");
+          
+          if (!opt || !opt.value) {
+            infoDiv.style.display = "none";
+            selMaq.value = "";
+            return;
+          }
+          
+          const maquina = opt.dataset.maquina;
+          for (let o of selMaq.options) {
+            if (o.value === maquina) { selMaq.value = maquina; break; }
+          }
+          
+          const faltante = opt.dataset.faltante;
+          const precio = opt.dataset.precio;
+          infoDiv.innerHTML = `✂️ <strong>${opt.dataset.costura}</strong> · ${maquina} · Faltan <strong>${faltante}</strong> pzas${precio > 0 ? ` · $${Number(precio).toFixed(2)}/pza` : ''}`;
+          infoDiv.style.display = "block";
         });
 
         document.getElementById("btn-guardar-enc").addEventListener("click", guardarCosturaEncargada);
@@ -884,16 +1055,25 @@
         const operariaId = document.getElementById("select-operaria-enc").value;
         const pedidoId = document.getElementById("select-pedido-enc").value;
         const prendaId = document.getElementById("select-prenda-enc").value;
+        const operacionSel = document.getElementById("select-operacion-enc");
+        const operacionId = operacionSel.value;
         const maquina = document.getElementById("select-maquina-enc").value;
-        const descripcion = document.getElementById("input-descripcion-enc").value.trim();
         const cantidad = Number(document.getElementById("input-cantidad-enc").value);
+
+        // Obtener datos de la operación seleccionada
+        const opOpt = operacionSel.selectedOptions[0];
+        const descripcion = opOpt ? opOpt.dataset.costura : "";
 
         if (!operariaId) {
           mostrarError("❌ Selecciona una operaria");
           return;
         }
-        if (!pedidoId || !prendaId || !maquina || !descripcion || !cantidad || cantidad <= 0) {
+        if (!pedidoId || !prendaId || !cantidad || cantidad <= 0) {
           mostrarError("❌ Completa todos los campos correctamente");
+          return;
+        }
+        if (!operacionId) {
+          mostrarError("❌ Selecciona una operación");
           return;
         }
 
@@ -906,11 +1086,12 @@
             operariaId: Number(operariaId),
             pedidoId: Number(pedidoId),
             prendaId: Number(prendaId),
+            operacionId: Number(operacionId),
             maquina: maquina,
             descripcion: descripcion,
             cantidad: cantidad,
             pagoPorPieza: 0,
-            fuente: "encargada" // ← BASE DE DATOS SEPARADA
+            fuente: "encargada"
           };
 
           const res = await fetch("/api/registros", {
@@ -924,13 +1105,14 @@
 
           mostrarExito("✅ Costura registrada correctamente");
           
-          // Limpiar formulario
+          // Limpiar
           document.getElementById("select-operaria-enc").value = "";
           document.getElementById("select-pedido-enc").value = "";
-          document.getElementById("select-prenda-enc").value = "";
+          document.getElementById("select-prenda-enc").innerHTML = '<option value="">-- Primero selecciona un pedido --</option>';
+          document.getElementById("select-operacion-enc").innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
           document.getElementById("select-maquina-enc").value = "";
-          document.getElementById("input-descripcion-enc").value = "";
           document.getElementById("input-cantidad-enc").value = "";
+          document.getElementById("info-operacion-enc").style.display = "none";
 
         } catch (err) {
           mostrarError("❌ " + err.message);
@@ -1147,12 +1329,21 @@
       async function guardarCostura(operariaId, fuente) {
         const pedidoId = document.getElementById("select-pedido").value;
         const prendaId = document.getElementById("select-prenda").value;
+        const operacionSel = document.getElementById("select-operacion");
+        const operacionId = operacionSel.value;
         const maquina = document.getElementById("select-maquina").value;
-        const descripcion = document.getElementById("input-descripcion").value.trim();
         const cantidad = Number(document.getElementById("input-cantidad").value);
 
-        if (!pedidoId || !prendaId || !maquina || !descripcion || !cantidad || cantidad <= 0) {
+        // Obtener datos de la operación seleccionada
+        const opOpt = operacionSel.selectedOptions[0];
+        const descripcion = opOpt ? opOpt.dataset.costura : "";
+
+        if (!pedidoId || !prendaId || !cantidad || cantidad <= 0) {
           mostrarError("❌ Completa todos los campos correctamente");
+          return;
+        }
+        if (!operacionId) {
+          mostrarError("❌ Selecciona una operación");
           return;
         }
 
@@ -1165,11 +1356,12 @@
             operariaId: operariaId,
             pedidoId: Number(pedidoId),
             prendaId: Number(prendaId),
+            operacionId: Number(operacionId),
             maquina: maquina,
             descripcion: descripcion,
             cantidad: cantidad,
             pagoPorPieza: 0,
-            fuente: fuente // "operaria" - BASE DE DATOS SEPARADA
+            fuente: fuente
           };
 
           const res = await fetch("/api/registros", {
@@ -1183,12 +1375,13 @@
 
           mostrarExito("✅ Costura registrada correctamente");
           
-          // Limpiar formulario
+          // Limpiar
           document.getElementById("select-pedido").value = "";
-          document.getElementById("select-prenda").value = "";
+          document.getElementById("select-prenda").innerHTML = '<option value="">-- Primero selecciona un pedido --</option>';
+          document.getElementById("select-operacion").innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
           document.getElementById("select-maquina").value = "";
-          document.getElementById("input-descripcion").value = "";
           document.getElementById("input-cantidad").value = "";
+          document.getElementById("info-operacion").style.display = "none";
 
           await cargarMisCosturas();
 

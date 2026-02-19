@@ -443,6 +443,34 @@
           <button class="btn-primary" id="btn-agregar-prenda">➕ Agregar</button>
         </div>
       </section>
+
+      <!-- Gestión de Costuras (Catálogo) -->
+      <section class="card">
+        <div class="card-title">✂️ Catálogo de Costuras</div>
+        <p class="subtext">Nombres de costuras para autocompletado al crear pedidos</p>
+        
+        <div id="costuras-lista"></div>
+        
+        <div class="form-row">
+          <input type="text" id="input-nueva-costura" placeholder="Nombre de la nueva costura" />
+          <button class="btn-primary" id="btn-agregar-costura">➕ Agregar</button>
+        </div>
+      </section>
+
+      <!-- Plantillas de Costuras por Prenda -->
+      <section class="card">
+        <div class="card-title">📋 Plantillas por Prenda</div>
+        <p class="subtext">Costuras predefinidas que se cargan al crear un pedido</p>
+        
+        <div class="form-row">
+          <label for="select-prenda-plantilla">Selecciona una prenda:</label>
+          <select id="select-prenda-plantilla">
+            <option value="">-- Selecciona --</option>
+          </select>
+        </div>
+        
+        <div id="plantilla-contenido"></div>
+      </section>
     </main>
   </div>
 
@@ -471,14 +499,18 @@
       await cargarMaquinas();
       await cargarComparacion();
       await cargarPrendas();
+      await cargarCosturas();
+      await cargarSelectPrendasPlantilla();
 
       // Event listeners
       document.getElementById("btn-agregar-maquina").addEventListener("click", agregarMaquina);
       document.getElementById("btn-agregar-prenda").addEventListener("click", agregarPrenda);
+      document.getElementById("btn-agregar-costura").addEventListener("click", agregarCostura);
       document.getElementById("btn-backup").addEventListener("click", crearBackup);
       document.getElementById("btn-volver").addEventListener("click", () => {
         window.location.href = "/dashboard";
       });
+      document.getElementById("select-prenda-plantilla").addEventListener("change", cargarPlantilla);
 
       // Cargar estadísticas generales
       async function cargarEstadisticas() {
@@ -661,6 +693,149 @@
         } catch (err) {
           alert("❌ " + err.message);
         }
+      };
+
+      // ========== COSTURAS ==========
+      async function cargarCosturas() {
+        try {
+          const res = await fetch("/api/costuras");
+          if (!res.ok) throw new Error("Error");
+          const costuras = await res.json();
+          const lista = document.getElementById("costuras-lista");
+          if (costuras.length === 0) {
+            lista.innerHTML = '<p style="text-align:center;color:var(--text-muted);">No hay costuras</p>';
+            return;
+          }
+          lista.innerHTML = costuras.map(c => `
+            <div class="maquina-item">
+              <span class="maquina-nombre">✂️ ${c.nombre}</span>
+              <button class="btn-danger" onclick="eliminarCostura(${c.id})">🗑️</button>
+            </div>
+          `).join("");
+        } catch (err) { console.error("Error cargando costuras:", err); }
+      }
+
+      async function agregarCostura() {
+        const nombre = document.getElementById("input-nueva-costura").value.trim();
+        if (!nombre) { alert("❌ Ingresa el nombre"); return; }
+        try {
+          const res = await fetch("/api/costuras", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nombre })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Error");
+          document.getElementById("input-nueva-costura").value = "";
+          alert("✅ Costura agregada");
+          await cargarCosturas();
+        } catch (err) { alert("❌ " + err.message); }
+      }
+
+      window.eliminarCostura = async function(id) {
+        if (!confirm("¿Eliminar esta costura del catálogo?")) return;
+        try {
+          const res = await fetch(`/api/costuras/${id}`, { method: "DELETE" });
+          if (!res.ok) throw new Error("Error");
+          alert("✅ Costura eliminada");
+          await cargarCosturas();
+        } catch (err) { alert("❌ " + err.message); }
+      };
+
+      // ========== PLANTILLAS ==========
+      async function cargarSelectPrendasPlantilla() {
+        try {
+          const res = await fetch("/api/prendas");
+          const prendas = await res.json();
+          const sel = document.getElementById("select-prenda-plantilla");
+          sel.innerHTML = '<option value="">-- Selecciona --</option>';
+          prendas.forEach(p => {
+            sel.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
+          });
+        } catch (err) { console.error(err); }
+      }
+
+      async function cargarPlantilla() {
+        const prendaId = document.getElementById("select-prenda-plantilla").value;
+        const contenido = document.getElementById("plantilla-contenido");
+        if (!prendaId) { contenido.innerHTML = ""; return; }
+
+        try {
+          const [resP, resM] = await Promise.all([
+            fetch(`/api/plantillas-costuras/${prendaId}`),
+            fetch("/api/maquinas")
+          ]);
+          const data = await resP.json();
+          const maquinas = await resM.json();
+          const ops = data.operaciones || [];
+
+          const mOpts = maquinas.map(m => `<option value="${m}">${m}</option>`).join("");
+
+          let html = '<div style="margin-bottom:10px;font-size:12px;color:var(--text-muted);">' + ops.length + ' operaciones</div>';
+          html += '<div id="plantilla-ops">';
+          ops.forEach((op, i) => {
+            const sel = maquinas.map(m => `<option value="${m}" ${m===op.maquina?'selected':''}>${m}</option>`).join("");
+            html += `
+              <div class="maquina-item" style="flex-direction:column;align-items:stretch;gap:6px;padding:10px;">
+                <div style="display:flex;gap:6px;align-items:center;">
+                  <input type="text" class="plt-costura" value="${op.costura}" style="flex:1;padding:8px;font-size:13px;" />
+                  <select class="plt-maquina" style="width:120px;padding:8px;font-size:12px;">${sel}</select>
+                  <button class="btn-danger" style="padding:6px 10px;font-size:12px;" onclick="this.closest('.maquina-item').remove()">✕</button>
+                </div>
+              </div>
+            `;
+          });
+          html += '</div>';
+          html += `
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button class="btn-primary" style="flex:1;" onclick="guardarPlantilla(${prendaId})">💾 Guardar Plantilla</button>
+              <button class="btn-secondary" style="flex:0 0 auto;" onclick="agregarOpPlantilla()">+ Agregar</button>
+            </div>
+          `;
+          contenido.innerHTML = html;
+        } catch (err) { console.error(err); contenido.innerHTML = "Error cargando plantilla"; }
+      }
+
+      window.agregarOpPlantilla = async function() {
+        const container = document.getElementById("plantilla-ops");
+        if (!container) return;
+        try {
+          const resM = await fetch("/api/maquinas");
+          const maquinas = await resM.json();
+          const mOpts = maquinas.map(m => `<option value="${m}">${m}</option>`).join("");
+          const div = document.createElement("div");
+          div.className = "maquina-item";
+          div.style.cssText = "flex-direction:column;align-items:stretch;gap:6px;padding:10px;";
+          div.innerHTML = `
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="text" class="plt-costura" placeholder="Nombre costura" style="flex:1;padding:8px;font-size:13px;" />
+              <select class="plt-maquina" style="width:120px;padding:8px;font-size:12px;">${mOpts}</select>
+              <button class="btn-danger" style="padding:6px 10px;font-size:12px;" onclick="this.closest('.maquina-item').remove()">✕</button>
+            </div>
+          `;
+          container.appendChild(div);
+        } catch(e) { console.error(e); }
+      };
+
+      window.guardarPlantilla = async function(prendaId) {
+        const container = document.getElementById("plantilla-ops");
+        const operaciones = [];
+        container.querySelectorAll(".maquina-item").forEach(div => {
+          const costura = div.querySelector(".plt-costura").value.trim();
+          const maquina = div.querySelector(".plt-maquina").value;
+          if (costura && maquina) operaciones.push({ costura, maquina });
+        });
+
+        try {
+          const res = await fetch(`/api/plantillas-costuras/${prendaId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ operaciones })
+          });
+          if (!res.ok) throw new Error("Error");
+          alert("✅ Plantilla guardada (" + operaciones.length + " operaciones)");
+          await cargarCosturas(); // Refresh por si se agregaron costuras nuevas
+        } catch (err) { alert("❌ " + err.message); }
       };
 
       // Crear backup
