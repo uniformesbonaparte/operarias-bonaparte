@@ -19,12 +19,8 @@ const PORT = process.env.PORT || 8080;
 app.use(express.json());
 
 // Servir archivos estáticos si existe la carpeta public
-
 const publicPath = path.join(__dirname, "public");
-if (fs.existsSync(publicPath)) {
-  app.use(express.static(publicPath));
-}
-
+app.use(express.static(publicPath));
 
 // ========================= 
 // RUTAS DEL FRONTEND
@@ -147,6 +143,121 @@ let usuarios = [
   { id: 2, nombre: "encargada", password: "enc2025", tipo: "encargada" }
 ];
 
+// =========================
+// COSTURAS: CATÁLOGO Y PLANTILLAS POR PRENDA
+// =========================
+let costuraIdCounter = 1;
+let operacionIdCounter = 1;
+
+// Catálogo simple de nombres de costura (para autocompletado)
+let costuras = [];
+
+// Plantillas de costuras por prenda (se cargan al crear pedido)
+// Key = prendaId (int), Value = [{ costura, maquina }]
+let plantillasCosturas = {};
+
+// Función para inicializar plantillas default (solo si están vacías)
+function inicializarPlantillasCosturas() {
+  // Mapeo: prendaId -> costuras por máquina
+  const defaults = {
+    3: { // Pants
+      "Recta": ["pegar bolsa", "pespunte corte de franja", "pespuntes costado", "pespuntes tiro", "pespuntes completos", "pegar etiqueta y talla"],
+      "Recta doble aguja": ["pespunte franja", "pespuntes costado", "pespuntes tiro", "pespuntes completos"],
+      "Overlock": ["armar prenda completa"],
+      "Multiagujas": ["resorte", "pegar bies"],
+      "Collareta": ["bastilla"]
+    },
+    4: { // Chamarra
+      "Overlock": ["armar prenda completa"],
+      "Recta": ["pegar bolsa", "pespuntes manga", "pespuntes frente", "pespuntes espalda", "pespuntes sisas", "cerrar cuello con etiqueta", "cerrar cuello sin etiqueta", "pespunte de cierre", "pegar cierre", "bastilla cintura", "bastilla puños", "terminado completo"],
+      "Recta doble aguja": ["pegar bolsa", "pespuntes manga", "pespuntes frente", "pespuntes espalda", "pespuntes sisas", "cerrar cuello con etiqueta", "cerrar cuello sin etiqueta", "pespunte de cierre", "pegar cierre", "bastilla cintura", "bastilla puños", "terminado completo"],
+      "Multiagujas": ["pegar cinta mangas", "pegar cinta frente", "pegar cinta espalda", "pegar cinta completo"]
+    },
+    2: { // Playera deportiva
+      "Overlock": ["armado completo"],
+      "Recta": ["pespuntes frente", "pespuntes manga", "pespuntes espalda", "pespuntes hombro", "pespuntes puños", "pespunte cuello y etiqueta", "pegar etiqueta y talla", "pespunte cuello", "tapacostura y etiqueta", "tapacostura", "fijar cuello v"],
+      "Collareta": ["bastilla puños", "bastilla cintura", "pespunte manga", "pespunte frente", "pespuntes sisas"],
+      "Multiagujas": ["pegar bies"],
+      "Recta doble aguja": ["tapacostura y etiqueta"]
+    },
+    1: { // Playera polo
+      "Recta": ["pegar aletilla", "pespuntes hombros", "pespunte puños", "pespunte mangas", "pespunte frente", "pespunte espalda", "tapacostura y pespunte de aletilla", "remate puño", "costura completa"],
+      "Collareta": ["bastilla puños", "bastilla cintura"],
+      "Multiagujas": ["pegar bies"],
+      "Overlock": ["armado completo"]
+    },
+    7: { // Short deportivo
+      "Recta": ["pegar bolsa", "pespunte corte de franja", "pespuntes costado", "pespuntes tiro", "pespuntes completos", "pegar etiqueta y talla"],
+      "Recta doble aguja": ["pespunte franja", "pespuntes costado", "pespuntes tiro", "pespuntes completos"],
+      "Overlock": ["armar prenda completa"],
+      "Multiagujas": ["resorte", "pegar bies"],
+      "Collareta": ["bastilla", "pespuntes costado", "pespunte tiro"]
+    },
+    9: { // Falda
+      "Overlock": ["orlear piezas", "armar completa"],
+      "Recta": ["tablas delantero", "pinzas espalda", "armar cadera", "armar flecha", "pegar flecha", "pespuntes cadera", "bastilla", "pegar cierre", "armar pretina y talla", "pegar talla", "hacer bolsa", "hacer corte delantero", "tablas trasero", "completa"]
+    },
+    11: { // Yumper
+      "Overlock": ["armar peto", "orlear falda", "orlear peto"],
+      "Recta": ["tablas delanteras", "tablas traseras", "cierre", "bastilla", "armar pretina", "armar peto", "pespuntes peto", "armar cuello", "pespuntes de cuello", "pespuntes de sisa", "armar cinto", "pinzas frente peto", "pinzas traseras peto"]
+    },
+    6: { // Camisa gala
+      "Overlock": ["prenda completa"],
+      "Recta": ["armar cuello", "pespunte de hombros", "pespuntes canesú", "armar puños", "aletilla puños", "aletilla frente", "pespuntes mangas", "cerrar cuello y etiqueta", "pespunte cuello", "dobladillo", "completa"]
+    },
+    8: { // Short gala
+      "Overlock": ["prenda completa"],
+      "Recta": ["armar carterita", "pegar carterita", "pegar cierre", "bolsa delantera", "bolsa trasera", "bastilla", "pegar presillas", "cierre", "bolsas y carterita", "bastilla presillas y pretina", "cerrar pretina y etiqueta", "completo"],
+      "Collareta": ["hacer presillas"]
+    },
+    5: { // Pantalón gala
+      "Overlock": ["prenda completa"],
+      "Recta": ["armar carterita", "pegar carterita", "pegar cierre", "bolsa delantera", "bolsa trasera", "bastilla", "pegar presillas", "cierre", "bolsas y carterita", "bastilla presillas y pretina", "cerrar pretina y etiqueta", "completo"],
+      "Collareta": ["hacer presillas"]
+    },
+    10: { // Short falda
+      "Overlock": ["prenda completa", "short", "falda"],
+      "Recta": ["pespuntes costado", "pespuntes tiro", "pespuntes completos", "cerrar pretina y etiqueta", "etiqueta y talla", "bastilla", "fijar bolsa", "completo"],
+      "Collareta": ["bastilla"],
+      "Multiagujas": ["resorte"]
+    },
+    12: { // Blusa
+      "Overlock": ["completo"],
+      "Recta": ["armar cuello", "pespunte de hombros", "pespuntes canesú", "armar puños", "aletilla puños", "aletilla frente", "pespuntes mangas", "cerrar cuello y etiqueta", "pespunte cuello", "dobladillo", "completa", "pespuntes puño"]
+    },
+    13: { // Bata (jardín de niños)
+      "Overlock": ["completa"],
+      "Recta": ["armar cintas", "pegar cinta", "remates cintas", "remate cuello"]
+    }
+  };
+
+  // Solo inicializar si plantillasCosturas está vacío
+  if (Object.keys(plantillasCosturas).length > 0) return;
+
+  for (const [prendaId, maquinas] of Object.entries(defaults)) {
+    plantillasCosturas[Number(prendaId)] = [];
+    for (const [maquina, ops] of Object.entries(maquinas)) {
+      for (const costura of ops) {
+        plantillasCosturas[Number(prendaId)].push({ costura, maquina });
+      }
+    }
+  }
+
+  // Generar catálogo de costuras únicas
+  if (costuras.length === 0) {
+    const nombresUnicos = new Set();
+    for (const ops of Object.values(plantillasCosturas)) {
+      for (const op of ops) {
+        nombresUnicos.add(op.costura);
+      }
+    }
+    costuras = [...nombresUnicos].sort().map(nombre => ({
+      id: costuraIdCounter++,
+      nombre
+    }));
+  }
+}
+
 
 
 // =========================
@@ -155,13 +266,15 @@ let usuarios = [
 async function cargarDatosDesdeSupabase() {
   if (!SUPABASE_ENABLED) return false;
 
-  const [ops, maq, peds, regs, prnds, usrs] = await Promise.all([
+  const [ops, maq, peds, regs, prnds, usrs, costs, plts] = await Promise.all([
     supabase.from("operarias").select("*").order("id", { ascending: true }),
     supabase.from("maquinas").select("*").order("nombre", { ascending: true }),
     supabase.from("pedidos").select("*").order("id", { ascending: true }),
     supabase.from("registros").select("*").order("id", { ascending: true }),
     supabase.from("prendas").select("*").order("id", { ascending: true }),
-    supabase.from("usuarios").select("*").order("id", { ascending: true })
+    supabase.from("usuarios").select("*").order("id", { ascending: true }),
+    supabase.from("costuras").select("*").order("id", { ascending: true }).then(r => r).catch(() => ({ data: [], error: null })),
+    supabase.from("plantillas_costuras").select("*").order("id", { ascending: true }).then(r => r).catch(() => ({ data: [], error: null }))
   ]);
 
   if (ops.error) throw ops.error;
@@ -196,6 +309,7 @@ async function cargarDatosDesdeSupabase() {
     escuela: p.escuela,
     folio: p.folio,
     prendas: Array.isArray(p.prendas) ? p.prendas.map(n => Number(n)) : [],
+    items: p.items || [],
     estado: p.estado || "activo",
     fechaTerminado: p.fechaterminado ? new Date(p.fechaterminado).toISOString() : (p.fechaterminado || null),
     pagoPorPieza: Number(p.pagoporpieza || 0)
@@ -206,6 +320,7 @@ async function cargarDatosDesdeSupabase() {
     operariaId: Number(r.operariaid),
     pedidoId: Number(r.pedidoid),
     prendaId: (r.prendaid === null || r.prendaid === undefined) ? null : Number(r.prendaid),
+    operacionId: r.operacionid ? Number(r.operacionid) : null,
     maquina: r.maquina,
     descripcion: r.descripcion,
     cantidad: Number(r.cantidad),
@@ -225,10 +340,46 @@ async function cargarDatosDesdeSupabase() {
   pedidoIdCounter = Math.max(0, ...pedidos.map(p => p.id)) + 1;
   registroIdCounter = Math.max(0, ...registros.map(r => r.id)) + 1;
 
+  // Cargar costuras
+  if (costs.data && costs.data.length > 0) {
+    costuras = costs.data.map(c => ({ id: Number(c.id), nombre: c.nombre }));
+    costuraIdCounter = Math.max(0, ...costuras.map(c => c.id)) + 1;
+  }
+
+  // Cargar plantillas de costuras por prenda
+  if (plts.data && plts.data.length > 0) {
+    plantillasCosturas = {};
+    plts.data.forEach(p => {
+      const pid = Number(p.prenda_id);
+      if (!plantillasCosturas[pid]) plantillasCosturas[pid] = [];
+      plantillasCosturas[pid].push({ costura: p.costura, maquina: p.maquina });
+    });
+  }
+
+  // Calcular operacionIdCounter desde operaciones en pedidos existentes
+  let maxOpId = 0;
+  pedidos.forEach(p => {
+    if (p.items && Array.isArray(p.items)) {
+      p.items.forEach(item => {
+        if (item.operaciones && Array.isArray(item.operaciones)) {
+          item.operaciones.forEach(op => {
+            if (op.opId && op.opId > maxOpId) maxOpId = op.opId;
+          });
+        }
+      });
+    }
+  });
+  operacionIdCounter = maxOpId + 1;
+
+  // Inicializar plantillas default si no hay datos
+  inicializarPlantillasCosturas();
+
   console.log("✅ Datos cargados desde Supabase");
   console.log(`   - ${operarias.length} operarias`);
   console.log(`   - ${pedidos.length} pedidos`);
   console.log(`   - ${registros.length} registros`);
+  console.log(`   - ${costuras.length} costuras en catálogo`);
+  console.log(`   - ${Object.keys(plantillasCosturas).length} plantillas de prendas`);
   return true;
 }
 
@@ -261,6 +412,7 @@ async function guardarTodoASupabase() {
     escuela: p.escuela,
     folio: p.folio,
     prendas: Array.isArray(p.prendas) ? p.prendas.map(n => Number(n)) : [],
+    items: p.items || [],
     estado: p.estado || "activo",
     fechaterminado: p.fechaTerminado ? new Date(p.fechaTerminado).toISOString() : null,
     pagoporpieza: Number(p.pagoPorPieza || 0)
@@ -271,6 +423,7 @@ async function guardarTodoASupabase() {
     operariaid: r.operariaId,
     pedidoid: r.pedidoId,
     prendaid: r.prendaId,
+    operacionid: r.operacionId || null,
     maquina: r.maquina,
     descripcion: r.descripcion,
     cantidad: Number(r.cantidad),
@@ -298,6 +451,27 @@ async function guardarTodoASupabase() {
   await upsertChunked("usuarios", usrs, "id");
   await upsertChunked("pedidos", peds, "id");
   await upsertChunked("registros", regs, "id", 300);
+
+  // Guardar costuras
+  const costsRows = costuras.map(c => ({ id: c.id, nombre: c.nombre }));
+  if (costsRows.length > 0) {
+    try { await upsertChunked("costuras", costsRows, "id"); } catch(e) { console.warn("⚠️ Error guardando costuras:", e.message); }
+  }
+
+  // Guardar plantillas de costuras por prenda (DELETE + INSERT para sync completo)
+  try {
+    await supabase.from("plantillas_costuras").delete().neq("id", 0);
+    const pltRows = [];
+    let pltId = 1;
+    for (const [prendaId, ops] of Object.entries(plantillasCosturas)) {
+      for (const op of ops) {
+        pltRows.push({ id: pltId++, prenda_id: Number(prendaId), costura: op.costura, maquina: op.maquina });
+      }
+    }
+    if (pltRows.length > 0) {
+      await upsertChunked("plantillas_costuras", pltRows, "id");
+    }
+  } catch(e) { console.warn("⚠️ Error guardando plantillas:", e.message); }
 
   console.log("💾 Datos guardados en Supabase");
 }
@@ -330,10 +504,17 @@ function cargarDatos() {
       registros = data.registros || [];
       prendas = data.prendas || prendas;
       usuarios = data.usuarios || usuarios;
+      costuras = data.costuras || [];
+      plantillasCosturas = data.plantillasCosturas || {};
 
       operariaIdCounter = data.operariaIdCounter || (operarias.length + 1);
       pedidoIdCounter = data.pedidoIdCounter || (pedidos.length + 1);
       registroIdCounter = data.registroIdCounter || (registros.length + 1);
+      costuraIdCounter = data.costuraIdCounter || (costuras.length + 1);
+      operacionIdCounter = data.operacionIdCounter || 1;
+
+      // Inicializar plantillas default si no hay datos
+      inicializarPlantillasCosturas();
 
       // Guardar en caché
       datosEnMemoria = data;
@@ -417,9 +598,13 @@ function guardarDatosAhora() {
     registros,
     prendas,
     usuarios,
+    costuras,
+    plantillasCosturas,
     operariaIdCounter,
     pedidoIdCounter,
-    registroIdCounter
+    registroIdCounter,
+    costuraIdCounter,
+    operacionIdCounter
   };
 
   
@@ -551,9 +736,13 @@ process.on('SIGINT', () => {
     registros,
     prendas,
     usuarios,
+    costuras,
+    plantillasCosturas,
     operariaIdCounter,
     pedidoIdCounter,
-    registroIdCounter
+    registroIdCounter,
+    costuraIdCounter,
+    operacionIdCounter
   };
 
   try {
@@ -582,6 +771,8 @@ process.on('SIGTERM', () => {
     console.error("❌ Error cargando desde Supabase:", e.message || e);
     cargarDatos();
   }
+  // Asegurar que las plantillas existan siempre
+  inicializarPlantillasCosturas();
 })();
 // =========================
 // CREDENCIALES (compatibilidad)
@@ -957,10 +1148,14 @@ app.get("/api/operarias/:id/resumen-dia-semana", (req, res) => {
   }
 
   const hoy = new Date();
-  const hoyStr = ymdHoyCDMX();
+  const hoyStr = hoy.toISOString().slice(0, 10);
 
-  // Calcular inicio de semana (lunes) en CDMX
-  const inicioSemanaStr = ymdInicioSemanaLunesCDMX(hoy);
+  // Calcular inicio de semana (lunes)
+  const day = hoy.getDay();
+  const offset = (day === 0 ? -6 : 1 - day);
+  const inicioSemana = new Date(hoy);
+  inicioSemana.setDate(hoy.getDate() + offset);
+  const inicioSemanaStr = inicioSemana.toISOString().slice(0, 10);
 
   // Filtrar registros pendientes de esta operaria
   const registrosOperaria = registros.filter(r => 
@@ -1112,7 +1307,10 @@ app.get("/api/pedidos", (req, res) => {
         ...pedido,
         totalPiezas,
         totalPagado,
-        numeroOperarias: operariasUnicas.length
+        numeroOperarias: operariasUnicas.length,
+        costoEstimado: (pedido.items || []).reduce((sum, item) => {
+          return sum + (item.operaciones || []).reduce((s, op) => s + (op.precio * item.cantidad), 0);
+        }, 0)
       };
     });
     
@@ -1180,9 +1378,11 @@ app.get("/api/pedidos", (req, res) => {
 /**
  * POST /api/pedidos
  * Crea un nuevo pedido
+ * Acepta items[] con prendaId, cantidad, operaciones (nuevo)
+ * O solo prendas[] para backward compatibility (legacy)
  */
 app.post("/api/pedidos", (req, res) => {
-  const { escuela, folio, prendas: prendasSeleccionadas } = req.body;
+  const { escuela, folio, prendas: prendasSeleccionadas, items } = req.body;
   
   if (!escuela || !escuela.trim()) {
     return res.status(400).json({ error: "El nombre de la escuela es obligatorio." });
@@ -1196,9 +1396,41 @@ app.post("/api/pedidos", (req, res) => {
     escuela: escuela.trim(),
     folio: folio.trim(),
     prendas: prendasSeleccionadas || [],
+    items: [],
     estado: "activo",
     fechaTerminado: null
   };
+
+  // Si vienen items detallados (nuevo formato)
+  if (Array.isArray(items) && items.length > 0) {
+    nuevo.items = items.map(item => {
+      const prendaId = Number(item.prendaId);
+      const cantidad = Number(item.cantidad) || 0;
+      
+      // Si no trae operaciones, cargar de la plantilla
+      let operaciones = item.operaciones || [];
+      if (operaciones.length === 0 && plantillasCosturas[prendaId]) {
+        operaciones = plantillasCosturas[prendaId].map(op => ({
+          costura: op.costura,
+          maquina: op.maquina,
+          precio: 0
+        }));
+      }
+
+      // Asignar opId a cada operación
+      const opsConId = operaciones.map(op => ({
+        opId: operacionIdCounter++,
+        costura: op.costura || op.descripcion || "",
+        maquina: op.maquina || "",
+        precio: Number(op.precio) || 0
+      }));
+
+      return { prendaId, cantidad, operaciones: opsConId };
+    });
+
+    // Asegurar backward compat: llenar prendas[] desde items
+    nuevo.prendas = [...new Set(nuevo.items.map(i => i.prendaId))];
+  }
   
   pedidos.push(nuevo);
   guardarDatos();
@@ -1212,7 +1444,7 @@ app.post("/api/pedidos", (req, res) => {
 
 /**
  * GET /api/pedidos/:id
- * Obtiene un pedido específico por ID
+ * Obtiene un pedido específico por ID (con items enriquecidos)
  */
 app.get("/api/pedidos/:id", (req, res) => {
   const id = Number(req.params.id);
@@ -1222,12 +1454,21 @@ app.get("/api/pedidos/:id", (req, res) => {
     return res.status(404).json({ error: "Pedido no encontrado." });
   }
   
-  res.json(pedido);
+  // Enriquecer items con nombres de prendas
+  const resultado = { ...pedido };
+  if (resultado.items && resultado.items.length > 0) {
+    resultado.items = resultado.items.map(item => {
+      const prenda = prendas.find(p => p.id === item.prendaId);
+      return { ...item, prenda: prenda ? prenda.nombre : "Desconocida" };
+    });
+  }
+  
+  res.json(resultado);
 });
 
 /**
  * PUT /api/pedidos/:id
- * Actualiza un pedido existente
+ * Actualiza un pedido existente (con soporte para items)
  */
 app.put("/api/pedidos/:id", (req, res) => {
   const id = Number(req.params.id);
@@ -1237,7 +1478,7 @@ app.put("/api/pedidos/:id", (req, res) => {
     return res.status(404).json({ error: "Pedido no encontrado." });
   }
 
-  const { escuela, folio, pagoPorPieza, prendas } = req.body;
+  const { escuela, folio, pagoPorPieza, prendas: prendasBody, items } = req.body;
 
   if (escuela && escuela.trim()) {
     pedido.escuela = escuela.trim();
@@ -1249,11 +1490,28 @@ app.put("/api/pedidos/:id", (req, res) => {
     pedido.pagoPorPieza = Number(pagoPorPieza) || 0;
   }
 
-  // ✅ Actualizar prendas (se guardan como IDs en datos_taller.json)
-  if (Array.isArray(prendas)) {
-    pedido.prendas = prendas
+  // ✅ Actualizar prendas (backward compat)
+  if (Array.isArray(prendasBody)) {
+    pedido.prendas = prendasBody
       .map(n => Number(n))
       .filter(n => Number.isFinite(n) && n > 0);
+  }
+
+  // ✅ Actualizar items detallados (nuevo formato)
+  if (Array.isArray(items)) {
+    pedido.items = items.map(item => {
+      const prendaId = Number(item.prendaId);
+      const cantidad = Number(item.cantidad) || 0;
+      const operaciones = (item.operaciones || []).map(op => ({
+        opId: operacionIdCounter++,
+        costura: op.costura || op.descripcion || "",
+        maquina: op.maquina || "",
+        precio: Number(op.precio) || 0
+      }));
+      return { prendaId, cantidad, operaciones };
+    });
+    // Sync prendas[] desde items
+    pedido.prendas = [...new Set(pedido.items.map(i => i.prendaId))];
   }
 
   guardarDatos();
@@ -1393,30 +1651,75 @@ app.get("/api/registros", (req, res) => {
  * Crea un nuevo registro de producción
  */
 app.post("/api/registros", (req, res) => {
-  const { operariaId, pedidoId, prendaId, maquina, descripcion, cantidad, pagoPorPieza, fuente } = req.body;
+  const { operariaId, pedidoId, prendaId, operacionId, maquina, descripcion, cantidad, pagoPorPieza, fuente } = req.body;
 
-  // Validaciones
-  if (!operariaId || !pedidoId || !maquina || !descripcion || !cantidad) {
-    return res.status(400).json({ error: "Datos incompletos. Todos los campos son obligatorios." });
+  // Validaciones básicas
+  if (!operariaId || !pedidoId || !cantidad) {
+    return res.status(400).json({ error: "Datos incompletos. operariaId, pedidoId y cantidad son obligatorios." });
   }
 
   const cant = Number(cantidad);
-  const pago = Number(pagoPorPieza) || 0;
-
   if (cant <= 0) {
     return res.status(400).json({ error: "La cantidad debe ser mayor a 0." });
+  }
+
+  let maqFinal = maquina;
+  let descFinal = descripcion;
+  let pagoFinal = Number(pagoPorPieza) || 0;
+  let prendaIdFinal = prendaId ? Number(prendaId) : null;
+  let opIdFinal = operacionId ? Number(operacionId) : null;
+
+  // Si viene operacionId, auto-llenar datos desde la operación del pedido
+  if (opIdFinal) {
+    const pedido = pedidos.find(p => p.id === Number(pedidoId));
+    if (pedido && pedido.items) {
+      let opEncontrada = null;
+      let itemEncontrado = null;
+      for (const item of pedido.items) {
+        const op = (item.operaciones || []).find(o => o.opId === opIdFinal);
+        if (op) {
+          opEncontrada = op;
+          itemEncontrado = item;
+          break;
+        }
+      }
+      if (opEncontrada) {
+        maqFinal = opEncontrada.maquina || maqFinal;
+        descFinal = opEncontrada.costura || opEncontrada.descripcion || descFinal;
+        pagoFinal = opEncontrada.precio || pagoFinal;
+        prendaIdFinal = itemEncontrado.prendaId || prendaIdFinal;
+
+        // Validar que no se exceda la cantidad del pedido
+        const piezasYaHechas = registros
+          .filter(r => r.pedidoId === Number(pedidoId) && r.operacionId === opIdFinal)
+          .reduce((sum, r) => sum + r.cantidad, 0);
+        const cantidadDisponible = Math.max(0, itemEncontrado.cantidad - piezasYaHechas);
+
+        if (cant > cantidadDisponible) {
+          return res.status(400).json({
+            error: `Solo faltan ${cantidadDisponible} piezas por hacer en esta operación (ya se hicieron ${piezasYaHechas} de ${itemEncontrado.cantidad}).`
+          });
+        }
+      }
+    }
+  }
+
+  // Validar que tenga maquina y descripcion (por si no viene de operación)
+  if (!maqFinal || !descFinal) {
+    return res.status(400).json({ error: "Se requiere maquina y descripcion." });
   }
 
   const nuevo = {
     id: registroIdCounter++,
     operariaId: Number(operariaId),
     pedidoId: Number(pedidoId),
-    prendaId: prendaId ? Number(prendaId) : null,
-    maquina,
-    descripcion,
+    prendaId: prendaIdFinal,
+    operacionId: opIdFinal,
+    maquina: maqFinal,
+    descripcion: descFinal,
     cantidad: cant,
-    pagoPorPieza: pago,
-    totalGanado: cant * pago,
+    pagoPorPieza: pagoFinal,
+    totalGanado: cant * pagoFinal,
     fecha: new Date().toISOString(),
     fuente: fuente || "operaria",
     estadoPago: "pendiente",
@@ -1536,8 +1839,8 @@ app.post("/api/registros/marcar-semana-pagada", (req, res) => {
   const fin = new Date(inicio);
   fin.setDate(inicio.getDate() + 5);
   
-  const inicioStr = ymdCDMXCivil(inicio);
-  const finStr = ymdCDMXCivil(fin);
+  const inicioStr = inicio.toISOString().slice(0, 10);
+  const finStr = fin.toISOString().slice(0, 10);
   
   // Calcular número de semana (formato: 2024-W03)
   const anio = inicio.getFullYear();
@@ -1643,7 +1946,11 @@ if (semana) {
 
   registros.forEach(r => {
     // Convertir fecha UTC a local para comparar
-    const f = ymdCDMXCivil(r.fecha);
+    const fechaUTC = new Date(r.fecha);
+    const year = fechaUTC.getFullYear();
+    const month = String(fechaUTC.getMonth() + 1).padStart(2, '0');
+    const day = String(fechaUTC.getDate()).padStart(2, '0');
+    const f = `${year}-${month}-${day}`;
     
     if (f < inicioStr || f > finStr) return;
 
@@ -1941,6 +2248,277 @@ app.delete("/api/prendas/:id", (req, res) => {
   res.json({ ok: true, mensaje: "Prenda eliminada" });
 });
 
+// =========================
+// COSTURAS: CATÁLOGO
+// =========================
+
+/**
+ * GET /api/costuras
+ * Lista el catálogo de costuras (nombres únicos)
+ */
+app.get("/api/costuras", (req, res) => {
+  res.json(costuras);
+});
+
+/**
+ * POST /api/costuras
+ * Agrega una costura al catálogo
+ */
+app.post("/api/costuras", (req, res) => {
+  const { nombre } = req.body;
+  if (!nombre || !nombre.trim()) {
+    return res.status(400).json({ error: "El nombre de la costura es requerido." });
+  }
+  const existe = costuras.find(c => c.nombre.toLowerCase() === nombre.trim().toLowerCase());
+  if (existe) {
+    return res.status(400).json({ error: "Esta costura ya existe en el catálogo." });
+  }
+  const nueva = { id: costuraIdCounter++, nombre: nombre.trim() };
+  costuras.push(nueva);
+  guardarDatos();
+  res.status(201).json({ ok: true, costura: nueva });
+});
+
+/**
+ * PUT /api/costuras/:id
+ * Edita el nombre de una costura
+ */
+app.put("/api/costuras/:id", (req, res) => {
+  const id = Number(req.params.id);
+  const costura = costuras.find(c => c.id === id);
+  if (!costura) return res.status(404).json({ error: "Costura no encontrada." });
+
+  const { nombre } = req.body;
+  if (!nombre || !nombre.trim()) {
+    return res.status(400).json({ error: "El nombre es requerido." });
+  }
+  costura.nombre = nombre.trim();
+  guardarDatos();
+  res.json({ ok: true, costura });
+});
+
+/**
+ * DELETE /api/costuras/:id
+ * Elimina una costura del catálogo
+ */
+app.delete("/api/costuras/:id", (req, res) => {
+  const id = Number(req.params.id);
+  const index = costuras.findIndex(c => c.id === id);
+  if (index === -1) return res.status(404).json({ error: "Costura no encontrada." });
+  costuras.splice(index, 1);
+  guardarDatos();
+  res.json({ ok: true, mensaje: "Costura eliminada del catálogo." });
+});
+
+// =========================
+// PLANTILLAS DE COSTURAS POR PRENDA
+// =========================
+
+/**
+ * GET /api/plantillas-costuras/:prendaId
+ * Obtiene las costuras default de una prenda (template para pedidos)
+ */
+app.get("/api/plantillas-costuras/:prendaId", (req, res) => {
+  const prendaId = Number(req.params.prendaId);
+  const plantilla = plantillasCosturas[prendaId] || [];
+  const prenda = prendas.find(p => p.id === prendaId);
+  res.json({
+    prendaId,
+    prenda: prenda ? prenda.nombre : "Desconocida",
+    operaciones: plantilla
+  });
+});
+
+/**
+ * GET /api/plantillas-costuras
+ * Obtiene todas las plantillas
+ */
+app.get("/api/plantillas-costuras", (req, res) => {
+  const resultado = {};
+  for (const [prendaId, ops] of Object.entries(plantillasCosturas)) {
+    const prenda = prendas.find(p => p.id === Number(prendaId));
+    resultado[prendaId] = {
+      prenda: prenda ? prenda.nombre : "Desconocida",
+      operaciones: ops
+    };
+  }
+  res.json(resultado);
+});
+
+/**
+ * PUT /api/plantillas-costuras/:prendaId
+ * Actualiza la plantilla completa de una prenda
+ * Body: { operaciones: [{ costura: "nombre", maquina: "tipo" }, ...] }
+ */
+app.put("/api/plantillas-costuras/:prendaId", (req, res) => {
+  const prendaId = Number(req.params.prendaId);
+  const { operaciones } = req.body;
+  if (!Array.isArray(operaciones)) {
+    return res.status(400).json({ error: "Se requiere un array de operaciones." });
+  }
+  plantillasCosturas[prendaId] = operaciones.map(op => ({
+    costura: (op.costura || "").trim(),
+    maquina: (op.maquina || "").trim()
+  })).filter(op => op.costura && op.maquina);
+
+  // Agregar costuras nuevas al catálogo
+  plantillasCosturas[prendaId].forEach(op => {
+    const existe = costuras.find(c => c.nombre.toLowerCase() === op.costura.toLowerCase());
+    if (!existe) {
+      costuras.push({ id: costuraIdCounter++, nombre: op.costura });
+    }
+  });
+
+  guardarDatos();
+  res.json({ ok: true, plantilla: plantillasCosturas[prendaId] });
+});
+
+/**
+ * POST /api/plantillas-costuras/:prendaId/agregar
+ * Agrega una operación a la plantilla de una prenda
+ * Body: { costura: "nombre", maquina: "tipo" }
+ */
+app.post("/api/plantillas-costuras/:prendaId/agregar", (req, res) => {
+  const prendaId = Number(req.params.prendaId);
+  const { costura, maquina } = req.body;
+  if (!costura || !maquina) {
+    return res.status(400).json({ error: "Se requiere costura y maquina." });
+  }
+  if (!plantillasCosturas[prendaId]) plantillasCosturas[prendaId] = [];
+  plantillasCosturas[prendaId].push({ costura: costura.trim(), maquina: maquina.trim() });
+
+  // Agregar al catálogo si no existe
+  const existe = costuras.find(c => c.nombre.toLowerCase() === costura.trim().toLowerCase());
+  if (!existe) {
+    costuras.push({ id: costuraIdCounter++, nombre: costura.trim() });
+  }
+
+  guardarDatos();
+  res.json({ ok: true, plantilla: plantillasCosturas[prendaId] });
+});
+
+// =========================
+// AVANCE Y OPERACIONES DE PEDIDO
+// =========================
+
+/**
+ * GET /api/pedidos/:id/avance
+ * Avance detallado por prenda y operación
+ */
+app.get("/api/pedidos/:id/avance", (req, res) => {
+  const id = Number(req.params.id);
+  const pedido = pedidos.find(p => p.id === id);
+  if (!pedido) return res.status(404).json({ error: "Pedido no encontrado." });
+  if (!pedido.items || pedido.items.length === 0) {
+    return res.json({ pedidoId: id, avance: [], mensaje: "Pedido sin items detallados." });
+  }
+
+  const regsPedido = registros.filter(r => r.pedidoId === id && (r.fuente || "operaria") !== "encargada");
+
+  const avance = pedido.items.map(item => {
+    const prenda = prendas.find(p => p.id === item.prendaId);
+    const operaciones = (item.operaciones || []).map(op => {
+      const regsOp = regsPedido.filter(r => r.operacionId === op.opId);
+      const piezasHechas = regsOp.reduce((sum, r) => sum + r.cantidad, 0);
+      const costoAvance = regsOp.reduce((sum, r) => sum + r.totalGanado, 0);
+
+      // Desglose por operaria
+      const porOperaria = {};
+      regsOp.forEach(r => {
+        if (!porOperaria[r.operariaId]) porOperaria[r.operariaId] = 0;
+        porOperaria[r.operariaId] += r.cantidad;
+      });
+      const desglose = Object.entries(porOperaria).map(([opId, cant]) => {
+        const operaria = operarias.find(o => o.id === Number(opId));
+        return { operaria: operaria ? operaria.nombre : "Desconocida", cantidad: cant };
+      });
+
+      return {
+        opId: op.opId,
+        costura: op.costura || op.descripcion,
+        maquina: op.maquina,
+        precio: op.precio,
+        cantidadTotal: item.cantidad,
+        piezasHechas,
+        piezasFaltantes: Math.max(0, item.cantidad - piezasHechas),
+        porcentaje: item.cantidad > 0 ? Math.round((piezasHechas / item.cantidad) * 100) : 0,
+        costoEstimado: op.precio * item.cantidad,
+        costoAvance,
+        desglose
+      };
+    });
+
+    const totalOps = operaciones.length;
+    const opsCompletas = operaciones.filter(o => o.porcentaje >= 100).length;
+
+    return {
+      prendaId: item.prendaId,
+      prenda: prenda ? prenda.nombre : "Desconocida",
+      cantidad: item.cantidad,
+      operaciones,
+      totalOperaciones: totalOps,
+      operacionesCompletas: opsCompletas,
+      porcentajeGeneral: totalOps > 0 ? Math.round(operaciones.reduce((s, o) => s + o.porcentaje, 0) / totalOps) : 0
+    };
+  });
+
+  const costoEstimadoTotal = avance.reduce((s, a) => s + a.operaciones.reduce((s2, o) => s2 + o.costoEstimado, 0), 0);
+  const costoAvanceTotal = avance.reduce((s, a) => s + a.operaciones.reduce((s2, o) => s2 + o.costoAvance, 0), 0);
+
+  res.json({
+    pedidoId: id,
+    escuela: pedido.escuela,
+    folio: pedido.folio,
+    costoEstimadoTotal,
+    costoAvanceTotal,
+    avance
+  });
+});
+
+/**
+ * GET /api/pedidos/:id/operaciones
+ * Operaciones disponibles para registrar (con cantidadFaltante)
+ * Query: ?prendaId=X para filtrar por prenda
+ */
+app.get("/api/pedidos/:id/operaciones", (req, res) => {
+  const id = Number(req.params.id);
+  const pedido = pedidos.find(p => p.id === id);
+  if (!pedido) return res.status(404).json({ error: "Pedido no encontrado." });
+  if (!pedido.items || pedido.items.length === 0) {
+    return res.json([]);
+  }
+
+  const prendaIdFiltro = req.query.prendaId ? Number(req.query.prendaId) : null;
+  const regsPedido = registros.filter(r => r.pedidoId === id);
+
+  const resultado = [];
+  pedido.items.forEach(item => {
+    if (prendaIdFiltro && item.prendaId !== prendaIdFiltro) return;
+    const prenda = prendas.find(p => p.id === item.prendaId);
+
+    (item.operaciones || []).forEach(op => {
+      const piezasHechas = regsPedido
+        .filter(r => r.operacionId === op.opId)
+        .reduce((sum, r) => sum + r.cantidad, 0);
+      const cantidadFaltante = Math.max(0, item.cantidad - piezasHechas);
+
+      resultado.push({
+        prendaId: item.prendaId,
+        prenda: prenda ? prenda.nombre : "Desconocida",
+        cantidadPedido: item.cantidad,
+        opId: op.opId,
+        costura: op.costura || op.descripcion,
+        maquina: op.maquina,
+        precio: op.precio,
+        piezasHechas,
+        cantidadFaltante
+      });
+    });
+  });
+
+  res.json(resultado);
+});
+
 // ============================================
 // FUNCIONES HELPER PARA SEMANAS (SÁBADO-VIERNES)
 // ============================================
@@ -1951,65 +2529,6 @@ app.delete("/api/prendas/:id", (req, res) => {
 // =========================
 // FECHAS (LOCAL / SIN DESFASE UTC)
 // =========================
-
-// =========================
-// HELPERS FECHA (CDMX)
-// =========================
-const TZ_CDMX = "America/Mexico_City";
-const _fmtYmdCDMX = new Intl.DateTimeFormat("sv-SE", { timeZone: TZ_CDMX, year: "numeric", month: "2-digit", day: "2-digit" });
-const _fmtWdCDMX = new Intl.DateTimeFormat("en-US", { timeZone: TZ_CDMX, weekday: "short" });
-const _wdMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-
-/**
- * Convierte entrada (Date | 'YYYY-MM-DD' | timestamptz/ISO de Supabase) a un Date anclado a las 12:00 UTC
- * de la FECHA CIVIL en CDMX. Esto evita desfases por servidor en UTC y cambios de día por UTC.
- */
-function toUTCNoonFromCDMX(input) {
-  if (input instanceof Date) {
-    const ymd = _fmtYmdCDMX.format(input);
-    const [y, m, d] = ymd.split("-").map(Number);
-    return new Date(Date.UTC(y, m - 1, d, 12, 0, 0, 0));
-  }
-
-  const s = String(input || "");
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (m) {
-    const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3]);
-    return new Date(Date.UTC(y, mo, d, 12, 0, 0, 0));
-  }
-
-  // timestamptz / ISO / otros -> Date normal, luego obtenemos FECHA CIVIL CDMX y la anclamos
-  const dt = new Date(s);
-  if (isNaN(dt.getTime())) return new Date(Date.UTC(1970, 0, 1, 12, 0, 0, 0));
-
-  const ymd = _fmtYmdCDMX.format(dt);
-  const [y, m2, d2] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, m2 - 1, d2, 12, 0, 0, 0));
-}
-
-function ymdCDMXCivil(input) {
-  return _fmtYmdCDMX.format(toUTCNoonFromCDMX(input));
-}
-
-function dayOfWeekCDMX(input) {
-  const dt = toUTCNoonFromCDMX(input);
-  const wd = _fmtWdCDMX.format(dt);
-  return _wdMap[wd] ?? 0;
-}
-
-function ymdHoyCDMX() {
-  return ymdCDMXCivil(new Date());
-}
-
-function ymdInicioSemanaLunesCDMX(input) {
-  const base = toUTCNoonFromCDMX(input);
-  const day = dayOfWeekCDMX(base); // 0=Dom
-  const offset = (day === 0 ? -6 : 1 - day);
-  const inicio = new Date(base);
-  inicio.setUTCDate(base.getUTCDate() + offset);
-  return _fmtYmdCDMX.format(inicio);
-}
-
 function parseFechaLocal(input) {
   if (input instanceof Date) return new Date(input);
   const s = String(input || "");
@@ -2032,10 +2551,10 @@ function formatYMDLocal(dateObj) {
 }
 
 function obtenerSemanaLaboral(fecha) {
-  // Semana laboral: SÁBADO -> VIERNES (en fecha civil CDMX)
-  const base = toUTCNoonFromCDMX(fecha);
-  const day = dayOfWeekCDMX(base); // 0=Dom, 6=Sáb en CDMX
+  const date = parseFechaLocal(fecha);
+  const day = date.getDay(); // 0=Dom, 6=Sáb
 
+  // Semana laboral: SÁBADO -> VIERNES
   let diasDesdeInicio;
   if (day === 6) {
     diasDesdeInicio = 0;      // sábado
@@ -2045,22 +2564,21 @@ function obtenerSemanaLaboral(fecha) {
     diasDesdeInicio = day + 1; // lun(1)->2, vie(5)->6
   }
 
-  const inicioSemana = new Date(base);
-  inicioSemana.setUTCDate(base.getUTCDate() - diasDesdeInicio);
+  const inicioSemana = new Date(date);
+  inicioSemana.setDate(date.getDate() - diasDesdeInicio);
+  inicioSemana.setHours(0, 0, 0, 0);
 
   const finSemana = new Date(inicioSemana);
-  finSemana.setUTCDate(inicioSemana.getUTCDate() + 6); // +6 = viernes
+  finSemana.setDate(inicioSemana.getDate() + 6); // +6 = viernes
+  finSemana.setHours(23, 59, 59, 999);
 
-  const inicioStr = _fmtYmdCDMX.format(inicioSemana);
-  const finStr = _fmtYmdCDMX.format(finSemana);
-
-  const year = Number(inicioStr.slice(0, 4));
-  const weekNum = obtenerNumeroSemanaUTC(inicioSemana);
+  const year = inicioSemana.getFullYear();
+  const weekNum = obtenerNumeroSemana(inicioSemana);
 
   return {
     codigo: `${year}-W${String(weekNum).padStart(2, "0")}`,
-    inicio: inicioStr,
-    fin: finStr,
+    inicio: formatYMDLocal(inicioSemana),
+    fin: formatYMDLocal(finSemana),
     inicioDate: inicioSemana,
     finDate: finSemana
   };
@@ -2078,24 +2596,18 @@ function resolverSemanaPorCodigo(codigo) {
   const inicioBusqueda = new Date(year, 0, 1);
   const finBusqueda = new Date(year, 11, 31);
 
-  for (let d = new Date(inicioBusqueda); d <= finBusqueda; d.setUTCDate(d.getUTCDate() + 1)) {
-    // Evaluar usando fecha civil CDMX del día
+  for (let d = new Date(inicioBusqueda); d <= finBusqueda; d.setDate(d.getDate() + 1)) {
     const info = obtenerSemanaLaboral(d);
     if (info.codigo === codigo) return info;
   }
   return null;
 }
 
-function obtenerNumeroSemanaUTC(dateUTC) {
-  // Calcula número de semana basado en UTC (dateUTC debe ser Date anclado a UTC noon)
-  const y = dateUTC.getUTCFullYear();
-  const firstDayOfYear = new Date(Date.UTC(y, 0, 1, 12, 0, 0, 0));
-  const pastDaysOfYear = (dateUTC - firstDayOfYear) / 86400000;
-  // Usar día de la semana en UTC del 1 de enero para consistencia
-  const firstDow = firstDayOfYear.getUTCDay();
-  return Math.ceil((pastDaysOfYear + firstDow + 1) / 7);
+function obtenerNumeroSemana(date) {
+  const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+  const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
+  return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
 }
-
 
 /**
  * Obtiene todas las semanas con registros
@@ -2183,7 +2695,11 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
   // Filtrar registros de la operaria en esa semana
   const registrosSemana = registros.filter(r => {
     // Convertir fecha UTC a fecha local para comparar correctamente
-    const f = ymdCDMXCivil(r.fecha);
+    const fechaUTC = new Date(r.fecha);
+    const year = fechaUTC.getFullYear();
+    const month = String(fechaUTC.getMonth() + 1).padStart(2, '0');
+    const day = String(fechaUTC.getDate()).padStart(2, '0');
+    const f = `${year}-${month}-${day}`;
     
     const estadoMatch = estadoPago ? (r.estadoPago || 'pendiente') === estadoPago : true;
     
@@ -2261,7 +2777,7 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
       fin: semanaInfo.fin,
       label: `Semana ${weekStr} (${formatearFechaCorta(semanaInfo.inicio)} - ${formatearFechaCorta(semanaInfo.fin)})`
     },
-    fechaPago: ymdHoyCDMX(),
+    fechaPago: new Date().toISOString().split('T')[0],
     registrosPorDia: registrosPorDiaArray,
     resumen: {
       totalPiezas,
@@ -2364,7 +2880,7 @@ app.post("/api/pagos/marcar-semana", (req, res) => {
   }
   
   // Marcar como pagados
-  const fechaPago = ymdHoyCDMX();
+  const fechaPago = new Date().toISOString().split('T')[0];
   let totalPagado = 0;
   
   registrosAMarcar.forEach(reg => {
