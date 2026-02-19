@@ -542,6 +542,13 @@
             </select>
           </div>
 
+          <div id="manual-fields" style="display:none;">
+            <div class="form-row">
+              <label for="input-descripcion-manual">✏️ Descripción de la costura</label>
+              <input type="text" id="input-descripcion-manual" placeholder="Ej: pegar bolsa, bastilla, etc." />
+            </div>
+          </div>
+
           <div class="form-row">
             <label for="select-maquina">🔧 Máquina</label>
             <select id="select-maquina" disabled>
@@ -606,6 +613,13 @@
             <select id="select-operacion-enc">
               <option value="">-- Primero selecciona una prenda --</option>
             </select>
+          </div>
+
+          <div id="manual-fields-enc" style="display:none;">
+            <div class="form-row">
+              <label for="input-descripcion-manual-enc">✏️ Descripción de la costura</label>
+              <input type="text" id="input-descripcion-manual-enc" placeholder="Ej: pegar bolsa, bastilla, etc." />
+            </div>
           </div>
 
           <div class="form-row">
@@ -860,11 +874,6 @@
             const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}${tallaQS}`);
             const ops = await res.json();
             
-            if (ops.length === 0) {
-              selectOp.innerHTML = '<option value="">-- No hay operaciones definidas --</option>';
-              return;
-            }
-            
             selectOp.innerHTML = '<option value="">-- Selecciona operación --</option>';
             ops.forEach(op => {
               const opt = document.createElement("option");
@@ -880,6 +889,12 @@
               }
               selectOp.appendChild(opt);
             });
+            // Siempre agregar opción manual al final
+            const optManual = document.createElement("option");
+            optManual.value = "manual";
+            optManual.textContent = "✏️ Otra costura (manual)";
+            optManual.style.color = "#fbbf24";
+            selectOp.appendChild(optManual);
           } catch (err) {
             console.error("Error cargando operaciones:", err);
           }
@@ -901,13 +916,31 @@
           const opt = e.target.selectedOptions[0];
           const infoDiv = document.getElementById("info-operacion");
           const selMaq = document.getElementById("select-maquina");
+          const manualFields = document.getElementById("manual-fields");
           
           if (!opt || !opt.value) {
             infoDiv.style.display = "none";
             selMaq.value = "";
+            selMaq.disabled = true;
+            manualFields.style.display = "none";
+            return;
+          }
+
+          // Modo manual
+          if (opt.value === "manual") {
+            manualFields.style.display = "block";
+            selMaq.disabled = false;
+            selMaq.value = "";
+            infoDiv.innerHTML = '✏️ <strong>Modo manual</strong> · Escribe la costura y selecciona la máquina · Precio se asigna después';
+            infoDiv.style.display = "block";
+            document.getElementById("input-descripcion-manual").focus();
             return;
           }
           
+          // Modo normal (operación del catálogo)
+          manualFields.style.display = "none";
+          selMaq.disabled = true;
+
           // Auto-seleccionar máquina
           const maquina = opt.dataset.maquina;
           for (let o of selMaq.options) {
@@ -1073,11 +1106,6 @@
             const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}${tallaQS}`);
             const ops = await res.json();
             
-            if (ops.length === 0) {
-              selectOp.innerHTML = '<option value="">-- No hay operaciones definidas --</option>';
-              return;
-            }
-            
             selectOp.innerHTML = '<option value="">-- Selecciona operación --</option>';
             ops.forEach(op => {
               const opt = document.createElement("option");
@@ -1093,6 +1121,12 @@
               }
               selectOp.appendChild(opt);
             });
+            // Siempre agregar opción manual al final
+            const optManual = document.createElement("option");
+            optManual.value = "manual";
+            optManual.textContent = "✏️ Otra costura (manual)";
+            optManual.style.color = "#fbbf24";
+            selectOp.appendChild(optManual);
           } catch (err) {
             console.error("Error cargando operaciones:", err);
           }
@@ -1112,12 +1146,30 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
           const opt = e.target.selectedOptions[0];
           const infoDiv = document.getElementById("info-operacion-enc");
           const selMaq = document.getElementById("select-maquina-enc");
+          const manualFields = document.getElementById("manual-fields-enc");
           
           if (!opt || !opt.value) {
             infoDiv.style.display = "none";
             selMaq.value = "";
+            selMaq.disabled = true;
+            manualFields.style.display = "none";
             return;
           }
+
+          // Modo manual
+          if (opt.value === "manual") {
+            manualFields.style.display = "block";
+            selMaq.disabled = false;
+            selMaq.value = "";
+            infoDiv.innerHTML = '✏️ <strong>Modo manual</strong> · Escribe la costura y selecciona la máquina · Precio se asigna después';
+            infoDiv.style.display = "block";
+            document.getElementById("input-descripcion-manual-enc").focus();
+            return;
+          }
+
+          // Modo normal
+          manualFields.style.display = "none";
+          selMaq.disabled = true;
           
           const maquina = opt.dataset.maquina;
           for (let o of selMaq.options) {
@@ -1143,9 +1195,16 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
         const maquina = document.getElementById("select-maquina-enc").value;
         const cantidad = Number(document.getElementById("input-cantidad-enc").value);
 
+        const esManual = operacionId === "manual";
+
         // Obtener datos de la operación seleccionada
         const opOpt = operacionSel.selectedOptions[0];
-        const descripcion = opOpt ? opOpt.dataset.costura : "";
+        let descripcion;
+        if (esManual) {
+          descripcion = (document.getElementById("input-descripcion-manual-enc").value || "").trim();
+        } else {
+          descripcion = opOpt ? opOpt.dataset.costura : "";
+        }
 
         if (!operariaId) {
           mostrarError("❌ Selecciona una operaria");
@@ -1159,6 +1218,14 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
           mostrarError("❌ Selecciona una operación");
           return;
         }
+        if (esManual && !descripcion) {
+          mostrarError("❌ Escribe la descripción de la costura");
+          return;
+        }
+        if (esManual && !maquina) {
+          mostrarError("❌ Selecciona la máquina");
+          return;
+        }
 
         const btnGuardar = document.getElementById("btn-guardar-enc");
         btnGuardar.disabled = true;
@@ -1170,13 +1237,15 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
             pedidoId: Number(pedidoId),
             prendaId: Number(prendaId),
             talla: talla || null,
-            operacionId: Number(operacionId),
             maquina: maquina,
             descripcion: descripcion,
             cantidad: cantidad,
             pagoPorPieza: 0,
             fuente: "encargada"
           };
+          if (!esManual) {
+            nuevoRegistro.operacionId = Number(operacionId);
+          }
 
           const res = await fetch("/api/registros", {
             method: "POST",
@@ -1195,8 +1264,11 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
           document.getElementById("select-prenda-enc").innerHTML = '<option value="">-- Primero selecciona un pedido --</option>';
           document.getElementById("select-operacion-enc").innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
           document.getElementById("select-maquina-enc").value = "";
+          document.getElementById("select-maquina-enc").disabled = true;
           document.getElementById("input-cantidad-enc").value = "";
           document.getElementById("info-operacion-enc").style.display = "none";
+          document.getElementById("manual-fields-enc").style.display = "none";
+          document.getElementById("input-descripcion-manual-enc").value = "";
 
         } catch (err) {
           mostrarError("❌ " + err.message);
@@ -1419,9 +1491,16 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
         const maquina = document.getElementById("select-maquina").value;
         const cantidad = Number(document.getElementById("input-cantidad").value);
 
+        const esManual = operacionId === "manual";
+
         // Obtener datos de la operación seleccionada
         const opOpt = operacionSel.selectedOptions[0];
-        const descripcion = opOpt ? opOpt.dataset.costura : "";
+        let descripcion;
+        if (esManual) {
+          descripcion = (document.getElementById("input-descripcion-manual").value || "").trim();
+        } else {
+          descripcion = opOpt ? opOpt.dataset.costura : "";
+        }
 
         if (!pedidoId || !prendaId || !cantidad || cantidad <= 0) {
           mostrarError("❌ Completa todos los campos correctamente");
@@ -1429,6 +1508,14 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
         }
         if (!operacionId) {
           mostrarError("❌ Selecciona una operación");
+          return;
+        }
+        if (esManual && !descripcion) {
+          mostrarError("❌ Escribe la descripción de la costura");
+          return;
+        }
+        if (esManual && !maquina) {
+          mostrarError("❌ Selecciona la máquina");
           return;
         }
 
@@ -1442,13 +1529,16 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
             pedidoId: Number(pedidoId),
             prendaId: Number(prendaId),
             talla: talla || null,
-            operacionId: Number(operacionId),
             maquina: maquina,
             descripcion: descripcion,
             cantidad: cantidad,
             pagoPorPieza: 0,
             fuente: fuente
           };
+          // Solo enviar operacionId si NO es manual
+          if (!esManual) {
+            nuevoRegistro.operacionId = Number(operacionId);
+          }
 
           const res = await fetch("/api/registros", {
             method: "POST",
@@ -1467,8 +1557,11 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
           document.getElementById("select-talla").innerHTML = '<option value="">-- Selecciona prenda primero --</option>';
           document.getElementById("select-operacion").innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
           document.getElementById("select-maquina").value = "";
+          document.getElementById("select-maquina").disabled = true;
           document.getElementById("input-cantidad").value = "";
           document.getElementById("info-operacion").style.display = "none";
+          document.getElementById("manual-fields").style.display = "none";
+          document.getElementById("input-descripcion-manual").value = "";
 
           await cargarMisCosturas();
 
