@@ -769,7 +769,7 @@
           const pedidoId = e.target.value;
           const selectPrenda = document.getElementById("select-prenda");
           const selectOp = document.getElementById("select-operacion");
-          const selectTalla = document.getElementById("select-talla-enc");
+          const selectTalla = document.getElementById("select-talla");
           selectTalla.innerHTML = '<option value="">-- Selecciona prenda primero --</option>';
           selectOp.innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
           document.getElementById("info-operacion").style.display = "none";
@@ -827,7 +827,7 @@
           const prendaId = e.target.value;
           const pedidoId = document.getElementById("select-pedido").value;
           const selectOp = document.getElementById("select-operacion");
-          const selectTalla = document.getElementById("select-talla-enc");
+          const selectTalla = document.getElementById("select-talla");
           selectTalla.innerHTML = '<option value="">-- Selecciona prenda primero --</option>';
           document.getElementById("info-operacion").style.display = "none";
           document.getElementById("select-maquina").value = "";
@@ -856,7 +856,7 @@
           }
 
           try {
-            const talla = document.getElementById('select-talla-enc').value;
+            const talla = document.getElementById('select-talla').value;
             const tallaQS = talla ? `&talla=${encodeURIComponent(talla)}` : '';
             const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}${tallaQS}`);
             const ops = await res.json();
