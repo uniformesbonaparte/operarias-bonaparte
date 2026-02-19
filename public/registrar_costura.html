@@ -749,31 +749,6 @@
         setTimeout(() => { mensajeError.style.display = "none"; }, 5000);
       }
 
-      
-      // Capturar errores JS para que NO "se congele" en silencio
-      window.addEventListener("error", (e) => {
-        try { mostrarError("Error JS: " + (e.message || "desconocido")); } catch (_) {}
-      });
-      window.addEventListener("unhandledrejection", (e) => {
-        try { mostrarError("Error async: " + (e.reason && e.reason.message ? e.reason.message : String(e.reason || "desconocido"))); } catch (_) {}
-      });
-
-      // Fetch con timeout (evita que la pantalla quede colgada si el backend no responde)
-      async function fetchJSON(url, opts = {}, timeoutMs = 15000) {
-        const controller = new AbortController();
-        const t = setTimeout(() => controller.abort(), timeoutMs);
-        try {
-          const res = await fetch(url, { ...opts, signal: controller.signal });
-          if (!res.ok) {
-            const txt = await res.text().catch(() => "");
-            throw new Error(`HTTP ${res.status} ${res.statusText}${txt ? " - " + txt.slice(0, 120) : ""}`);
-          }
-          return await res.json();
-        } finally {
-          clearTimeout(t);
-        }
-      }
-
       function mostrarExito(mensaje) {
         mensajeExito.textContent = mensaje;
         mensajeExito.style.display = "block";
@@ -787,8 +762,7 @@
       async function inicializarVistaOperaria() {
         await cargarPedidosActivos("select-pedido");
         await cargarMaquinas("select-maquina");
-        // Cargar "mis costuras" sin bloquear la pantalla (evita congelamientos si hay muchos registros)
-        cargarMisCosturas().catch(err => mostrarError('Error cargando mis costuras: ' + err.message));
+        await cargarMisCosturas();
 
         // Event listener para cargar prendas cuando se selecciona pedido
         document.getElementById("select-pedido").addEventListener("change", async (e) => {
@@ -807,12 +781,15 @@
           }
           
           try {
-            const pedido = await fetchJSON(`/api/pedidos/${pedidoId}`);
+            const res = await fetch(`/api/pedidos/${pedidoId}`);
+            if (!res.ok) throw new Error("Error al cargar pedido");
+            const pedido = await res.json();
             if (e && e.target && e.target.id === 'select-pedido-enc') { window._pedidoActualEnc = pedido; } else { window._pedidoActual = pedido; }
             
             // Si tiene items (nuevo formato), cargar prendas de items
             if (pedido.items && pedido.items.length > 0) {
-              const todasPrendas = await fetchJSON("/api/prendas");
+              const resPrendas = await fetch("/api/prendas");
+              const todasPrendas = await resPrendas.json();
               selectPrenda.innerHTML = '<option value="">-- Selecciona una prenda --</option>';
               pedido.items.forEach(item => {
                 const prenda = todasPrendas.find(p => p.id === item.prendaId);
@@ -825,7 +802,8 @@
               });
             } else if (pedido.prendas && pedido.prendas.length > 0) {
               // Legacy: cargar prendas por ID
-              const todasPrendas = await fetchJSON("/api/prendas");
+              const resPrendas = await fetch("/api/prendas");
+              const todasPrendas = await resPrendas.json();
               selectPrenda.innerHTML = '<option value="">-- Selecciona una prenda --</option>';
               pedido.prendas.forEach(prendaId => {
                 const prenda = todasPrendas.find(p => p.id === prendaId);
@@ -860,8 +838,7 @@
           }
 
           // Cargar tallas del pedido para esta prenda (si existen)
-          const selectTalla = document.getElementById("select-talla-enc");
-          const pedidoActual = (document.getElementById('select-pedido-enc') ? window._pedidoActualEnc : window._pedidoActual);
+          const pedidoActual = window._pedidoActual;
           selectTalla.innerHTML = '<option value="">-- (Opcional) Todas las tallas --</option>';
           if (pedidoActual && Array.isArray(pedidoActual.items)) {
             const item = pedidoActual.items.find(i => Number(i.prendaId) === Number(prendaId));
@@ -951,7 +928,10 @@
           // SOLO VER COSTURAS CON FUENTE: OPERARIA
           const url = `/api/registros?operariaId=${usuarioActual.id}&fuente=operaria&estadoPago=pendiente`;
           
-          const registros = await fetchJSON(url);
+          const res = await fetch(url);
+          if (!res.ok) throw new Error("Error al cargar costuras");
+          
+          const registros = await res.json();
           const lista = document.getElementById("lista-mis-costuras");
           
           if (registros.length === 0) {
@@ -1016,11 +996,14 @@
           }
           
           try {
-            const pedido = await fetchJSON(`/api/pedidos/${pedidoId}`);
+            const res = await fetch(`/api/pedidos/${pedidoId}`);
+            if (!res.ok) throw new Error("Error al cargar pedido");
+            const pedido = await res.json();
             if (e && e.target && e.target.id === 'select-pedido-enc') { window._pedidoActualEnc = pedido; } else { window._pedidoActual = pedido; }
             
             if (pedido.items && pedido.items.length > 0) {
-              const todasPrendas = await fetchJSON("/api/prendas");
+              const resPrendas = await fetch("/api/prendas");
+              const todasPrendas = await resPrendas.json();
               selectPrenda.innerHTML = '<option value="">-- Selecciona una prenda --</option>';
               pedido.items.forEach(item => {
                 const prenda = todasPrendas.find(p => p.id === item.prendaId);
@@ -1032,7 +1015,8 @@
                 }
               });
             } else if (pedido.prendas && pedido.prendas.length > 0) {
-              const todasPrendas = await fetchJSON("/api/prendas");
+              const resPrendas = await fetch("/api/prendas");
+              const todasPrendas = await resPrendas.json();
               selectPrenda.innerHTML = '<option value="">-- Selecciona una prenda --</option>';
               pedido.prendas.forEach(prendaId => {
                 const prenda = todasPrendas.find(p => p.id === prendaId);
@@ -1067,19 +1051,18 @@
           }
 
           // Cargar tallas del pedido para esta prenda (si existen)
-          const selectTalla = document.getElementById("select-talla-enc");
-          const pedidoActual = (document.getElementById('select-pedido-enc') ? window._pedidoActualEnc : window._pedidoActual);
-          selectTalla.innerHTML = '<option value="">-- (Opcional) Todas las tallas --</option>';
+          const pedidoActual = window._pedidoActualEnc;
+          selectTallaEnc.innerHTML = '<option value="">-- (Opcional) Todas las tallas --</option>';
           if (pedidoActual && Array.isArray(pedidoActual.items)) {
             const item = pedidoActual.items.find(i => Number(i.prendaId) === Number(prendaId));
             if (item && Array.isArray(item.tallas) && item.tallas.length > 0) {
               // Solo tallas que existen en el pedido
-              selectTalla.innerHTML = '<option value="">-- Selecciona talla --</option>';
+              selectTallaEnc.innerHTML = '<option value="">-- Selecciona talla --</option>';
               item.tallas.forEach(t => {
                 const opt = document.createElement("option");
                 opt.value = t.talla;
                 opt.textContent = `${t.talla} (${t.cantidad} pzs)`;
-                selectTalla.appendChild(opt);
+                selectTallaEnc.appendChild(opt);
               });
             }
           }
@@ -1286,7 +1269,10 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
             url += `&operariaId=${filtroOperaria}`;
           }
           
-          const registros = await fetchJSON(url);
+          const res = await fetch(url);
+          if (!res.ok) throw new Error("Error al cargar costuras");
+          
+          const registros = await res.json();
           const lista = document.getElementById("lista-costuras-admin");
           
           if (registros.length === 0) {
@@ -1366,7 +1352,9 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
       // ==========================================
       async function cargarPedidosActivos(selectId) {
         try {
-          const pedidos = await fetchJSON("/api/pedidos?estado=activo");
+          const res = await fetch("/api/pedidos?estado=activo");
+          if (!res.ok) throw new Error("Error al cargar pedidos");
+          const pedidos = await res.json();
           
           const select = document.getElementById(selectId);
           select.innerHTML = '<option value="">-- Selecciona un pedido --</option>';
@@ -1384,7 +1372,9 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
 
       async function cargarMaquinas(selectId) {
         try {
-          const maquinas = await fetchJSON("/api/maquinas");
+          const res = await fetch("/api/maquinas");
+          if (!res.ok) throw new Error("Error al cargar máquinas");
+          const maquinas = await res.json();
           
           const select = document.getElementById(selectId);
           select.innerHTML = '<option value="">-- Selecciona una máquina --</option>';
@@ -1480,8 +1470,7 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
           document.getElementById("input-cantidad").value = "";
           document.getElementById("info-operacion").style.display = "none";
 
-          // Cargar "mis costuras" sin bloquear la pantalla (evita congelamientos si hay muchos registros)
-        cargarMisCosturas().catch(err => mostrarError('Error cargando mis costuras: ' + err.message));
+          await cargarMisCosturas();
 
         } catch (err) {
           mostrarError("❌ " + err.message);
@@ -1538,8 +1527,7 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
           if (usuarioActual.tipo === "admin") {
             await cargarCosturasAdmin();
           } else {
-            // Cargar "mis costuras" sin bloquear la pantalla (evita congelamientos si hay muchos registros)
-        cargarMisCosturas().catch(err => mostrarError('Error cargando mis costuras: ' + err.message));
+            await cargarMisCosturas();
           }
         } catch (err) {
           mostrarError("❌ " + err.message);
@@ -1596,7 +1584,9 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
 
       async function cargarPedidosEnModal() {
         try {
-          const pedidos = await fetchJSON("/api/pedidos?estado=activo");
+          const res = await fetch("/api/pedidos?estado=activo");
+          if (!res.ok) throw new Error("Error al cargar pedidos");
+          const pedidos = await res.json();
           
           editPedido.innerHTML = '<option value="">-- Selecciona un pedido --</option>';
           pedidos.forEach(p => {
@@ -1612,7 +1602,9 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
 
       async function cargarMaquinasEnModal() {
         try {
-          const maquinas = await fetchJSON("/api/maquinas");
+          const res = await fetch("/api/maquinas");
+          if (!res.ok) throw new Error("Error al cargar máquinas");
+          const maquinas = await res.json();
           
           editMaquina.innerHTML = '<option value="">-- Selecciona una máquina --</option>';
           maquinas.forEach(m => {
@@ -1682,8 +1674,7 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
           if (usuarioActual.tipo === "admin") {
             await cargarCosturasAdmin();
           } else if (usuarioActual.tipo === "operaria") {
-            // Cargar "mis costuras" sin bloquear la pantalla (evita congelamientos si hay muchos registros)
-        cargarMisCosturas().catch(err => mostrarError('Error cargando mis costuras: ' + err.message));
+            await cargarMisCosturas();
           }
 
         } catch (err) {
