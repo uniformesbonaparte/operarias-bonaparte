@@ -256,12 +256,15 @@
             <div class="item-header-left">
               <select class="sel-prenda" onchange="window._cargarPlantilla(this)">\n                <option value="">-- Prenda --</option>${opts}
               </select>
-              <input type="number" class="inp-cantidad" placeholder="Cant." min="1" value="${itemData ? itemData.cantidad || '' : ''}" />
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><div class="badge" style="padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);font-size:12px;">Total: <span class="lbl-total-cantidad">${itemData ? (itemData.cantidad || 0) : 0}</span> pzs</div><button type="button" class="btn-secondary" style="padding:6px 10px;font-size:12px;" onclick="window._addTalla(this)">+ Talla</button></div>
             </div>
             <button class="btn-remove-item" onclick="this.closest('.item-card').remove()">✕</button>
           </div>
-          <div class="ops-container"></div>`;
+          <div class="tallas-container" style="margin-top:10px;"></div>
+          <div class="ops-container" style="margin-top:10px;"></div>`;
         container.appendChild(div);
+        // Render tallas
+        renderTallas(div, (itemData && itemData.tallas) ? itemData.tallas : []);
         if (itemData && itemData.operaciones && itemData.operaciones.length > 0) {
           renderOps(div, itemData.operaciones);
         } else if (itemData && itemData.prendaId) {
@@ -275,7 +278,58 @@
         cargarPlantilla(card, sel.value);
       };
 
-      async function cargarPlantilla(card, prendaId) {
+      
+      function renderTallas(card, tallas) {
+        const c = card.querySelector(".tallas-container");
+        let h = `<table class="ops-table"><thead><tr><th>Talla</th><th>Cant.</th><th></th></tr></thead><tbody>`;
+        (tallas || []).forEach(t => {
+          h += `<tr>
+            <td><input type="text" class="talla-input" value="${(t.talla||'')}" placeholder="Ej: 10 / CH / 28" /></td>
+            <td><input type="number" class="talla-cantidad" value="${Number(t.cantidad)||0}" min="0" step="1" /></td>
+            <td><button class="btn-remove-op" onclick="this.closest('tr').remove(); window._recalcularTotal(this);">✕</button></td>
+          </tr>`;
+        });
+        h += `</tbody></table>`;
+        c.innerHTML = h;
+        // Recalcular total al render
+        recalcularTotal(card);
+        // Listener de cambio
+        c.querySelectorAll(".talla-input,.talla-cantidad").forEach(inp => {
+          inp.addEventListener("input", () => recalcularTotal(card));
+        });
+      }
+
+      function recalcularTotal(card) {
+        let total = 0;
+        card.querySelectorAll(".tallas-container tbody tr").forEach(tr => {
+          const cant = Number(tr.querySelector(".talla-cantidad").value) || 0;
+          total += cant;
+        });
+        const lbl = card.querySelector(".lbl-total-cantidad");
+        if (lbl) lbl.textContent = total;
+      }
+
+      window._recalcularTotal = function(el) {
+        const card = el.closest(".item-card");
+        recalcularTotal(card);
+      };
+
+      window._addTalla = function(btn) {
+        const card = btn.closest(".item-card");
+        const tbody = card.querySelector(".tallas-container tbody");
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><input type="text" class="talla-input" placeholder="Ej: 10 / CH / 28" /></td>
+          <td><input type="number" class="talla-cantidad" value="0" min="0" step="1" /></td>
+          <td><button class="btn-remove-op" onclick="this.closest('tr').remove(); window._recalcularTotal(this);">✕</button></td>`;
+        tbody.appendChild(tr);
+        tr.querySelectorAll(".talla-input,.talla-cantidad").forEach(inp => {
+          inp.addEventListener("input", () => recalcularTotal(card));
+        });
+        recalcularTotal(card);
+      };
+
+async function cargarPlantilla(card, prendaId) {
         try {
           const r = await fetch(`/api/plantillas-costuras/${prendaId}`);
           const d = await r.json();
@@ -290,33 +344,29 @@
         ops.forEach(op => {
           const sel = maquinasCache.map(m => `<option value="${m}" ${m===op.maquina?'selected':''}>${m}</option>`).join("");
           h += `<tr>
-            <td><input type="text" class="op-costura-input" value="${op.costura||op.descripcion||''}" /></td>
-            <td><select class="op-maquina-select">${sel}</select></td>
+            <td><input type="text" class="op-costura-input" value="${op.costura||op.descripcion||''}" readonly style="opacity:0.9;" /></td>
+            <td><input type="text" class="op-maquina-select" value="${op.maquina||''}" readonly style="opacity:0.9;" /></td>
             <td><input type="number" class="op-precio" value="${op.precio||0}" min="0" step="0.5" /></td>
-            <td><button class="btn-remove-op" onclick="this.closest('tr').remove()">✕</button></td>
+            <td style="color:rgba(255,255,255,0.35);font-size:12px;">catálogo</td>
           </tr>`;
         });
-        h += `</tbody></table><button class="btn-add-op" onclick="window._addOp(this)">+ Agregar costura</button>`;
+        h += `</tbody></table><div style="margin-top:6px;color:rgba(255,255,255,0.55);font-size:12px;">Operaciones cargadas del catálogo (no se pueden editar).</div>`;
         c.innerHTML = h;
       }
 
-      window._addOp = function(btn) {
-        const tbody = btn.previousElementSibling.querySelector("tbody");
-        const mOpts = maquinasCache.map(m => `<option value="${m}">${m}</option>`).join("");
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td><input type="text" class="op-costura-input" placeholder="Costura" /></td>
-          <td><select class="op-maquina-select">${mOpts}</select></td>
-          <td><input type="number" class="op-precio" value="0" min="0" step="0.5" /></td>
-          <td><button class="btn-remove-op" onclick="this.closest('tr').remove()">✕</button></td>`;
-        tbody.appendChild(tr);
-      };
+      /* Operaciones vienen del catálogo: ya no se permite agregar/eliminar desde aquí */
 
       function extraerItems(containerId) {
         const items = [];
         document.getElementById(containerId).querySelectorAll(".item-card").forEach(card => {
           const prendaId = Number(card.querySelector(".sel-prenda").value);
-          const cantidad = Number(card.querySelector(".inp-cantidad").value);
+          const tallas = [];
+          card.querySelectorAll(".tallas-container tbody tr").forEach(tr => {
+            const talla = tr.querySelector(".talla-input").value.trim();
+            const c = Number(tr.querySelector(".talla-cantidad").value) || 0;
+            if (talla && c > 0) tallas.push({ talla, cantidad: c });
+          });
+          const cantidad = tallas.length > 0 ? tallas.reduce((s,t)=>s+t.cantidad,0) : 0;
           if (!prendaId || !cantidad) return;
           const operaciones = [];
           card.querySelectorAll(".ops-table tbody tr").forEach(tr => {
@@ -325,7 +375,7 @@
             const precio = Number(tr.querySelector(".op-precio").value) || 0;
             if (costura && maquina) operaciones.push({costura, maquina, precio});
           });
-          items.push({prendaId, cantidad, operaciones});
+          items.push({prendaId, cantidad, tallas, operaciones});
         });
         return items;
       }

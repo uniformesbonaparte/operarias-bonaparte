@@ -527,6 +527,13 @@
               <option value="">-- Primero selecciona un pedido --</option>
             </select>
           </div>
+          <div class="form-row">
+            <label for="select-talla">📏 Talla</label>
+            <select id="select-talla">
+              <option value="">-- Selecciona prenda primero --</option>
+            </select>
+          </div>
+
 
           <div class="form-row">
             <label for="select-operacion">✂️ Operación (Costura)</label>
@@ -586,6 +593,13 @@
               <option value="">-- Primero selecciona un pedido --</option>
             </select>
           </div>
+          <div class="form-row">
+            <label for="select-talla-enc">📏 Talla</label>
+            <select id="select-talla-enc">
+              <option value="">-- Selecciona prenda primero --</option>
+            </select>
+          </div>
+
 
           <div class="form-row">
             <label for="select-operacion-enc">✂️ Operación (Costura)</label>
@@ -755,6 +769,8 @@
           const pedidoId = e.target.value;
           const selectPrenda = document.getElementById("select-prenda");
           const selectOp = document.getElementById("select-operacion");
+          const selectTalla = document.getElementById("select-talla-enc");
+          selectTalla.innerHTML = '<option value="">-- Selecciona prenda primero --</option>';
           selectOp.innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
           document.getElementById("info-operacion").style.display = "none";
           document.getElementById("select-maquina").value = "";
@@ -768,6 +784,7 @@
             const res = await fetch(`/api/pedidos/${pedidoId}`);
             if (!res.ok) throw new Error("Error al cargar pedido");
             const pedido = await res.json();
+            if (e && e.target && e.target.id === 'select-pedido-enc') { window._pedidoActualEnc = pedido; } else { window._pedidoActual = pedido; }
             
             // Si tiene items (nuevo formato), cargar prendas de items
             if (pedido.items && pedido.items.length > 0) {
@@ -810,6 +827,8 @@
           const prendaId = e.target.value;
           const pedidoId = document.getElementById("select-pedido").value;
           const selectOp = document.getElementById("select-operacion");
+          const selectTalla = document.getElementById("select-talla-enc");
+          selectTalla.innerHTML = '<option value="">-- Selecciona prenda primero --</option>';
           document.getElementById("info-operacion").style.display = "none";
           document.getElementById("select-maquina").value = "";
           
@@ -817,9 +836,29 @@
             selectOp.innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
             return;
           }
-          
+
+          // Cargar tallas del pedido para esta prenda (si existen)
+          const selectTalla = document.getElementById("select-talla-enc");
+          const pedidoActual = (document.getElementById('select-pedido-enc') ? window._pedidoActualEnc : window._pedidoActual);
+          selectTalla.innerHTML = '<option value="">-- (Opcional) Todas las tallas --</option>';
+          if (pedidoActual && Array.isArray(pedidoActual.items)) {
+            const item = pedidoActual.items.find(i => Number(i.prendaId) === Number(prendaId));
+            if (item && Array.isArray(item.tallas) && item.tallas.length > 0) {
+              // Solo tallas que existen en el pedido
+              selectTalla.innerHTML = '<option value="">-- Selecciona talla --</option>';
+              item.tallas.forEach(t => {
+                const opt = document.createElement("option");
+                opt.value = t.talla;
+                opt.textContent = `${t.talla} (${t.cantidad} pzs)`;
+                selectTalla.appendChild(opt);
+              });
+            }
+          }
+
           try {
-            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}`);
+            const talla = document.getElementById('select-talla-enc').value;
+            const tallaQS = talla ? `&talla=${encodeURIComponent(talla)}` : '';
+            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}${tallaQS}`);
             const ops = await res.json();
             
             if (ops.length === 0) {
@@ -847,7 +886,18 @@
           }
         });
 
-        // Al seleccionar operación, auto-llenar máquina e info
+        
+        // Si cambia talla, recargar operaciones (para mostrar faltante por talla)
+        document.getElementById("select-talla").addEventListener("change", async () => {
+          const prendaId = document.getElementById("select-prenda").value;
+        const talla = document.getElementById("select-talla").value;
+          if (!prendaId) return;
+          // disparar lógica de carga de operaciones reutilizando el change de prenda
+          const evt = new Event("change");
+          document.getElementById("select-prenda").dispatchEvent(evt);
+        });
+
+// Al seleccionar operación, auto-llenar máquina e info
         document.getElementById("select-operacion").addEventListener("change", (e) => {
           const opt = e.target.selectedOptions[0];
           const infoDiv = document.getElementById("info-operacion");
@@ -935,6 +985,8 @@
           const pedidoId = e.target.value;
           const selectPrenda = document.getElementById("select-prenda-enc");
           const selectOp = document.getElementById("select-operacion-enc");
+          const selectTallaEnc = document.getElementById("select-talla-enc");
+          selectTallaEnc.innerHTML = '<option value="">-- Selecciona prenda primero --</option>';
           selectOp.innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
           document.getElementById("info-operacion-enc").style.display = "none";
           document.getElementById("select-maquina-enc").value = "";
@@ -948,6 +1000,7 @@
             const res = await fetch(`/api/pedidos/${pedidoId}`);
             if (!res.ok) throw new Error("Error al cargar pedido");
             const pedido = await res.json();
+            if (e && e.target && e.target.id === 'select-pedido-enc') { window._pedidoActualEnc = pedido; } else { window._pedidoActual = pedido; }
             
             if (pedido.items && pedido.items.length > 0) {
               const resPrendas = await fetch("/api/prendas");
@@ -988,6 +1041,8 @@
           const prendaId = e.target.value;
           const pedidoId = document.getElementById("select-pedido-enc").value;
           const selectOp = document.getElementById("select-operacion-enc");
+          const selectTallaEnc = document.getElementById("select-talla-enc");
+          selectTallaEnc.innerHTML = '<option value="">-- Selecciona prenda primero --</option>';
           document.getElementById("info-operacion-enc").style.display = "none";
           document.getElementById("select-maquina-enc").value = "";
           
@@ -995,9 +1050,29 @@
             selectOp.innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
             return;
           }
-          
+
+          // Cargar tallas del pedido para esta prenda (si existen)
+          const selectTalla = document.getElementById("select-talla-enc");
+          const pedidoActual = (document.getElementById('select-pedido-enc') ? window._pedidoActualEnc : window._pedidoActual);
+          selectTalla.innerHTML = '<option value="">-- (Opcional) Todas las tallas --</option>';
+          if (pedidoActual && Array.isArray(pedidoActual.items)) {
+            const item = pedidoActual.items.find(i => Number(i.prendaId) === Number(prendaId));
+            if (item && Array.isArray(item.tallas) && item.tallas.length > 0) {
+              // Solo tallas que existen en el pedido
+              selectTalla.innerHTML = '<option value="">-- Selecciona talla --</option>';
+              item.tallas.forEach(t => {
+                const opt = document.createElement("option");
+                opt.value = t.talla;
+                opt.textContent = `${t.talla} (${t.cantidad} pzs)`;
+                selectTalla.appendChild(opt);
+              });
+            }
+          }
+
           try {
-            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}`);
+            const talla = document.getElementById('select-talla-enc').value;
+            const tallaQS = talla ? `&talla=${encodeURIComponent(talla)}` : '';
+            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}${tallaQS}`);
             const ops = await res.json();
             
             if (ops.length === 0) {
@@ -1026,7 +1101,16 @@
         });
 
         // Auto-llenar máquina al seleccionar operación
-        document.getElementById("select-operacion-enc").addEventListener("change", (e) => {
+        
+        // Si cambia talla (encargada), recargar operaciones
+        document.getElementById("select-talla-enc").addEventListener("change", async () => {
+          const prendaId = document.getElementById("select-prenda-enc").value;
+          if (!prendaId) return;
+          const evt = new Event("change");
+          document.getElementById("select-prenda-enc").dispatchEvent(evt);
+        });
+
+document.getElementById("select-operacion-enc").addEventListener("change", (e) => {
           const opt = e.target.selectedOptions[0];
           const infoDiv = document.getElementById("info-operacion-enc");
           const selMaq = document.getElementById("select-maquina-enc");
@@ -1055,6 +1139,7 @@
         const operariaId = document.getElementById("select-operaria-enc").value;
         const pedidoId = document.getElementById("select-pedido-enc").value;
         const prendaId = document.getElementById("select-prenda-enc").value;
+        const talla = document.getElementById("select-talla-enc").value;
         const operacionSel = document.getElementById("select-operacion-enc");
         const operacionId = operacionSel.value;
         const maquina = document.getElementById("select-maquina-enc").value;
@@ -1086,6 +1171,7 @@
             operariaId: Number(operariaId),
             pedidoId: Number(pedidoId),
             prendaId: Number(prendaId),
+            talla: talla || null,
             operacionId: Number(operacionId),
             maquina: maquina,
             descripcion: descripcion,
@@ -1329,6 +1415,7 @@
       async function guardarCostura(operariaId, fuente) {
         const pedidoId = document.getElementById("select-pedido").value;
         const prendaId = document.getElementById("select-prenda").value;
+        const talla = document.getElementById("select-talla").value;
         const operacionSel = document.getElementById("select-operacion");
         const operacionId = operacionSel.value;
         const maquina = document.getElementById("select-maquina").value;
@@ -1356,6 +1443,7 @@
             operariaId: operariaId,
             pedidoId: Number(pedidoId),
             prendaId: Number(prendaId),
+            talla: talla || null,
             operacionId: Number(operacionId),
             maquina: maquina,
             descripcion: descripcion,
@@ -1378,6 +1466,7 @@
           // Limpiar
           document.getElementById("select-pedido").value = "";
           document.getElementById("select-prenda").innerHTML = '<option value="">-- Primero selecciona un pedido --</option>';
+          document.getElementById("select-talla").innerHTML = '<option value="">-- Selecciona prenda primero --</option>';
           document.getElementById("select-operacion").innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
           document.getElementById("select-maquina").value = "";
           document.getElementById("input-cantidad").value = "";
