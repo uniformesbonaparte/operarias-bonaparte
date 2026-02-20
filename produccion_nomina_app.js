@@ -2617,8 +2617,21 @@ function formatYMDLocal(dateObj) {
 }
 
 function obtenerSemanaLaboral(fecha) {
-  const date = parseFechaLocal(fecha);
-  const day = toMexicoParts(date).dow; // 0=Dom..6=Sáb (hora México)
+  let dateObj;
+  if (fecha instanceof Date) {
+    dateObj = fecha;
+  } else {
+    const s = String(fecha || '');
+    // Si es "YYYY-MM-DD" puro, interpretarlo como mediodía UTC (para que caiga en el día correcto en México)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      dateObj = new Date(s + 'T12:00:00Z');
+    } else {
+      dateObj = new Date(s);
+    }
+  }
+  // Obtener día de la semana en hora MÉXICO (no UTC)
+  const parts = toMexicoParts(dateObj);
+  const day = parts.dow; // 0=Dom, 6=Sáb
 
   // Semana laboral: SÁBADO -> VIERNES
   let diasDesdeInicio;
@@ -2630,21 +2643,23 @@ function obtenerSemanaLaboral(fecha) {
     diasDesdeInicio = day + 1; // lun(1)->2, vie(5)->6
   }
 
-  const inicioSemana = new Date(date);
-  inicioSemana.setDate(date.getDate() - diasDesdeInicio);
-  inicioSemana.setHours(0, 0, 0, 0);
+  // Calcular inicio/fin usando fecha México (evita desfase UTC)
+  const fechaMx = toMexicoYMD(dateObj); // "YYYY-MM-DD" en México
+  const inicioSemana = new Date(fechaMx + 'T12:00:00Z'); // mediodía UTC para evitar edge cases
+  inicioSemana.setDate(inicioSemana.getDate() - diasDesdeInicio);
 
   const finSemana = new Date(inicioSemana);
   finSemana.setDate(inicioSemana.getDate() + 6); // +6 = viernes
-  finSemana.setHours(23, 59, 59, 999);
 
-  const year = inicioSemana.getFullYear();
+  const inicioStr = toMexicoYMD(inicioSemana);
+  const finStr = toMexicoYMD(finSemana);
+  const year = Number(inicioStr.slice(0, 4));
   const weekNum = obtenerNumeroSemana(inicioSemana);
 
   return {
     codigo: `${year}-W${String(weekNum).padStart(2, "0")}`,
-    inicio: formatYMDLocal(inicioSemana),
-    fin: formatYMDLocal(finSemana),
+    inicio: inicioStr,
+    fin: finStr,
     inicioDate: inicioSemana,
     finDate: finSemana
   };
@@ -2658,13 +2673,14 @@ function resolverSemanaPorCodigo(codigo) {
   if (!codigo || !/^[0-9]{4}-W[0-9]{2}$/.test(codigo)) return null;
   const year = Number(codigo.slice(0, 4));
 
-  // Rango de búsqueda: todo el año
-  const inicioBusqueda = new Date(year, 0, 1);
-  const finBusqueda = new Date(year, 11, 31);
-
-  for (let d = new Date(inicioBusqueda); d <= finBusqueda; d.setDate(d.getDate() + 1)) {
-    const info = obtenerSemanaLaboral(d);
-    if (info.codigo === codigo) return info;
+  // Rango de búsqueda: todo el año (usar mediodía UTC para que MX sea mismo día)
+  for (let m = 0; m < 12; m++) {
+    for (let d = 1; d <= 31; d++) {
+      const dt = new Date(Date.UTC(year, m, d, 12, 0, 0));
+      if (dt.getUTCMonth() !== m) break; // mes se pasó
+      const info = obtenerSemanaLaboral(dt);
+      if (info.codigo === codigo) return info;
+    }
   }
   return null;
 }
