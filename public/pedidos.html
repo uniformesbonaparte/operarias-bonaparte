@@ -369,7 +369,7 @@ async function cargarPlantilla(card, prendaId) {
           const cantidad = tallas.length > 0 ? tallas.reduce((s,t)=>s+t.cantidad,0) : 0;
           if (!prendaId || !cantidad) return;
           const operaciones = [];
-          card.querySelectorAll(".ops-table tbody tr").forEach(tr => {
+          card.querySelectorAll(".ops-container .ops-table tbody tr").forEach(tr => {
             const costura = tr.querySelector(".op-costura-input").value.trim();
             const maquina = tr.querySelector(".op-maquina-select").value;
             const precio = Number(tr.querySelector(".op-precio").value) || 0;
