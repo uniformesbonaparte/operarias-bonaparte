@@ -3,9 +3,25 @@
 // Puerto 8080 | Persistencia mejorada con backups automáticos
 // Compatible con frontend moderno glassmorphism
 
-// ⏰ Zona horaria: México Central (UTC-6 / UTC-5 en horario de verano)
-// IMPORTANTE: Debe estar ANTES de cualquier new Date()
-process.env.TZ = 'America/Mexico_City';
+// ⏰ Zona horaria: México Central — usa Intl (funciona en cualquier servidor)
+const MX_TZ = 'America/Mexico_City';
+const _mxFmt = new Intl.DateTimeFormat('en-CA', { timeZone: MX_TZ, year:'numeric', month:'2-digit', day:'2-digit' });
+const _mxParts = new Intl.DateTimeFormat('en-US', { timeZone: MX_TZ, year:'numeric', month:'numeric', day:'numeric', weekday:'short', hour:'numeric', hour12:false });
+
+/** "YYYY-MM-DD" en hora México para cualquier Date */
+function toMexicoYMD(date) { return _mxFmt.format(date); }
+
+/** {year, month, day, dow} en hora México (dow: 0=Dom..6=Sáb) */
+function toMexicoParts(date) {
+  const p = {};
+  _mxParts.formatToParts(date).forEach(x => {
+    if (x.type === 'year') p.year = Number(x.value);
+    if (x.type === 'month') p.month = Number(x.value);
+    if (x.type === 'day') p.day = Number(x.value);
+    if (x.type === 'weekday') p.dow = {Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6}[x.value] ?? 0;
+  });
+  return p;
+}
 
 const express = require("express");
 const fs = require("fs");
@@ -1152,14 +1168,15 @@ app.get("/api/operarias/:id/resumen-dia-semana", (req, res) => {
   }
 
   const hoy = new Date();
-  const hoyStr = formatYMDLocal(hoy);
+  const hoyStr = toMexicoYMD(hoy);
 
-  // Calcular inicio de semana (lunes)
-  const day = hoy.getDay();
-  const offset = (day === 0 ? -6 : 1 - day);
-  const inicioSemana = new Date(hoy);
-  inicioSemana.setDate(hoy.getDate() + offset);
-  const inicioSemanaStr = formatYMDLocal(inicioSemana);
+  // Calcular inicio de semana (lunes) en hora México
+  const hoyParts = toMexicoParts(hoy);
+  const dowHoy = hoyParts.dow;
+  const offsetSemana = (dowHoy === 0 ? -6 : 1 - dowHoy);
+  const inicioSemanaDate = new Date(hoyStr + 'T12:00:00Z');
+  inicioSemanaDate.setDate(inicioSemanaDate.getDate() + offsetSemana);
+  const inicioSemanaStr = toMexicoYMD(inicioSemanaDate);
 
   // Filtrar registros pendientes de esta operaria
   const registrosOperaria = registros.filter(r => 
@@ -1167,25 +1184,16 @@ app.get("/api/operarias/:id/resumen-dia-semana", (req, res) => {
     (r.estadoPago || "pendiente") === "pendiente"
   );
 
-  // Registros del día (convertir UTC a local)
+  // Registros del día (hora México)
   const registrosDia = registrosOperaria.filter(r => {
-    const fechaUTC = new Date(r.fecha);
-    const year = fechaUTC.getFullYear();
-    const month = String(fechaUTC.getMonth() + 1).padStart(2, '0');
-    const day = String(fechaUTC.getDate()).padStart(2, '0');
-    const fechaLocal = `${year}-${month}-${day}`;
-    return fechaLocal === hoyStr;
+    return toMexicoYMD(new Date(r.fecha)) === hoyStr;
   });
   const piezasDia = registrosDia.reduce((sum, r) => sum + r.cantidad, 0);
   const ganadoDia = registrosDia.reduce((sum, r) => sum + r.totalGanado, 0);
 
-  // Registros de la semana (convertir UTC a local)
+  // Registros de la semana (hora México)
   const registrosSemana = registrosOperaria.filter(r => {
-    const fechaUTC = new Date(r.fecha);
-    const year = fechaUTC.getFullYear();
-    const month = String(fechaUTC.getMonth() + 1).padStart(2, '0');
-    const day = String(fechaUTC.getDate()).padStart(2, '0');
-    const fechaReg = `${year}-${month}-${day}`;
+    const fechaReg = toMexicoYMD(new Date(r.fecha));
     return fechaReg >= inicioSemanaStr && fechaReg <= hoyStr;
   });
   const piezasSemana = registrosSemana.reduce((sum, r) => sum + r.cantidad, 0);
@@ -1646,13 +1654,7 @@ app.get("/api/registros", (req, res) => {
 
   if (fecha) {
     data = data.filter(r => {
-      // Convertir fecha UTC a local para comparar
-      const fechaUTC = new Date(r.fecha);
-      const year = fechaUTC.getFullYear();
-      const month = String(fechaUTC.getMonth() + 1).padStart(2, '0');
-      const day = String(fechaUTC.getDate()).padStart(2, '0');
-      const fechaLocal = `${year}-${month}-${day}`;
-      return fechaLocal === fecha;
+      return toMexicoYMD(new Date(r.fecha)) === fecha;
     });
   }
   if (operariaId) {
@@ -1879,22 +1881,22 @@ app.post("/api/registros/marcar-semana-pagada", (req, res) => {
     return res.status(400).json({ error: "Fecha requerida" });
   }
 
-  // Calcular inicio y fin de semana
-  const base = new Date(fecha + "T00:00:00");
-  const day = base.getDay();
-  const offset = (day === 0 ? -6 : 1 - day);
+  // Calcular inicio y fin de semana (la fecha viene como YYYY-MM-DD)
+  const baseParts = toMexicoParts(new Date(fecha + "T12:00:00Z"));
+  const dayC = baseParts.dow;
+  const offsetC = (dayC === 0 ? -6 : 1 - dayC);
   
-  const inicio = new Date(base);
-  inicio.setDate(base.getDate() + offset);
+  const inicio = new Date(fecha + "T12:00:00Z");
+  inicio.setDate(inicio.getDate() + offsetC);
   
   const fin = new Date(inicio);
   fin.setDate(inicio.getDate() + 5);
   
-  const inicioStr = formatYMDLocal(inicio);
-  const finStr = formatYMDLocal(fin);
+  const inicioStr = toMexicoYMD(inicio);
+  const finStr = toMexicoYMD(fin);
   
   // Calcular número de semana (formato: 2024-W03)
-  const anio = inicio.getFullYear();
+  const anio = Number(inicioStr.slice(0, 4));
   const primerDia = new Date(anio, 0, 1);
   const dias = Math.floor((inicio - primerDia) / (24 * 60 * 60 * 1000));
   const numeroSemana = Math.ceil((dias + primerDia.getDay() + 1) / 7);
@@ -1907,12 +1909,7 @@ app.post("/api/registros/marcar-semana-pagada", (req, res) => {
   
   let registrosAfectados = 0;
   registros.forEach(r => {
-    // Convertir fecha UTC a local para comparar
-    const fechaUTC = new Date(r.fecha);
-    const year = fechaUTC.getFullYear();
-    const month = String(fechaUTC.getMonth() + 1).padStart(2, '0');
-    const day = String(fechaUTC.getDate()).padStart(2, '0');
-    const fechaReg = `${year}-${month}-${day}`;
+    const fechaReg = toMexicoYMD(new Date(r.fecha));
     
     if (fechaReg >= inicioStr && 
         fechaReg <= finStr && 
@@ -1996,12 +1993,7 @@ if (semana) {
   const resumen = {};
 
   registros.forEach(r => {
-    // Convertir fecha UTC a local para comparar
-    const fechaUTC = new Date(r.fecha);
-    const year = fechaUTC.getFullYear();
-    const month = String(fechaUTC.getMonth() + 1).padStart(2, '0');
-    const day = String(fechaUTC.getDate()).padStart(2, '0');
-    const f = `${year}-${month}-${day}`;
+    const f = toMexicoYMD(new Date(r.fecha));
     
     if (f < inicioStr || f > finStr) return;
 
@@ -2608,15 +2600,12 @@ function parseFechaLocal(input) {
 }
 
 function formatYMDLocal(dateObj) {
-  const y = dateObj.getFullYear();
-  const m = String(dateObj.getMonth() + 1).padStart(2, "0");
-  const d = String(dateObj.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return toMexicoYMD(dateObj);
 }
 
 function obtenerSemanaLaboral(fecha) {
   const date = parseFechaLocal(fecha);
-  const day = date.getDay(); // 0=Dom, 6=Sáb
+  const day = toMexicoParts(date).dow; // 0=Dom..6=Sáb (hora México)
 
   // Semana laboral: SÁBADO -> VIERNES
   let diasDesdeInicio;
@@ -2758,12 +2747,7 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
   
   // Filtrar registros de la operaria en esa semana
   const registrosSemana = registros.filter(r => {
-    // Convertir fecha UTC a fecha local para comparar correctamente
-    const fechaUTC = new Date(r.fecha);
-    const year = fechaUTC.getFullYear();
-    const month = String(fechaUTC.getMonth() + 1).padStart(2, '0');
-    const day = String(fechaUTC.getDate()).padStart(2, '0');
-    const f = `${year}-${month}-${day}`;
+    const f = toMexicoYMD(new Date(r.fecha));
     
     const estadoMatch = estadoPago ? (r.estadoPago || 'pendiente') === estadoPago : true;
     
@@ -2785,16 +2769,10 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
   const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   
   registrosSemana.forEach(reg => {
-    // Convertir fecha UTC a fecha local antes de extraer el día
-    const fechaUTC = new Date(reg.fecha);
-    // Obtener fecha en formato local (YYYY-MM-DD)
-    const year = fechaUTC.getFullYear();
-    const month = String(fechaUTC.getMonth() + 1).padStart(2, '0');
-    const day = String(fechaUTC.getDate()).padStart(2, '0');
-    const fecha = `${year}-${month}-${day}`;
+    const fecha = toMexicoYMD(new Date(reg.fecha));
     
     if (!registrosPorDia[fecha]) {
-      const d = parseFechaLocal(fecha); // Usar parseFechaLocal para evitar problemas de zona horaria
+      const d = parseFechaLocal(fecha);
       registrosPorDia[fecha] = {
         fecha,
         dia: diasSemana[d.getDay()],
@@ -2841,7 +2819,7 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
       fin: semanaInfo.fin,
       label: `Semana ${weekStr} (${formatearFechaCorta(semanaInfo.inicio)} - ${formatearFechaCorta(semanaInfo.fin)})`
     },
-    fechaPago: formatYMDLocal(new Date()),
+    fechaPago: toMexicoYMD(new Date()),
     registrosPorDia: registrosPorDiaArray,
     resumen: {
       totalPiezas,
@@ -2944,7 +2922,7 @@ app.post("/api/pagos/marcar-semana", (req, res) => {
   }
   
   // Marcar como pagados
-  const fechaPago = formatYMDLocal(new Date());
+  const fechaPago = toMexicoYMD(new Date());
   let totalPagado = 0;
   
   registrosAMarcar.forEach(reg => {
