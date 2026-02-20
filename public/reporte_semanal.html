@@ -663,21 +663,6 @@
   </div>
 
   <script>
-    // === FIX FECHAS SUPABASE (timestamptz UTC -> fecha local) ===
-    function ymdLocalDesdeUTC(ts) {
-      if (!ts) return "";
-      const d = new Date(ts);
-      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-      return local.toISOString().split('T')[0];
-    }
-
-    function normalizarYMD(fechaStr) {
-      if (!fechaStr) return "";
-      // Si viene 'YYYY-MM-DD', úsala tal cual
-      if (/^\d{4}-\d{2}-\d{2}$/.test(fechaStr)) return fechaStr;
-      // Si viene timestamptz de Supabase (ej: '2026-02-14 00:00:43.552+00' o ISO), conviértela a YMD local
-      return ymdLocalDesdeUTC(fechaStr);
-    }
     document.addEventListener("DOMContentLoaded", async () => {
       // Validar sesión
       let usuarioActual;
@@ -723,12 +708,9 @@
 
       if (spanNombreUsuario) spanNombreUsuario.textContent = usuarioActual.nombre || "";
 
-      // Fecha de hoy por defecto (hora local CDMX, evita salto por UTC)
-      const now = new Date();
-      const hoyLocal = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-        .toISOString()
-        .split('T')[0];
-      inputFecha.value = hoyLocal;
+      // Fecha de hoy por defecto
+      const hoy = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD hora local
+      inputFecha.value = hoy;
 
       // Mostrar/ocultar filtros según rol
       if (esOperaria) {
@@ -1692,8 +1674,7 @@ px;
             
             <div class="detalle-produccion">
             ${data.registrosPorDia.map(dia => {
-              const ymd = normalizarYMD(dia.fecha);
-              const fecha = new Date(ymd + 'T12:00:00');
+              const fecha = new Date(dia.fecha + 'T12:00:00');
               return `
                 <div class="detalle-dia">
                   <div class="dia-titulo">${dia.dia} ${fecha.getDate()} ${obtenerMesCorto(fecha.getMonth())}</div>
