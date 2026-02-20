@@ -837,6 +837,44 @@
         });
 
         // Event listener para cargar operaciones cuando se selecciona prenda
+        // Función reutilizable para cargar operaciones (operaria)
+        async function cargarOperacionesOp() {
+          const prendaId = document.getElementById("select-prenda").value;
+          const pedidoId = document.getElementById("select-pedido").value;
+          const selectOp = document.getElementById("select-operacion");
+          if (!prendaId || !pedidoId) return;
+          try {
+            const talla = document.getElementById('select-talla').value;
+            const tallaQS = talla ? `&talla=${encodeURIComponent(talla)}` : '';
+            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}${tallaQS}`);
+            const ops = await res.json();
+            
+            selectOp.innerHTML = '<option value="">-- Selecciona operación --</option>';
+            ops.forEach(op => {
+              const opt = document.createElement("option");
+              opt.value = op.opId;
+              opt.dataset.maquina = op.maquina;
+              opt.dataset.costura = op.costura;
+              opt.dataset.precio = op.precio;
+              opt.dataset.faltante = op.cantidadFaltante;
+              opt.textContent = `${op.costura} (${op.maquina}) - Faltan ${op.cantidadFaltante}`;
+              if (op.cantidadFaltante === 0) {
+                opt.textContent += " ✅";
+                opt.style.color = "#6ee7b7";
+              }
+              selectOp.appendChild(opt);
+            });
+            // Siempre agregar opción manual al final
+            const optManual = document.createElement("option");
+            optManual.value = "manual";
+            optManual.textContent = "✏️ Otra costura (manual)";
+            optManual.style.color = "#fbbf24";
+            selectOp.appendChild(optManual);
+          } catch (err) {
+            console.error("Error cargando operaciones:", err);
+          }
+        }
+
         document.getElementById("select-prenda").addEventListener("change", async (e) => {
           const prendaId = e.target.value;
           const pedidoId = document.getElementById("select-pedido").value;
@@ -868,47 +906,15 @@
             }
           }
 
-          try {
-            const talla = document.getElementById('select-talla').value;
-            const tallaQS = talla ? `&talla=${encodeURIComponent(talla)}` : '';
-            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}${tallaQS}`);
-            const ops = await res.json();
-            
-            selectOp.innerHTML = '<option value="">-- Selecciona operación --</option>';
-            ops.forEach(op => {
-              const opt = document.createElement("option");
-              opt.value = op.opId;
-              opt.dataset.maquina = op.maquina;
-              opt.dataset.costura = op.costura;
-              opt.dataset.precio = op.precio;
-              opt.dataset.faltante = op.cantidadFaltante;
-              opt.textContent = `${op.costura} (${op.maquina}) - Faltan ${op.cantidadFaltante}`;
-              if (op.cantidadFaltante === 0) {
-                opt.textContent += " ✅";
-                opt.style.color = "#6ee7b7";
-              }
-              selectOp.appendChild(opt);
-            });
-            // Siempre agregar opción manual al final
-            const optManual = document.createElement("option");
-            optManual.value = "manual";
-            optManual.textContent = "✏️ Otra costura (manual)";
-            optManual.style.color = "#fbbf24";
-            selectOp.appendChild(optManual);
-          } catch (err) {
-            console.error("Error cargando operaciones:", err);
-          }
+          await cargarOperacionesOp();
         });
 
         
         // Si cambia talla, recargar operaciones (para mostrar faltante por talla)
         document.getElementById("select-talla").addEventListener("change", async () => {
           const prendaId = document.getElementById("select-prenda").value;
-        const talla = document.getElementById("select-talla").value;
           if (!prendaId) return;
-          // disparar lógica de carga de operaciones reutilizando el change de prenda
-          const evt = new Event("change");
-          document.getElementById("select-prenda").dispatchEvent(evt);
+          await cargarOperacionesOp();
         });
 
 // Al seleccionar operación, auto-llenar máquina e info
@@ -1068,6 +1074,44 @@
           }
         });
 
+        // Función reutilizable para cargar operaciones (encargada)
+        async function cargarOperacionesEnc() {
+          const prendaId = document.getElementById("select-prenda-enc").value;
+          const pedidoId = document.getElementById("select-pedido-enc").value;
+          const selectOp = document.getElementById("select-operacion-enc");
+          if (!prendaId || !pedidoId) return;
+          try {
+            const talla = document.getElementById('select-talla-enc').value;
+            const tallaQS = talla ? `&talla=${encodeURIComponent(talla)}` : '';
+            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}${tallaQS}`);
+            const ops = await res.json();
+            
+            selectOp.innerHTML = '<option value="">-- Selecciona operación --</option>';
+            ops.forEach(op => {
+              const opt = document.createElement("option");
+              opt.value = op.opId;
+              opt.dataset.maquina = op.maquina;
+              opt.dataset.costura = op.costura;
+              opt.dataset.precio = op.precio;
+              opt.dataset.faltante = op.cantidadFaltante;
+              opt.textContent = `${op.costura} (${op.maquina}) - Faltan ${op.cantidadFaltante}`;
+              if (op.cantidadFaltante === 0) {
+                opt.textContent += " ✅";
+                opt.style.color = "#6ee7b7";
+              }
+              selectOp.appendChild(opt);
+            });
+            // Siempre agregar opción manual al final
+            const optManual = document.createElement("option");
+            optManual.value = "manual";
+            optManual.textContent = "✏️ Otra costura (manual)";
+            optManual.style.color = "#fbbf24";
+            selectOp.appendChild(optManual);
+          } catch (err) {
+            console.error("Error cargando operaciones:", err);
+          }
+        }
+
         // Cargar operaciones cuando selecciona prenda
         document.getElementById("select-prenda-enc").addEventListener("change", async (e) => {
           const prendaId = e.target.value;
@@ -1100,36 +1144,7 @@
             }
           }
 
-          try {
-            const talla = document.getElementById('select-talla-enc').value;
-            const tallaQS = talla ? `&talla=${encodeURIComponent(talla)}` : '';
-            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}${tallaQS}`);
-            const ops = await res.json();
-            
-            selectOp.innerHTML = '<option value="">-- Selecciona operación --</option>';
-            ops.forEach(op => {
-              const opt = document.createElement("option");
-              opt.value = op.opId;
-              opt.dataset.maquina = op.maquina;
-              opt.dataset.costura = op.costura;
-              opt.dataset.precio = op.precio;
-              opt.dataset.faltante = op.cantidadFaltante;
-              opt.textContent = `${op.costura} (${op.maquina}) - Faltan ${op.cantidadFaltante}`;
-              if (op.cantidadFaltante === 0) {
-                opt.textContent += " ✅";
-                opt.style.color = "#6ee7b7";
-              }
-              selectOp.appendChild(opt);
-            });
-            // Siempre agregar opción manual al final
-            const optManual = document.createElement("option");
-            optManual.value = "manual";
-            optManual.textContent = "✏️ Otra costura (manual)";
-            optManual.style.color = "#fbbf24";
-            selectOp.appendChild(optManual);
-          } catch (err) {
-            console.error("Error cargando operaciones:", err);
-          }
+          await cargarOperacionesEnc();
         });
 
         // Auto-llenar máquina al seleccionar operación
@@ -1138,8 +1153,7 @@
         document.getElementById("select-talla-enc").addEventListener("change", async () => {
           const prendaId = document.getElementById("select-prenda-enc").value;
           if (!prendaId) return;
-          const evt = new Event("change");
-          document.getElementById("select-prenda-enc").dispatchEvent(evt);
+          await cargarOperacionesEnc();
         });
 
 document.getElementById("select-operacion-enc").addEventListener("change", (e) => {
