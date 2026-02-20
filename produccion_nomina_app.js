@@ -3,6 +3,10 @@
 // Puerto 8080 | Persistencia mejorada con backups automáticos
 // Compatible con frontend moderno glassmorphism
 
+// ⏰ Zona horaria: México Central (UTC-6 / UTC-5 en horario de verano)
+// IMPORTANTE: Debe estar ANTES de cualquier new Date()
+process.env.TZ = 'America/Mexico_City';
+
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
@@ -1148,14 +1152,14 @@ app.get("/api/operarias/:id/resumen-dia-semana", (req, res) => {
   }
 
   const hoy = new Date();
-  const hoyStr = hoy.toISOString().slice(0, 10);
+  const hoyStr = formatYMDLocal(hoy);
 
   // Calcular inicio de semana (lunes)
   const day = hoy.getDay();
   const offset = (day === 0 ? -6 : 1 - day);
   const inicioSemana = new Date(hoy);
   inicioSemana.setDate(hoy.getDate() + offset);
-  const inicioSemanaStr = inicioSemana.toISOString().slice(0, 10);
+  const inicioSemanaStr = formatYMDLocal(inicioSemana);
 
   // Filtrar registros pendientes de esta operaria
   const registrosOperaria = registros.filter(r => 
@@ -1530,13 +1534,15 @@ app.put("/api/pedidos/:id", (req, res) => {
     pedido.items = items.map(item => {
       const prendaId = Number(item.prendaId);
       const cantidad = Number(item.cantidad) || 0;
+      const tallas = Array.isArray(item.tallas) ? item.tallas.filter(t => (t.talla||'').toString().trim() !== '' && Number(t.cantidad) > 0).map(t => ({ talla: (t.talla||'').toString().trim(), cantidad: Number(t.cantidad) })) : [];
+      const cantidadTotal = tallas.length > 0 ? tallas.reduce((s,t)=>s+t.cantidad,0) : cantidad;
       const operaciones = (item.operaciones || []).map(op => ({
         opId: operacionIdCounter++,
         costura: op.costura || op.descripcion || "",
         maquina: op.maquina || "",
         precio: Number(op.precio) || 0
       }));
-      return { prendaId, cantidad, operaciones };
+      return { prendaId, cantidad: cantidadTotal, tallas, operaciones };
     });
     // Sync prendas[] desde items
     pedido.prendas = [...new Set(pedido.items.map(i => i.prendaId))];
@@ -1884,8 +1890,8 @@ app.post("/api/registros/marcar-semana-pagada", (req, res) => {
   const fin = new Date(inicio);
   fin.setDate(inicio.getDate() + 5);
   
-  const inicioStr = inicio.toISOString().slice(0, 10);
-  const finStr = fin.toISOString().slice(0, 10);
+  const inicioStr = formatYMDLocal(inicio);
+  const finStr = formatYMDLocal(fin);
   
   // Calcular número de semana (formato: 2024-W03)
   const anio = inicio.getFullYear();
@@ -2835,7 +2841,7 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
       fin: semanaInfo.fin,
       label: `Semana ${weekStr} (${formatearFechaCorta(semanaInfo.inicio)} - ${formatearFechaCorta(semanaInfo.fin)})`
     },
-    fechaPago: new Date().toISOString().split('T')[0],
+    fechaPago: formatYMDLocal(new Date()),
     registrosPorDia: registrosPorDiaArray,
     resumen: {
       totalPiezas,
@@ -2938,7 +2944,7 @@ app.post("/api/pagos/marcar-semana", (req, res) => {
   }
   
   // Marcar como pagados
-  const fechaPago = new Date().toISOString().split('T')[0];
+  const fechaPago = formatYMDLocal(new Date());
   let totalPagado = 0;
   
   registrosAMarcar.forEach(reg => {
