@@ -2945,7 +2945,7 @@ app.post("/api/pagos/marcar-semana", (req, res) => {
     semanaCodigo,
     fechaPago
   });
-}););
+});
 
 /**
  * Función helper para formatear fechas
