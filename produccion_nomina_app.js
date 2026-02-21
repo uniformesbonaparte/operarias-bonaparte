@@ -1881,30 +1881,15 @@ app.post("/api/registros/marcar-semana-pagada", (req, res) => {
     return res.status(400).json({ error: "Fecha requerida" });
   }
 
-  // Calcular inicio y fin de semana (la fecha viene como YYYY-MM-DD)
-  const baseParts = toMexicoParts(new Date(fecha + "T12:00:00Z"));
-  const dayC = baseParts.dow;
-  const offsetC = (dayC === 0 ? -6 : 1 - dayC);
-  
-  const inicio = new Date(fecha + "T12:00:00Z");
-  inicio.setDate(inicio.getDate() + offsetC);
-  
-  const fin = new Date(inicio);
-  fin.setDate(inicio.getDate() + 5);
-  
-  const inicioStr = toMexicoYMD(inicio);
-  const finStr = toMexicoYMD(fin);
-  
-  // Calcular número de semana (formato: 2024-W03)
-  const anio = Number(inicioStr.slice(0, 4));
-  const primerDia = new Date(anio, 0, 1);
-  const dias = Math.floor((inicio - primerDia) / (24 * 60 * 60 * 1000));
-  const numeroSemana = Math.ceil((dias + primerDia.getDay() + 1) / 7);
-  const semanaPago = `${anio}-W${numeroSemana.toString().padStart(2, '0')}`;
+  // Usar la MISMA lógica de semana laboral (Sáb-Vie) que el resto del sistema
+  const semanaInfo = obtenerSemanaLaboral(fecha);
+  const inicioStr = semanaInfo.inicio;
+  const finStr = semanaInfo.fin;
+  const semanaPago = semanaInfo.codigo;
   
   const fechaPago = new Date().toISOString();
   
-  // Filtrar registros de esa semana (pendientes)
+  // Filtrar registros de esa semana (pendientes) — comparar en hora México
   const fuenteFiltro = fuente || "operaria";
   
   let registrosAfectados = 0;
@@ -2604,39 +2589,44 @@ function formatYMDLocal(dateObj) {
 }
 
 function obtenerSemanaLaboral(fecha) {
-  // IMPORTANT: Toda la lógica de semana se calcula con referencia a la hora de México (MX_TZ),
-  // pero usando fechas "UTC a mediodía" para evitar desfases por zona horaria/DST del servidor.
-  const isYMD = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
-
-  const baseDate = isYMD(fecha)
-    ? new Date(Date.UTC(Number(fecha.slice(0,4)), Number(fecha.slice(5,7)) - 1, Number(fecha.slice(8,10)), 12, 0, 0))
-    : (fecha instanceof Date ? new Date(fecha) : new Date(fecha));
-
-  // Si viene inválida, caer al día actual para no romper
-  const safeBase = isNaN(baseDate.getTime())
-    ? new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate(), 12, 0, 0))
-    : baseDate;
-
-  const day = toMexicoParts(safeBase).dow; // 0=Dom..6=Sáb (hora México)
+  let dateObj;
+  if (fecha instanceof Date) {
+    dateObj = fecha;
+  } else {
+    const s = String(fecha || '');
+    // Si es "YYYY-MM-DD" puro, interpretarlo como mediodía UTC (para que caiga en el día correcto en México)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      dateObj = new Date(s + 'T12:00:00Z');
+    } else {
+      dateObj = new Date(s);
+    }
+  }
+  // Obtener día de la semana en hora MÉXICO (no UTC)
+  const parts = toMexicoParts(dateObj);
+  const day = parts.dow; // 0=Dom, 6=Sáb
 
   // Semana laboral: SÁBADO -> VIERNES
   let diasDesdeInicio;
-  if (day === 6) diasDesdeInicio = 0;        // sábado
-  else if (day === 0) diasDesdeInicio = 1;   // domingo => sábado fue ayer
-  else diasDesdeInicio = day + 1;            // lun(1)->2 ... vie(5)->6
+  if (day === 6) {
+    diasDesdeInicio = 0;      // sábado
+  } else if (day === 0) {
+    diasDesdeInicio = 1;      // domingo => sábado fue ayer
+  } else {
+    diasDesdeInicio = day + 1; // lun(1)->2, vie(5)->6
+  }
 
-  const inicioSemana = new Date(safeBase);
-  inicioSemana.setUTCDate(inicioSemana.getUTCDate() - diasDesdeInicio);
-  inicioSemana.setUTCHours(12, 0, 0, 0);
+  // Calcular inicio/fin usando fecha México (evita desfase UTC)
+  const fechaMx = toMexicoYMD(dateObj); // "YYYY-MM-DD" en México
+  const inicioSemana = new Date(fechaMx + 'T12:00:00Z'); // mediodía UTC para evitar edge cases
+  inicioSemana.setDate(inicioSemana.getDate() - diasDesdeInicio);
 
   const finSemana = new Date(inicioSemana);
-  finSemana.setUTCDate(finSemana.getUTCDate() + 6); // +6 = viernes
-  finSemana.setUTCHours(12, 0, 0, 0);
+  finSemana.setDate(inicioSemana.getDate() + 6); // +6 = viernes
 
   const inicioStr = toMexicoYMD(inicioSemana);
   const finStr = toMexicoYMD(finSemana);
   const year = Number(inicioStr.slice(0, 4));
-  const weekNum = obtenerNumeroSemanaUTC(inicioSemana);
+  const weekNum = obtenerNumeroSemana(inicioSemana);
 
   return {
     codigo: `${year}-W${String(weekNum).padStart(2, "0")}`,
@@ -2655,13 +2645,14 @@ function resolverSemanaPorCodigo(codigo) {
   if (!codigo || !/^[0-9]{4}-W[0-9]{2}$/.test(codigo)) return null;
   const year = Number(codigo.slice(0, 4));
 
-  // Rango de búsqueda: todo el año
-  const inicioBusqueda = new Date(year, 0, 1);
-  const finBusqueda = new Date(year, 11, 31);
-
-  for (let d = new Date(inicioBusqueda); d <= finBusqueda; d.setDate(d.getDate() + 1)) {
-    const info = obtenerSemanaLaboral(d);
-    if (info.codigo === codigo) return info;
+  // Rango de búsqueda: todo el año (usar mediodía UTC para que MX sea mismo día)
+  for (let m = 0; m < 12; m++) {
+    for (let d = 1; d <= 31; d++) {
+      const dt = new Date(Date.UTC(year, m, d, 12, 0, 0));
+      if (dt.getUTCMonth() !== m) break; // mes se pasó
+      const info = obtenerSemanaLaboral(dt);
+      if (info.codigo === codigo) return info;
+    }
   }
   return null;
 }
@@ -2670,13 +2661,6 @@ function obtenerNumeroSemana(date) {
   const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
   const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
   return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
-}
-
-function obtenerNumeroSemanaUTC(date) {
-  const year = date.getUTCFullYear();
-  const firstDayOfYear = new Date(Date.UTC(year, 0, 1, 12, 0, 0));
-  const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000;
-  return Math.ceil((pastDaysOfYear + firstDayOfYear.getUTCDay() + 1) / 7);
 }
 
 /**
@@ -2864,11 +2848,10 @@ app.get("/api/reporte-semanal", (req, res) => {
     return res.status(400).json({ error: "Código de semana inválido" });
   }
   
-  // Filtrar registros de esa semana
+  // Filtrar registros de esa semana — comparar en hora México
   const registrosSemana = registros.filter(r => {
-    const fechaReg = new Date(r.fecha);
-    const enSemana = fechaReg >= new Date(semanaInfo.inicio) && 
-                     fechaReg <= new Date(semanaInfo.fin + 'T23:59:59');
+    const fechaReg = toMexicoYMD(new Date(r.fecha));
+    const enSemana = fechaReg >= semanaInfo.inicio && fechaReg <= semanaInfo.fin;
     const estadoMatch = estado ? (r.estadoPago || 'pendiente') === estado : true;
     
     // Filtro de operaria
@@ -2909,54 +2892,47 @@ app.get("/api/reporte-semanal", (req, res) => {
  */
 app.post("/api/pagos/marcar-semana", (req, res) => {
   const { semanaCodigo, operariaId } = req.body;
-
+  
   if (!semanaCodigo) {
     return res.status(400).json({ error: "Código de semana es requerido" });
   }
-
+  
   // Parsear código de semana
   const semanaInfo = resolverSemanaPorCodigo(String(semanaCodigo));
   if (!semanaInfo) {
     return res.status(400).json({ error: "Código de semana inválido" });
   }
-
-  // Rangos en string YYYY-MM-DD (hora México), para evitar desfases por UTC
-  const inicioStr = String(semanaInfo.inicio);
-  const finStr = String(semanaInfo.fin);
-
-  // Filtrar registros de esa semana (comparación por fecha México)
+  
+  // Filtrar registros de esa semana — comparar en hora México
   let registrosAMarcar = registros.filter(r => {
-    // Excluir encargada: el pago semanal es para operarias
-    if ((r.fuente || "operaria") === "encargada") return false;
-
-    const fechaRegStr = toMexicoYMD(new Date(r.fecha)); // YYYY-MM-DD en hora México
-    const enSemana = (fechaRegStr >= inicioStr && fechaRegStr <= finStr);
+    const fechaReg = toMexicoYMD(new Date(r.fecha));
+    const enSemana = fechaReg >= semanaInfo.inicio && fechaReg <= semanaInfo.fin;
     const pendiente = (r.estadoPago || 'pendiente') === 'pendiente';
-
+    
     if (operariaId) {
       return enSemana && pendiente && r.operariaId === Number(operariaId);
     }
-
+    
     return enSemana && pendiente;
   });
-
+  
   if (registrosAMarcar.length === 0) {
     return res.status(400).json({ error: "No hay registros pendientes en esta semana" });
   }
-
+  
   // Marcar como pagados
   const fechaPago = toMexicoYMD(new Date());
   let totalPagado = 0;
-
+  
   registrosAMarcar.forEach(reg => {
     reg.estadoPago = 'pagado';
     reg.semanaPago = semanaCodigo;
     reg.fechaPago = fechaPago;
     totalPagado += reg.totalGanado;
   });
-
+  
   guardarDatos();
-
+  
   res.json({
     ok: true,
     registrosActualizados: registrosAMarcar.length,
@@ -2978,6 +2954,54 @@ function formatearFechaCorta(fechaStr) {
 // =========================
 // INICIAR SERVIDOR
 // =========================
+
+/**
+ * GET /api/debug-semana?codigo=2026-W08
+ * Diagnostico para verificar qué registros hay y por qué no se marcan
+ */
+app.get("/api/debug-semana", (req, res) => {
+  const { codigo } = req.query;
+  if (!codigo) return res.status(400).json({ error: "Falta ?codigo=YYYY-WNN" });
+
+  const semanaInfo = resolverSemanaPorCodigo(String(codigo));
+  if (!semanaInfo) return res.status(400).json({ error: "Código inválido" });
+
+  const pendientes = registros.filter(r => (r.estadoPago || "pendiente") === "pendiente");
+
+  const analisis = pendientes.map(r => {
+    const fechaMx = toMexicoYMD(new Date(r.fecha));
+    const semanaReg = obtenerSemanaLaboral(r.fecha);
+    const enRangoPorFecha = fechaMx >= semanaInfo.inicio && fechaMx <= semanaInfo.fin;
+    const enRangoPorCodigo = semanaReg.codigo === codigo;
+    return {
+      id: r.id,
+      fechaISO: r.fecha,
+      fechaMexico: fechaMx,
+      semanaCodigo: semanaReg.codigo,
+      semanaInicio: semanaReg.inicio,
+      semanaFin: semanaReg.fin,
+      filtroFechaMatch: enRangoPorFecha,
+      filtroCodigoMatch: enRangoPorCodigo,
+      estadoPago: r.estadoPago,
+      fuente: r.fuente || "operaria",
+      operariaId: r.operariaId,
+      descripcion: r.descripcion,
+      cantidad: r.cantidad
+    };
+  });
+
+  const enEstaSemana = analisis.filter(a => a.filtroCodigoMatch);
+  const noMatch = analisis.filter(a => a.filtroCodigoMatch && !a.filtroFechaMatch);
+
+  res.json({
+    semana: { codigo, inicio: semanaInfo.inicio, fin: semanaInfo.fin },
+    totalPendientes: pendientes.length,
+    enEstaSemana: enEstaSemana.length,
+    discrepancias: noMatch.length,
+    registros: enEstaSemana,
+    discrepanciasDetalle: noMatch
+  });
+});
 
 app.listen(PORT, () => {
   console.log("╔════════════════════════════════════════════════╗");
