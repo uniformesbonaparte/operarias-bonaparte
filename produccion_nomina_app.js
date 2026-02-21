@@ -2604,41 +2604,46 @@ function formatYMDLocal(dateObj) {
 }
 
 function obtenerSemanaLaboral(fecha) {
-  const date = parseFechaLocal(fecha);
-  const day = toMexicoParts(date).dow; // 0=Dom..6=Sáb (hora México)
+  // Normalizar usando FECHA EN MÉXICO (YYYY-MM-DD) para evitar desfase UTC
+  const dt = parseFechaLocal(fecha);
+  const fechaMxStr = toMexicoYMD(dt);               // fecha calendario en MX
+  const base = parseFechaLocal(fechaMxStr);         // 00:00 local, pero anclado a la fecha MX
+  const dowMx = toMexicoParts(dt).dow;              // 0=Dom..6=Sáb (hora México)
 
   // Semana laboral: SÁBADO -> VIERNES
   let diasDesdeInicio;
-  if (day === 6) {
-    diasDesdeInicio = 0;      // sábado
-  } else if (day === 0) {
-    diasDesdeInicio = 1;      // domingo => sábado fue ayer
+  if (dowMx === 6) {
+    diasDesdeInicio = 0;       // sábado
+  } else if (dowMx === 0) {
+    diasDesdeInicio = 1;       // domingo => sábado fue ayer
   } else {
-    diasDesdeInicio = day + 1; // lun(1)->2, vie(5)->6
+    diasDesdeInicio = dowMx + 1; // lun(1)->2, vie(5)->6
   }
 
-  const inicioSemana = new Date(date);
-  inicioSemana.setDate(date.getDate() - diasDesdeInicio);
+  const inicioSemana = new Date(base);
+  inicioSemana.setDate(base.getDate() - diasDesdeInicio);
   inicioSemana.setHours(0, 0, 0, 0);
 
   const finSemana = new Date(inicioSemana);
-  finSemana.setDate(inicioSemana.getDate() + 6); // +6 = viernes
+  finSemana.setDate(inicioSemana.getDate() + 6);   // +6 = viernes
   finSemana.setHours(23, 59, 59, 999);
 
-  const year = inicioSemana.getFullYear();
+  const inicioStr = toMexicoYMD(inicioSemana);
+  const finStr = toMexicoYMD(finSemana);
+  const year = Number(inicioStr.slice(0, 4));
   const weekNum = obtenerNumeroSemana(inicioSemana);
 
   return {
     codigo: `${year}-W${String(weekNum).padStart(2, "0")}`,
-    inicio: formatYMDLocal(inicioSemana),
-    fin: formatYMDLocal(finSemana),
+    inicio: inicioStr,
+    fin: finStr,
     inicioDate: inicioSemana,
     finDate: finSemana
   };
 }
 
 /**
- * Dado un código de semana "YYYY-WNN", regresa {codigo,inicio,fin} usando la MISMA lógica de obtenerSemanaLaboral.
+ * Dado un código de semana "YYYY-WNN", regresa {codigo,inicio,fin} usando la MISMA lógica de obtenerSemanaLaboral. "YYYY-WNN", regresa {codigo,inicio,fin} usando la MISMA lógica de obtenerSemanaLaboral.
  * Esto evita desfases cuando se reconstruye la semana solo por número.
  */
 function resolverSemanaPorCodigo(codigo) {
@@ -2892,52 +2897,52 @@ app.get("/api/reporte-semanal", (req, res) => {
  */
 app.post("/api/pagos/marcar-semana", (req, res) => {
   const { semanaCodigo, operariaId } = req.body;
-
+  
   if (!semanaCodigo) {
     return res.status(400).json({ error: "Código de semana es requerido" });
   }
-
-  // Parsear código de semana (misma lógica que /api/semanas)
+  
+  // Parsear código de semana
   const semanaInfo = resolverSemanaPorCodigo(String(semanaCodigo));
   if (!semanaInfo) {
     return res.status(400).json({ error: "Código de semana inválido" });
   }
+  
+  // Filtrar registros de esa semana (comparación por fecha MX para evitar desfase UTC)
+  const inicioStr = semanaInfo.inicio;
+  const finStr = semanaInfo.fin;
 
-  const inicioStr = String(semanaInfo.inicio);
-  const finStr = String(semanaInfo.fin);
-
-  // Filtrar registros de esa semana (SIN comparar Date vs Date, para evitar desfase UTC)
   let registrosAMarcar = registros.filter(r => {
-    // Excluir encargada: el pago semanal es para operarias
-    if ((r.fuente || "operaria") === "encargada") return false;
+    // Excluir registros de encargada (consistente con reporte/semanas)
+    if ((r.fuente || 'operaria') === 'encargada') return false;
 
-    const fechaRegStr = toMexicoYMD(new Date(r.fecha)); // YYYY-MM-DD en hora México
+    const fechaRegStr = toMexicoYMD(parseFechaLocal(r.fecha));
     const enSemana = (fechaRegStr >= inicioStr && fechaRegStr <= finStr);
-    const pendiente = (r.estadoPago || "pendiente") === "pendiente";
+    const pendiente = (r.estadoPago || 'pendiente') === 'pendiente';
 
     if (operariaId) {
       return enSemana && pendiente && r.operariaId === Number(operariaId);
     }
     return enSemana && pendiente;
   });
-
+  
   if (registrosAMarcar.length === 0) {
     return res.status(400).json({ error: "No hay registros pendientes en esta semana" });
   }
-
+  
   // Marcar como pagados
   const fechaPago = toMexicoYMD(new Date());
   let totalPagado = 0;
-
+  
   registrosAMarcar.forEach(reg => {
-    reg.estadoPago = "pagado";
+    reg.estadoPago = 'pagado';
     reg.semanaPago = semanaCodigo;
     reg.fechaPago = fechaPago;
     totalPagado += reg.totalGanado;
   });
-
+  
   guardarDatos();
-
+  
   res.json({
     ok: true,
     registrosActualizados: registrosAMarcar.length,
