@@ -1170,13 +1170,9 @@ app.get("/api/operarias/:id/resumen-dia-semana", (req, res) => {
   const hoy = new Date();
   const hoyStr = toMexicoYMD(hoy);
 
-  // Calcular inicio de semana (lunes) en hora México
-  const hoyParts = toMexicoParts(hoy);
-  const dowHoy = hoyParts.dow;
-  const offsetSemana = (dowHoy === 0 ? -6 : 1 - dowHoy);
-  const inicioSemanaDate = new Date(hoyStr + 'T12:00:00Z');
-  inicioSemanaDate.setDate(inicioSemanaDate.getDate() + offsetSemana);
-  const inicioSemanaStr = toMexicoYMD(inicioSemanaDate);
+  // Calcular inicio de semana laboral (SÁBADO → VIERNES)
+  const semanaInfo = obtenerSemanaLaboral(hoy);
+  const inicioSemanaStr = semanaInfo.inicio;
 
   // Filtrar registros pendientes de esta operaria
   const registrosOperaria = registros.filter(r => 
@@ -1539,17 +1535,31 @@ app.put("/api/pedidos/:id", (req, res) => {
 
   // ✅ Actualizar items detallados (nuevo formato)
   if (Array.isArray(items)) {
+    // Indexar operaciones existentes por prendaId+costura para preservar opIds
+    const opsExistentes = {};
+    (pedido.items || []).forEach(item => {
+      (item.operaciones || []).forEach(op => {
+        const key = `${item.prendaId}|${op.costura}|${op.maquina}`;
+        opsExistentes[key] = op.opId;
+      });
+    });
+
     pedido.items = items.map(item => {
       const prendaId = Number(item.prendaId);
       const cantidad = Number(item.cantidad) || 0;
       const tallas = Array.isArray(item.tallas) ? item.tallas.filter(t => (t.talla||'').toString().trim() !== '' && Number(t.cantidad) > 0).map(t => ({ talla: (t.talla||'').toString().trim(), cantidad: Number(t.cantidad) })) : [];
       const cantidadTotal = tallas.length > 0 ? tallas.reduce((s,t)=>s+t.cantidad,0) : cantidad;
-      const operaciones = (item.operaciones || []).map(op => ({
-        opId: operacionIdCounter++,
-        costura: op.costura || op.descripcion || "",
-        maquina: op.maquina || "",
-        precio: Number(op.precio) || 0
-      }));
+      const operaciones = (item.operaciones || []).map(op => {
+        // Preservar opId existente si la operación ya existía, generar nuevo solo si es nueva
+        const key = `${prendaId}|${op.costura || op.descripcion || ''}|${op.maquina || ''}`;
+        const existingOpId = op.opId || opsExistentes[key];
+        return {
+          opId: existingOpId || operacionIdCounter++,
+          costura: op.costura || op.descripcion || "",
+          maquina: op.maquina || "",
+          precio: Number(op.precio) || 0
+        };
+      });
       return { prendaId, cantidad: cantidadTotal, tallas, operaciones };
     });
     // Sync prendas[] desde items
@@ -1697,6 +1707,15 @@ app.post("/api/registros", (req, res) => {
   const cant = Number(cantidad);
   if (cant <= 0) {
     return res.status(400).json({ error: "La cantidad debe ser mayor a 0." });
+  }
+
+  // Validar que la operaria exista y esté activa
+  const operaria = operarias.find(o => o.id === Number(operariaId));
+  if (!operaria) {
+    return res.status(400).json({ error: "Operaria no encontrada." });
+  }
+  if (!operaria.activa) {
+    return res.status(400).json({ error: "La operaria está inactiva. No se pueden registrar costuras." });
   }
 
   let maqFinal = maquina;
@@ -2065,7 +2084,7 @@ app.get("/api/estadisticas/comparacion-fuentes", (req, res) => {
   const regsOperarias = regsFiltrados.filter(r => (r.fuente || "operaria") === "operaria");
   const regsEncargada = regsFiltrados.filter(r => r.fuente === "encargada");
   
-  const operarias = {
+  const resumenOperarias = {
     registros: regsOperarias.length,
     piezas: regsOperarias.reduce((sum, r) => sum + r.cantidad, 0),
     ganado: regsOperarias.reduce((sum, r) => sum + r.totalGanado, 0)
@@ -2079,12 +2098,12 @@ app.get("/api/estadisticas/comparacion-fuentes", (req, res) => {
   
   res.json({
     estadoPago: estadoFiltro,
-    operarias,
+    operarias: resumenOperarias,
     encargada,
     diferencia: {
-      registros: operarias.registros - encargada.registros,
-      piezas: operarias.piezas - encargada.piezas,
-      ganado: operarias.ganado - encargada.ganado
+      registros: resumenOperarias.registros - encargada.registros,
+      piezas: resumenOperarias.piezas - encargada.piezas,
+      ganado: resumenOperarias.ganado - encargada.ganado
     }
   });
 });
@@ -2568,25 +2587,8 @@ app.get("/api/pedidos/:id/operaciones", (req, res) => {
  * Calcula la semana laboral (Sábado a Viernes) para una fecha dada
  */
 // =========================
-// FECHAS (LOCAL / SIN DESFASE UTC)
+// FECHAS — todo usa toMexicoYMD / toMexicoParts (Intl, sin depender del TZ del servidor)
 // =========================
-function parseFechaLocal(input) {
-  if (input instanceof Date) return new Date(input);
-  const s = String(input || "");
-  // Si viene como "YYYY-MM-DD" (sin hora), lo interpretamos como fecha LOCAL
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (m) {
-    const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3]);
-    return new Date(y, mo, d, 0, 0, 0, 0);
-  }
-  // Si viene como ISO con T o cualquier otro formato, usamos Date normal
-  const dt = new Date(s);
-  return dt;
-}
-
-function formatYMDLocal(dateObj) {
-  return toMexicoYMD(dateObj);
-}
 
 function obtenerSemanaLaboral(fecha) {
   let dateObj;
@@ -2644,23 +2646,24 @@ function obtenerSemanaLaboral(fecha) {
 function resolverSemanaPorCodigo(codigo) {
   if (!codigo || !/^[0-9]{4}-W[0-9]{2}$/.test(codigo)) return null;
   const year = Number(codigo.slice(0, 4));
+  const week = Number(codigo.slice(6));
 
-  // Rango de búsqueda: todo el año (usar mediodía UTC para que MX sea mismo día)
-  for (let m = 0; m < 12; m++) {
-    for (let d = 1; d <= 31; d++) {
-      const dt = new Date(Date.UTC(year, m, d, 12, 0, 0));
-      if (dt.getUTCMonth() !== m) break; // mes se pasó
-      const info = obtenerSemanaLaboral(dt);
-      if (info.codigo === codigo) return info;
-    }
+  // Saltar cerca de la semana objetivo: día ~(week-1)*7 del año, luego buscar ±14 días
+  const estimado = new Date(Date.UTC(year, 0, 1 + (week - 1) * 7, 12, 0, 0));
+  for (let offset = -14; offset <= 14; offset++) {
+    const dt = new Date(estimado);
+    dt.setUTCDate(dt.getUTCDate() + offset);
+    const info = obtenerSemanaLaboral(dt);
+    if (info.codigo === codigo) return info;
   }
   return null;
 }
 
 function obtenerNumeroSemana(date) {
-  const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+  // Input siempre es mediodía UTC — usar UTC methods para ser explícito
+  const firstDayOfYear = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
   const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
-  return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+  return Math.ceil((pastDaysOfYear + firstDayOfYear.getUTCDay() + 1) / 7);
 }
 
 /**
@@ -2773,10 +2776,10 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
     const fecha = toMexicoYMD(new Date(reg.fecha));
     
     if (!registrosPorDia[fecha]) {
-      const d = parseFechaLocal(fecha);
+      const dParts = toMexicoParts(new Date(fecha + 'T12:00:00Z'));
       registrosPorDia[fecha] = {
         fecha,
-        dia: diasSemana[d.getDay()],
+        dia: diasSemana[dParts.dow],
         registros: [],
         subtotal: 0
       };
@@ -2831,60 +2834,7 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
   });
 });
 
-/**
- * GET /api/reporte-semanal
- * Obtiene el resumen de todas las operarias en una semana
- */
-app.get("/api/reporte-semanal", (req, res) => {
-  const { semana, estado, operariaId, fuente } = req.query;
-  
-  if (!semana) {
-    return res.status(400).json({ error: "Código de semana es requerido" });
-  }
-  
-  // Parsear código de semana (misma lógica que /api/semanas)
-  const semanaInfo = resolverSemanaPorCodigo(String(semana));
-  if (!semanaInfo) {
-    return res.status(400).json({ error: "Código de semana inválido" });
-  }
-  
-  // Filtrar registros de esa semana — comparar en hora México
-  const registrosSemana = registros.filter(r => {
-    const fechaReg = toMexicoYMD(new Date(r.fecha));
-    const enSemana = fechaReg >= semanaInfo.inicio && fechaReg <= semanaInfo.fin;
-    const estadoMatch = estado ? (r.estadoPago || 'pendiente') === estado : true;
-    
-    // Filtro de operaria
-    const operariaMatch = operariaId ? r.operariaId === Number(operariaId) : true;
-    
-    // Filtro de fuente (base de datos)
-    const fuenteMatch = fuente ? (r.fuente || 'operaria') === fuente : true;
-    
-    return enSemana && estadoMatch && operariaMatch && fuenteMatch;
-  });
-  
-  // Agrupar por operaria
-  const porOperaria = {};
-  
-  registrosSemana.forEach(reg => {
-    if (!porOperaria[reg.operariaId]) {
-      const operaria = operarias.find(o => o.id === reg.operariaId);
-      porOperaria[reg.operariaId] = {
-        operariaId: reg.operariaId,
-        nombre: operaria ? operaria.nombre : 'N/A',
-        piezas: 0,
-        ganado: 0,
-        registros: 0
-      };
-    }
-    
-    porOperaria[reg.operariaId].piezas += reg.cantidad;
-    porOperaria[reg.operariaId].ganado += reg.totalGanado;
-    porOperaria[reg.operariaId].registros++;
-  });
-  
-  res.json(Object.values(porOperaria));
-});
+// (Ruta duplicada /api/reporte-semanal eliminada — la definición activa está más arriba)
 
 /**
  * POST /api/pagos/marcar-semana
@@ -2947,8 +2897,9 @@ app.post("/api/pagos/marcar-semana", (req, res) => {
  */
 function formatearFechaCorta(fechaStr) {
   const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-  const fecha = new Date(fechaStr);
-  return `${fecha.getDate()} ${meses[fecha.getMonth()]}`;
+  // Input siempre es "YYYY-MM-DD" — parsear directo sin depender del TZ del servidor
+  const parts = String(fechaStr).split('-');
+  return `${Number(parts[2])} ${meses[Number(parts[1]) - 1]}`;
 }
 
 // =========================
