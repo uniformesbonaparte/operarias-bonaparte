@@ -874,6 +874,8 @@
             console.error("Error cargando operaciones:", err);
           }
         }
+        // Exponer para que eliminarCostura pueda recargar faltantes
+        window._recargarOperacionesOp = cargarOperacionesOp;
 
         document.getElementById("select-prenda").addEventListener("change", async (e) => {
           const prendaId = e.target.value;
@@ -1111,6 +1113,8 @@
             console.error("Error cargando operaciones:", err);
           }
         }
+        // Exponer para que eliminarCostura pueda recargar faltantes
+        window._recargarOperacionesEnc = cargarOperacionesEnc;
 
         // Cargar operaciones cuando selecciona prenda
         document.getElementById("select-prenda-enc").addEventListener("change", async (e) => {
@@ -1636,6 +1640,10 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
           } else {
             await cargarMisCosturas();
           }
+
+          // Recargar faltantes en el dropdown de operaciones
+          if (typeof window._recargarOperacionesOp === 'function') await window._recargarOperacionesOp();
+          if (typeof window._recargarOperacionesEnc === 'function') await window._recargarOperacionesEnc();
         } catch (err) {
           mostrarError("❌ " + err.message);
         }
@@ -1783,6 +1791,10 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
           } else if (usuarioActual.tipo === "operaria") {
             await cargarMisCosturas();
           }
+
+          // Recargar faltantes en el dropdown de operaciones
+          if (typeof window._recargarOperacionesOp === 'function') await window._recargarOperacionesOp();
+          if (typeof window._recargarOperacionesEnc === 'function') await window._recargarOperacionesEnc();
 
         } catch (err) {
           mostrarError("❌ " + err.message);
