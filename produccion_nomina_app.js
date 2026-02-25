@@ -1748,10 +1748,13 @@ app.post("/api/registros", (req, res) => {
         const tallaNorm = (talla !== undefined && talla !== null) ? String(talla).trim() : null;
 
         // Sumar piezas ya hechas para esta operación (y talla si aplica)
+        // Solo contar registros de la MISMA fuente (operaria vs encargada son bases independientes)
+        const fuenteActual = fuente || "operaria";
         const piezasYaHechas = registros
           .filter(r =>
             r.pedidoId === Number(pedidoId) &&
             r.operacionId === opIdFinal &&
+            (r.fuente || 'operaria') === fuenteActual &&
             (tallaNorm ? (String(r.talla || '').trim() === tallaNorm) : true)
           )
           .reduce((sum, r) => sum + r.cantidad, 0);
@@ -2537,7 +2540,8 @@ app.get("/api/pedidos/:id/operaciones", (req, res) => {
 
   const prendaIdFiltro = req.query.prendaId ? Number(req.query.prendaId) : null;
   const tallaFiltro = (req.query.talla !== undefined && req.query.talla !== null && String(req.query.talla).trim() !== '') ? String(req.query.talla).trim() : null;
-  const regsPedido = registros.filter(r => r.pedidoId === id);
+  const fuenteFiltro = req.query.fuente || null; // "operaria" | "encargada" | null (todas)
+  const regsPedido = registros.filter(r => r.pedidoId === id && (fuenteFiltro ? (r.fuente || 'operaria') === fuenteFiltro : true));
 
   const resultado = [];
   pedido.items.forEach(item => {
