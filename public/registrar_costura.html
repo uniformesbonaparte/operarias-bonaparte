@@ -846,7 +846,7 @@
           try {
             const talla = document.getElementById('select-talla').value;
             const tallaQS = talla ? `&talla=${encodeURIComponent(talla)}` : '';
-            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}${tallaQS}`);
+            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}${tallaQS}&fuente=operaria`);
             const ops = await res.json();
             
             selectOp.innerHTML = '<option value="">-- Selecciona operación --</option>';
@@ -1085,7 +1085,7 @@
           try {
             const talla = document.getElementById('select-talla-enc').value;
             const tallaQS = talla ? `&talla=${encodeURIComponent(talla)}` : '';
-            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}${tallaQS}`);
+            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}${tallaQS}&fuente=encargada`);
             const ops = await res.json();
             
             selectOp.innerHTML = '<option value="">-- Selecciona operación --</option>';
