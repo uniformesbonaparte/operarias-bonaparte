@@ -492,6 +492,46 @@
     .btn-edit:hover {
       background: rgba(245, 158, 11, 0.3);
     }
+
+    /* Multi-select costuras y tallas */
+    .check-group { margin: 8px 0; }
+    .check-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px; border-radius: 8px;
+      background: rgba(255,255,255,0.04); margin-bottom: 4px;
+      cursor: pointer; font-size: 13px; transition: background 0.2s;
+    }
+    .check-item:hover { background: rgba(59,130,246,0.1); }
+    .check-item input[type="checkbox"] {
+      width: 18px; height: 18px; accent-color: #3b82f6; cursor: pointer; flex-shrink: 0;
+    }
+    .check-item .check-label { flex: 1; }
+    .check-item .check-detail { color: var(--text-muted); font-size: 11px; }
+
+    .talla-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px; border-radius: 8px;
+      background: rgba(255,255,255,0.04); margin-bottom: 4px;
+    }
+    .talla-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: #3b82f6; flex-shrink: 0; }
+    .talla-row .talla-name { font-weight: 600; min-width: 50px; font-size: 13px; }
+    .talla-row .talla-cant {
+      width: 70px; padding: 6px 8px; border-radius: 6px;
+      background: rgba(255,255,255,0.08); border: 1px solid var(--glass-border);
+      color: var(--text-main); font-size: 13px; text-align: center;
+    }
+    .talla-row .talla-cant:disabled { opacity: 0.3; }
+    .talla-row .faltante-info { color: var(--text-muted); font-size: 11px; margin-left: auto; }
+
+    .resumen-lote {
+      padding: 10px 14px; border-radius: 10px;
+      background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2);
+      font-size: 13px; color: #93c5fd; margin: 10px 0; text-align: center;
+    }
+    .section-label {
+      font-size: 12px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.5px; margin: 12px 0 6px;
+    }
   </style>
 </head>
 <body>
@@ -512,7 +552,7 @@
       <div id="vista-operaria" class="oculto">
         <section class="card">
           <div class="card-title">✂️ Registrar Costura</div>
-          <p class="subtext">Completa los campos (el precio lo asignará el admin)</p>
+          <p class="subtext">Selecciona costuras y tallas — se guardan todos de un golpe</p>
 
           <div class="form-row">
             <label for="select-pedido">📦 Pedido</label>
@@ -527,41 +567,44 @@
               <option value="">-- Primero selecciona un pedido --</option>
             </select>
           </div>
-          <div class="form-row">
-            <label for="select-talla">📏 Talla</label>
-            <select id="select-talla">
-              <option value="">-- Selecciona prenda primero --</option>
-            </select>
+
+          <!-- Multi-select costuras -->
+          <div id="costuras-container" class="oculto">
+            <div class="section-label">✂️ Costuras a registrar</div>
+            <div id="lista-costuras-check" class="check-group"></div>
           </div>
 
-
-          <div class="form-row">
-            <label for="select-operacion">✂️ Operación (Costura)</label>
-            <select id="select-operacion">
-              <option value="">-- Primero selecciona una prenda --</option>
-            </select>
+          <!-- Multi-select tallas con cantidades -->
+          <div id="tallas-container" class="oculto">
+            <div class="section-label">📏 Tallas y cantidades</div>
+            <div id="lista-tallas-check"></div>
           </div>
 
-          <div id="manual-fields" style="display:none;">
+          <!-- Modo manual (toggle) -->
+          <div id="manual-toggle" class="oculto" style="margin:10px 0;">
+            <label class="check-item" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);">
+              <input type="checkbox" id="check-manual">
+              <span>✏️ Modo manual (costura no listada)</span>
+            </label>
+          </div>
+          <div id="manual-fields" class="oculto">
             <div class="form-row">
-              <label for="input-descripcion-manual">✏️ Descripción de la costura</label>
-              <input type="text" id="input-descripcion-manual" placeholder="Ej: pegar bolsa, bastilla, etc." />
+              <label for="input-descripcion-manual">✏️ Descripción</label>
+              <input type="text" id="input-descripcion-manual" placeholder="Ej: pegar bolsa, bastilla..." />
+            </div>
+            <div class="form-row">
+              <label for="select-maquina">🔧 Máquina</label>
+              <select id="select-maquina">
+                <option value="">-- Selecciona --</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="input-cantidad-manual">🔢 Cantidad</label>
+              <input type="number" id="input-cantidad-manual" placeholder="0" min="1" />
             </div>
           </div>
 
-          <div class="form-row">
-            <label for="select-maquina">🔧 Máquina</label>
-            <select id="select-maquina" disabled>
-              <option value="">-- Se llena automáticamente --</option>
-            </select>
-          </div>
-
-          <div id="info-operacion" style="display:none;padding:8px 12px;border-radius:10px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);margin-bottom:12px;font-size:12px;color:#93c5fd;"></div>
-
-          <div class="form-row">
-            <label for="input-cantidad">🔢 Cantidad de Piezas</label>
-            <input type="number" id="input-cantidad" placeholder="0" min="1" />
-          </div>
+          <div id="resumen-lote" class="resumen-lote oculto"></div>
 
           <button class="btn-primary" id="btn-guardar">💾 Guardar Costura</button>
         </section>
@@ -578,7 +621,7 @@
       <div id="vista-encargada" class="oculto">
         <section class="card">
           <div class="card-title">👤 Registrar Costura</div>
-          <p class="subtext">Selecciona la operaria y registra su costura</p>
+          <p class="subtext">Selecciona costuras y tallas para la operaria</p>
 
           <div class="form-row">
             <label for="select-operaria-enc">👥 Operaria</label>
@@ -600,41 +643,41 @@
               <option value="">-- Primero selecciona un pedido --</option>
             </select>
           </div>
-          <div class="form-row">
-            <label for="select-talla-enc">📏 Talla</label>
-            <select id="select-talla-enc">
-              <option value="">-- Selecciona prenda primero --</option>
-            </select>
+
+          <div id="costuras-container-enc" class="oculto">
+            <div class="section-label">✂️ Costuras a registrar</div>
+            <div id="lista-costuras-check-enc" class="check-group"></div>
           </div>
 
-
-          <div class="form-row">
-            <label for="select-operacion-enc">✂️ Operación (Costura)</label>
-            <select id="select-operacion-enc">
-              <option value="">-- Primero selecciona una prenda --</option>
-            </select>
+          <div id="tallas-container-enc" class="oculto">
+            <div class="section-label">📏 Tallas y cantidades</div>
+            <div id="lista-tallas-check-enc"></div>
           </div>
 
-          <div id="manual-fields-enc" style="display:none;">
+          <div id="manual-toggle-enc" class="oculto" style="margin:10px 0;">
+            <label class="check-item" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);">
+              <input type="checkbox" id="check-manual-enc">
+              <span>✏️ Modo manual (costura no listada)</span>
+            </label>
+          </div>
+          <div id="manual-fields-enc" class="oculto">
             <div class="form-row">
-              <label for="input-descripcion-manual-enc">✏️ Descripción de la costura</label>
-              <input type="text" id="input-descripcion-manual-enc" placeholder="Ej: pegar bolsa, bastilla, etc." />
+              <label for="input-descripcion-manual-enc">✏️ Descripción</label>
+              <input type="text" id="input-descripcion-manual-enc" placeholder="Ej: pegar bolsa, bastilla..." />
+            </div>
+            <div class="form-row">
+              <label for="select-maquina-enc">🔧 Máquina</label>
+              <select id="select-maquina-enc">
+                <option value="">-- Selecciona --</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="input-cantidad-manual-enc">🔢 Cantidad</label>
+              <input type="number" id="input-cantidad-manual-enc" placeholder="0" min="1" />
             </div>
           </div>
 
-          <div class="form-row">
-            <label for="select-maquina-enc">🔧 Máquina</label>
-            <select id="select-maquina-enc" disabled>
-              <option value="">-- Se llena automáticamente --</option>
-            </select>
-          </div>
-
-          <div id="info-operacion-enc" style="display:none;padding:8px 12px;border-radius:10px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);margin-bottom:12px;font-size:12px;color:#93c5fd;"></div>
-
-          <div class="form-row">
-            <label for="input-cantidad-enc">🔢 Cantidad de Piezas</label>
-            <input type="number" id="input-cantidad-enc" placeholder="0" min="1" />
-          </div>
+          <div id="resumen-lote-enc" class="resumen-lote oculto"></div>
 
           <button class="btn-primary" id="btn-guardar-enc">💾 Guardar Costura</button>
         </section>
@@ -778,29 +821,20 @@
         await cargarMaquinas("select-maquina");
         await cargarMisCosturas();
 
-        // Event listener para cargar prendas cuando se selecciona pedido
+        let pedidoCache = null;
+        let operacionesCache = [];
+
+        // Pedido change → load prendas
         document.getElementById("select-pedido").addEventListener("change", async (e) => {
           const pedidoId = e.target.value;
           const selectPrenda = document.getElementById("select-prenda");
-          const selectOp = document.getElementById("select-operacion");
-          const selectTalla = document.getElementById("select-talla");
-          selectTalla.innerHTML = '<option value="">-- Selecciona prenda primero --</option>';
-          selectOp.innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
-          document.getElementById("info-operacion").style.display = "none";
-          document.getElementById("select-maquina").value = "";
-          
-          if (!pedidoId) {
-            selectPrenda.innerHTML = '<option value="">-- Primero selecciona un pedido --</option>';
-            return;
-          }
-          
+          ocultarMultiSelect();
+          if (!pedidoId) { selectPrenda.innerHTML = '<option value="">-- Primero selecciona un pedido --</option>'; return; }
           try {
             const res = await fetch(`/api/pedidos/${pedidoId}`);
-            if (!res.ok) throw new Error("Error al cargar pedido");
             const pedido = await res.json();
-            if (e && e.target && e.target.id === 'select-pedido-enc') { window._pedidoActualEnc = pedido; } else { window._pedidoActual = pedido; }
-            
-            // Si tiene items (nuevo formato), cargar prendas de items
+            pedidoCache = pedido;
+            window._pedidoActual = pedido;
             if (pedido.items && pedido.items.length > 0) {
               const resPrendas = await fetch("/api/prendas");
               const todasPrendas = await resPrendas.json();
@@ -814,187 +848,266 @@
                   selectPrenda.appendChild(opt);
                 }
               });
-            } else if (pedido.prendas && pedido.prendas.length > 0) {
-              // Legacy: cargar prendas por ID
-              const resPrendas = await fetch("/api/prendas");
-              const todasPrendas = await resPrendas.json();
-              selectPrenda.innerHTML = '<option value="">-- Selecciona una prenda --</option>';
-              pedido.prendas.forEach(prendaId => {
-                const prenda = todasPrendas.find(p => p.id === prendaId);
-                if (prenda) {
-                  const opt = document.createElement("option");
-                  opt.value = prenda.id;
-                  opt.textContent = prenda.nombre;
-                  selectPrenda.appendChild(opt);
-                }
-              });
             } else {
               selectPrenda.innerHTML = '<option value="">-- Este pedido no tiene prendas --</option>';
             }
-          } catch (err) {
-            console.error("Error cargando prendas del pedido:", err);
-          }
+          } catch (err) { console.error("Error cargando prendas:", err); }
         });
 
-        // Event listener para cargar operaciones cuando se selecciona prenda
-        // Función reutilizable para cargar operaciones (operaria)
-        async function cargarOperacionesOp() {
-          const prendaId = document.getElementById("select-prenda").value;
-          const pedidoId = document.getElementById("select-pedido").value;
-          const selectOp = document.getElementById("select-operacion");
-          if (!prendaId || !pedidoId) return;
-          try {
-            const talla = document.getElementById('select-talla').value;
-            const tallaQS = talla ? `&talla=${encodeURIComponent(talla)}` : '';
-            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}${tallaQS}&fuente=operaria`);
-            const ops = await res.json();
-            
-            selectOp.innerHTML = '<option value="">-- Selecciona operación --</option>';
-            ops.forEach(op => {
-              const opt = document.createElement("option");
-              opt.value = op.opId;
-              opt.dataset.maquina = op.maquina;
-              opt.dataset.costura = op.costura;
-              opt.dataset.precio = op.precio;
-              opt.dataset.faltante = op.cantidadFaltante;
-              opt.textContent = `${op.costura} (${op.maquina}) - Faltan ${op.cantidadFaltante}`;
-              if (op.cantidadFaltante === 0) {
-                opt.textContent += " ✅";
-                opt.style.color = "#6ee7b7";
-              }
-              selectOp.appendChild(opt);
-            });
-            // Siempre agregar opción manual al final
-            const optManual = document.createElement("option");
-            optManual.value = "manual";
-            optManual.textContent = "✏️ Otra costura (manual)";
-            optManual.style.color = "#fbbf24";
-            selectOp.appendChild(optManual);
-          } catch (err) {
-            console.error("Error cargando operaciones:", err);
-          }
-        }
-        // Exponer para que eliminarCostura pueda recargar faltantes
-        window._recargarOperacionesOp = cargarOperacionesOp;
-
+        // Prenda change → load costuras checkboxes + tallas rows
         document.getElementById("select-prenda").addEventListener("change", async (e) => {
           const prendaId = e.target.value;
           const pedidoId = document.getElementById("select-pedido").value;
-          const selectOp = document.getElementById("select-operacion");
-          const selectTalla = document.getElementById("select-talla");
-          selectTalla.innerHTML = '<option value="">-- Selecciona prenda primero --</option>';
-          document.getElementById("info-operacion").style.display = "none";
-          document.getElementById("select-maquina").value = "";
-          
-          if (!prendaId || !pedidoId) {
-            selectOp.innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
-            return;
-          }
+          if (!prendaId || !pedidoId) { ocultarMultiSelect(); return; }
+          await cargarCosturasYTallasOp(pedidoId, prendaId);
+        });
 
-          // Cargar tallas del pedido para esta prenda (si existen)
-          const pedidoActual = window._pedidoActual;
-          selectTalla.innerHTML = '<option value="">-- (Opcional) Todas las tallas --</option>';
-          if (pedidoActual && Array.isArray(pedidoActual.items)) {
-            const item = pedidoActual.items.find(i => Number(i.prendaId) === Number(prendaId));
-            if (item && Array.isArray(item.tallas) && item.tallas.length > 0) {
-              // Solo tallas que existen en el pedido
-              selectTalla.innerHTML = '<option value="">-- Selecciona talla --</option>';
-              item.tallas.forEach(t => {
-                const opt = document.createElement("option");
-                opt.value = t.talla;
-                opt.textContent = `${t.talla} (${t.cantidad} pzs)`;
-                selectTalla.appendChild(opt);
-              });
+        async function cargarCosturasYTallasOp(pedidoId, prendaId) {
+          try {
+            // Fetch operaciones con precio > 0
+            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}&soloConPrecio=true&fuente=operaria`);
+            const ops = await res.json();
+            operacionesCache = ops;
+
+            // Render costuras checkboxes (agrupar por costura+maquina, sin duplicados por talla)
+            const costurasUnicas = [];
+            const vistos = new Set();
+            ops.forEach(op => {
+              const key = `${op.opId}`;
+              if (!vistos.has(key)) {
+                vistos.add(key);
+                costurasUnicas.push(op);
+              }
+            });
+
+            const listaCosturas = document.getElementById("lista-costuras-check");
+            if (costurasUnicas.length === 0) {
+              listaCosturas.innerHTML = '<p style="color:var(--text-muted);font-size:12px;">No hay costuras con precio asignado para esta prenda</p>';
+            } else {
+              listaCosturas.innerHTML = costurasUnicas.map(op => `
+                <label class="check-item">
+                  <input type="checkbox" value="${op.opId}" data-costura="${op.costura}" data-maquina="${op.maquina}" data-precio="${op.precio}" onchange="actualizarResumenOp()">
+                  <span class="check-label">${op.costura} <span class="check-detail">(${op.maquina})</span></span>
+                </label>
+              `).join("");
             }
-          }
+            document.getElementById("costuras-container").classList.remove("oculto");
 
-          await cargarOperacionesOp();
-        });
+            // Render tallas
+            const item = pedidoCache && pedidoCache.items ? pedidoCache.items.find(i => Number(i.prendaId) === Number(prendaId)) : null;
+            const listaTallas = document.getElementById("lista-tallas-check");
+            if (item && Array.isArray(item.tallas) && item.tallas.length > 0) {
+              listaTallas.innerHTML = item.tallas.map(t => `
+                <div class="talla-row">
+                  <input type="checkbox" value="${t.talla}" onchange="toggleTallaCantOp(this)" checked>
+                  <span class="talla-name">T-${t.talla}</span>
+                  <input type="number" class="talla-cant" data-talla="${t.talla}" placeholder="Cant." min="1" max="${t.cantidad}" oninput="actualizarResumenOp()">
+                  <span class="faltante-info">de ${t.cantidad}</span>
+                </div>
+              `).join("");
+              document.getElementById("tallas-container").classList.remove("oculto");
+            } else {
+              listaTallas.innerHTML = `
+                <div class="talla-row">
+                  <input type="checkbox" value="" checked disabled>
+                  <span class="talla-name">Sin tallas</span>
+                  <input type="number" class="talla-cant" data-talla="" placeholder="Cant." min="1" oninput="actualizarResumenOp()">
+                  <span class="faltante-info">de ${item ? item.cantidad : '?'}</span>
+                </div>
+              `;
+              document.getElementById("tallas-container").classList.remove("oculto");
+            }
 
-        
-        // Si cambia talla, recargar operaciones (para mostrar faltante por talla)
-        document.getElementById("select-talla").addEventListener("change", async () => {
+            document.getElementById("manual-toggle").classList.remove("oculto");
+            actualizarResumenOp();
+          } catch (err) { console.error("Error cargando costuras/tallas:", err); }
+        }
+
+        // Exponer para recargar después de eliminar/editar
+        window._recargarOperacionesOp = async function() {
           const prendaId = document.getElementById("select-prenda").value;
-          if (!prendaId) return;
-          await cargarOperacionesOp();
-        });
+          const pedidoId = document.getElementById("select-pedido").value;
+          if (prendaId && pedidoId) await cargarCosturasYTallasOp(pedidoId, prendaId);
+        };
 
-// Al seleccionar operación, auto-llenar máquina e info
-        document.getElementById("select-operacion").addEventListener("change", (e) => {
-          const opt = e.target.selectedOptions[0];
-          const infoDiv = document.getElementById("info-operacion");
-          const selMaq = document.getElementById("select-maquina");
+        // Manual mode toggle
+        document.getElementById("check-manual").addEventListener("change", (e) => {
           const manualFields = document.getElementById("manual-fields");
-          
-          if (!opt || !opt.value) {
-            infoDiv.style.display = "none";
-            selMaq.value = "";
-            selMaq.disabled = true;
-            manualFields.style.display = "none";
-            return;
+          const costurasContainer = document.getElementById("costuras-container");
+          if (e.target.checked) {
+            manualFields.classList.remove("oculto");
+            costurasContainer.classList.add("oculto");
+          } else {
+            manualFields.classList.add("oculto");
+            costurasContainer.classList.remove("oculto");
           }
-
-          // Modo manual
-          if (opt.value === "manual") {
-            manualFields.style.display = "block";
-            selMaq.disabled = false;
-            selMaq.value = "";
-            infoDiv.innerHTML = '✏️ <strong>Modo manual</strong> · Escribe la costura y selecciona la máquina · Precio se asigna después';
-            infoDiv.style.display = "block";
-            document.getElementById("input-descripcion-manual").focus();
-            return;
-          }
-          
-          // Modo normal (operación del catálogo)
-          manualFields.style.display = "none";
-          selMaq.disabled = true;
-
-          // Auto-seleccionar máquina
-          const maquina = opt.dataset.maquina;
-          for (let o of selMaq.options) {
-            if (o.value === maquina) { selMaq.value = maquina; break; }
-          }
-          
-          const faltante = opt.dataset.faltante;
-          const precio = opt.dataset.precio;
-          infoDiv.innerHTML = `✂️ <strong>${opt.dataset.costura}</strong> · ${maquina} · Faltan <strong>${faltante}</strong> pzas${precio > 0 ? ` · $${Number(precio).toFixed(2)}/pza` : ''}`;
-          infoDiv.style.display = "block";
+          actualizarResumenOp();
         });
 
-        document.getElementById("btn-guardar").addEventListener("click", () => guardarCostura(usuarioActual.id, "operaria"));
+        document.getElementById("btn-guardar").addEventListener("click", () => guardarLoteOperaria());
+
+        function ocultarMultiSelect() {
+          document.getElementById("costuras-container").classList.add("oculto");
+          document.getElementById("tallas-container").classList.add("oculto");
+          document.getElementById("manual-toggle").classList.add("oculto");
+          document.getElementById("manual-fields").classList.add("oculto");
+          document.getElementById("resumen-lote").classList.add("oculto");
+          document.getElementById("check-manual").checked = false;
+        }
+      }
+
+      // Helpers globales para operaria
+      window.toggleTallaCantOp = function(cb) {
+        const row = cb.closest(".talla-row");
+        const cantInput = row.querySelector(".talla-cant");
+        cantInput.disabled = !cb.checked;
+        if (!cb.checked) cantInput.value = "";
+        actualizarResumenOp();
+      };
+
+      window.actualizarResumenOp = function() {
+        const esManual = document.getElementById("check-manual").checked;
+        const resumenDiv = document.getElementById("resumen-lote");
+        if (esManual) {
+          const cant = Number(document.getElementById("input-cantidad-manual").value) || 0;
+          const tallasChecked = document.querySelectorAll("#lista-tallas-check input[type='checkbox']:checked");
+          const tallasConCant = [...tallasChecked].filter(cb => {
+            const row = cb.closest(".talla-row");
+            return Number(row.querySelector(".talla-cant").value) > 0;
+          });
+          const n = tallasConCant.length > 0 ? tallasConCant.length : (cant > 0 ? 1 : 0);
+          resumenDiv.textContent = n > 0 ? `Se creará ${n} registro(s) en modo manual` : "Completa los campos";
+          resumenDiv.classList.remove("oculto");
+          return;
+        }
+        const costurasChecked = document.querySelectorAll("#lista-costuras-check input[type='checkbox']:checked");
+        const tallasChecked = document.querySelectorAll("#lista-tallas-check input[type='checkbox']:checked");
+        let totalRegs = 0;
+        tallasChecked.forEach(cb => {
+          const row = cb.closest(".talla-row");
+          const cant = Number(row.querySelector(".talla-cant").value);
+          if (cant > 0) totalRegs += costurasChecked.length;
+        });
+        if (totalRegs > 0) {
+          resumenDiv.textContent = `Se crearán ${totalRegs} registro(s): ${costurasChecked.length} costura(s) × ${[...tallasChecked].filter(cb => Number(cb.closest(".talla-row").querySelector(".talla-cant").value) > 0).length} talla(s)`;
+          resumenDiv.classList.remove("oculto");
+        } else {
+          resumenDiv.textContent = "Selecciona costuras y escribe cantidades";
+          resumenDiv.classList.remove("oculto");
+        }
+      };
+
+      async function guardarLoteOperaria() {
+        const pedidoId = document.getElementById("select-pedido").value;
+        const prendaId = document.getElementById("select-prenda").value;
+        const esManual = document.getElementById("check-manual").checked;
+        const btn = document.getElementById("btn-guardar");
+
+        if (!pedidoId || !prendaId) { mostrarError("❌ Selecciona pedido y prenda"); return; }
+
+        btn.disabled = true;
+        btn.textContent = "⏳ Guardando...";
+
+        try {
+          const items = [];
+          const tallasChecked = document.querySelectorAll("#lista-tallas-check input[type='checkbox']:checked");
+
+          if (esManual) {
+            const descripcion = (document.getElementById("input-descripcion-manual").value || "").trim();
+            const maquina = document.getElementById("select-maquina").value;
+            if (!descripcion || !maquina) { mostrarError("❌ Completa descripción y máquina"); return; }
+            tallasChecked.forEach(cb => {
+              const row = cb.closest(".talla-row");
+              const cant = Number(row.querySelector(".talla-cant").value);
+              if (cant > 0) {
+                items.push({
+                  operariaId: usuarioActual.id,
+                  pedidoId: Number(pedidoId),
+                  prendaId: Number(prendaId),
+                  talla: cb.value || null,
+                  maquina, descripcion, cantidad: cant,
+                  pagoPorPieza: 0, fuente: "operaria"
+                });
+              }
+            });
+          } else {
+            const costurasChecked = document.querySelectorAll("#lista-costuras-check input[type='checkbox']:checked");
+            if (costurasChecked.length === 0) { mostrarError("❌ Selecciona al menos una costura"); return; }
+            costurasChecked.forEach(costCb => {
+              tallasChecked.forEach(tallaCb => {
+                const row = tallaCb.closest(".talla-row");
+                const cant = Number(row.querySelector(".talla-cant").value);
+                if (cant > 0) {
+                  items.push({
+                    operariaId: usuarioActual.id,
+                    pedidoId: Number(pedidoId),
+                    prendaId: Number(prendaId),
+                    operacionId: Number(costCb.value),
+                    talla: tallaCb.value || null,
+                    maquina: costCb.dataset.maquina,
+                    descripcion: costCb.dataset.costura,
+                    cantidad: cant,
+                    pagoPorPieza: 0, fuente: "operaria"
+                  });
+                }
+              });
+            });
+          }
+
+          if (items.length === 0) { mostrarError("❌ No hay registros para guardar — verifica cantidades"); return; }
+
+          const res = await fetch("/api/registros/lote", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Error al guardar");
+
+          let msg = `✅ ${data.creados} registro(s) guardado(s)`;
+          if (data.errores && data.errores.length > 0) {
+            msg += `\n⚠️ ${data.errores.length} error(es): ${data.errores.map(e => e.error).join(", ")}`;
+          }
+          mostrarExito(msg);
+
+          // Limpiar cantidades
+          document.querySelectorAll("#lista-tallas-check .talla-cant").forEach(inp => inp.value = "");
+          document.querySelectorAll("#lista-costuras-check input[type='checkbox']").forEach(cb => cb.checked = false);
+
+          await cargarMisCosturas();
+          if (typeof window._recargarOperacionesOp === 'function') await window._recargarOperacionesOp();
+        } catch (err) {
+          mostrarError("❌ " + err.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "💾 Guardar Costura";
+        }
       }
 
       async function cargarMisCosturas() {
         try {
-          // SOLO VER COSTURAS CON FUENTE: OPERARIA
           const url = `/api/registros?operariaId=${usuarioActual.id}&fuente=operaria&estadoPago=pendiente`;
-          
           const res = await fetch(url);
           if (!res.ok) throw new Error("Error al cargar costuras");
-          
           const registros = await res.json();
           const lista = document.getElementById("lista-mis-costuras");
-          
           if (registros.length === 0) {
             lista.innerHTML = '<p style="text-align: center; color: var(--text-muted);">No tienes costuras registradas</p>';
             return;
           }
-
-          // Ordenar por fecha descendente (más recientes primero) y tomar las primeras 5
           const registrosOrdenados = registros.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-
           lista.innerHTML = registrosOrdenados.slice(0, 5).map(r => `
             <div class="costura-item">
               <div class="costura-info">
-                <strong>${r.escuela || "Pedido"}</strong> - ${r.prenda || r.prendaNombre || "Prenda"} - ${r.descripcion}
+                <strong>${r.escuela || "Pedido"}</strong> - ${r.prenda || r.prendaNombre || "Prenda"}${r.talla ? ` (T-${r.talla})` : ''} - ${r.descripcion}
               </div>
               <div class="costura-info">
                 📦 Cantidad: <strong>${r.cantidad} piezas</strong> | 🔧 ${r.maquina}
               </div>
               <div class="costura-info">
                 📅 ${new Date(r.fecha).toLocaleDateString("es-MX")}
-                ${r.pagoPorPieza > 0 ? 
-                  `<span class="badge badge-success">Precio: $${r.pagoPorPieza.toFixed(2)}</span>` : 
+                ${r.pagoPorPieza > 0 ?
+                  `<span class="badge badge-success">Precio: $${r.pagoPorPieza.toFixed(2)}</span>` :
                   `<span class="badge badge-warning">Sin precio</span>`
                 }
               </div>
@@ -1020,28 +1133,18 @@
         await cargarPedidosActivos("select-pedido-enc");
         await cargarMaquinas("select-maquina-enc");
 
-        // Cargar prendas cuando selecciona pedido
+        let pedidoCacheEnc = null;
+
         document.getElementById("select-pedido-enc").addEventListener("change", async (e) => {
           const pedidoId = e.target.value;
           const selectPrenda = document.getElementById("select-prenda-enc");
-          const selectOp = document.getElementById("select-operacion-enc");
-          const selectTallaEnc = document.getElementById("select-talla-enc");
-          selectTallaEnc.innerHTML = '<option value="">-- Selecciona prenda primero --</option>';
-          selectOp.innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
-          document.getElementById("info-operacion-enc").style.display = "none";
-          document.getElementById("select-maquina-enc").value = "";
-          
-          if (!pedidoId) {
-            selectPrenda.innerHTML = '<option value="">-- Primero selecciona un pedido --</option>';
-            return;
-          }
-          
+          ocultarMultiSelectEnc();
+          if (!pedidoId) { selectPrenda.innerHTML = '<option value="">-- Primero selecciona un pedido --</option>'; return; }
           try {
             const res = await fetch(`/api/pedidos/${pedidoId}`);
-            if (!res.ok) throw new Error("Error al cargar pedido");
             const pedido = await res.json();
-            if (e && e.target && e.target.id === 'select-pedido-enc') { window._pedidoActualEnc = pedido; } else { window._pedidoActual = pedido; }
-            
+            pedidoCacheEnc = pedido;
+            window._pedidoActualEnc = pedido;
             if (pedido.items && pedido.items.length > 0) {
               const resPrendas = await fetch("/api/prendas");
               const todasPrendas = await resPrendas.json();
@@ -1055,244 +1158,188 @@
                   selectPrenda.appendChild(opt);
                 }
               });
-            } else if (pedido.prendas && pedido.prendas.length > 0) {
-              const resPrendas = await fetch("/api/prendas");
-              const todasPrendas = await resPrendas.json();
-              selectPrenda.innerHTML = '<option value="">-- Selecciona una prenda --</option>';
-              pedido.prendas.forEach(prendaId => {
-                const prenda = todasPrendas.find(p => p.id === prendaId);
-                if (prenda) {
-                  const opt = document.createElement("option");
-                  opt.value = prenda.id;
-                  opt.textContent = prenda.nombre;
-                  selectPrenda.appendChild(opt);
-                }
-              });
             } else {
               selectPrenda.innerHTML = '<option value="">-- Este pedido no tiene prendas --</option>';
             }
-          } catch (err) {
-            console.error("Error cargando prendas del pedido:", err);
-          }
+          } catch (err) { console.error("Error cargando prendas:", err); }
         });
 
-        // Función reutilizable para cargar operaciones (encargada)
-        async function cargarOperacionesEnc() {
-          const prendaId = document.getElementById("select-prenda-enc").value;
-          const pedidoId = document.getElementById("select-pedido-enc").value;
-          const selectOp = document.getElementById("select-operacion-enc");
-          if (!prendaId || !pedidoId) return;
-          try {
-            const talla = document.getElementById('select-talla-enc').value;
-            const tallaQS = talla ? `&talla=${encodeURIComponent(talla)}` : '';
-            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}${tallaQS}&fuente=encargada`);
-            const ops = await res.json();
-            
-            selectOp.innerHTML = '<option value="">-- Selecciona operación --</option>';
-            ops.forEach(op => {
-              const opt = document.createElement("option");
-              opt.value = op.opId;
-              opt.dataset.maquina = op.maquina;
-              opt.dataset.costura = op.costura;
-              opt.dataset.precio = op.precio;
-              opt.dataset.faltante = op.cantidadFaltante;
-              opt.textContent = `${op.costura} (${op.maquina}) - Faltan ${op.cantidadFaltante}`;
-              if (op.cantidadFaltante === 0) {
-                opt.textContent += " ✅";
-                opt.style.color = "#6ee7b7";
-              }
-              selectOp.appendChild(opt);
-            });
-            // Siempre agregar opción manual al final
-            const optManual = document.createElement("option");
-            optManual.value = "manual";
-            optManual.textContent = "✏️ Otra costura (manual)";
-            optManual.style.color = "#fbbf24";
-            selectOp.appendChild(optManual);
-          } catch (err) {
-            console.error("Error cargando operaciones:", err);
-          }
-        }
-        // Exponer para que eliminarCostura pueda recargar faltantes
-        window._recargarOperacionesEnc = cargarOperacionesEnc;
-
-        // Cargar operaciones cuando selecciona prenda
         document.getElementById("select-prenda-enc").addEventListener("change", async (e) => {
           const prendaId = e.target.value;
           const pedidoId = document.getElementById("select-pedido-enc").value;
-          const selectOp = document.getElementById("select-operacion-enc");
-          const selectTallaEnc = document.getElementById("select-talla-enc");
-          selectTallaEnc.innerHTML = '<option value="">-- Selecciona prenda primero --</option>';
-          document.getElementById("info-operacion-enc").style.display = "none";
-          document.getElementById("select-maquina-enc").value = "";
-          
-          if (!prendaId || !pedidoId) {
-            selectOp.innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
-            return;
-          }
+          if (!prendaId || !pedidoId) { ocultarMultiSelectEnc(); return; }
+          await cargarCosturasYTallasEnc(pedidoId, prendaId);
+        });
 
-          // Cargar tallas del pedido para esta prenda (si existen)
-          const pedidoActual = window._pedidoActualEnc;
-          selectTallaEnc.innerHTML = '<option value="">-- (Opcional) Todas las tallas --</option>';
-          if (pedidoActual && Array.isArray(pedidoActual.items)) {
-            const item = pedidoActual.items.find(i => Number(i.prendaId) === Number(prendaId));
-            if (item && Array.isArray(item.tallas) && item.tallas.length > 0) {
-              // Solo tallas que existen en el pedido
-              selectTallaEnc.innerHTML = '<option value="">-- Selecciona talla --</option>';
-              item.tallas.forEach(t => {
-                const opt = document.createElement("option");
-                opt.value = t.talla;
-                opt.textContent = `${t.talla} (${t.cantidad} pzs)`;
-                selectTallaEnc.appendChild(opt);
-              });
+        async function cargarCosturasYTallasEnc(pedidoId, prendaId) {
+          try {
+            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}&soloConPrecio=true&fuente=encargada`);
+            const ops = await res.json();
+
+            const costurasUnicas = [];
+            const vistos = new Set();
+            ops.forEach(op => {
+              if (!vistos.has(`${op.opId}`)) { vistos.add(`${op.opId}`); costurasUnicas.push(op); }
+            });
+
+            const listaCosturas = document.getElementById("lista-costuras-check-enc");
+            if (costurasUnicas.length === 0) {
+              listaCosturas.innerHTML = '<p style="color:var(--text-muted);font-size:12px;">No hay costuras con precio asignado</p>';
+            } else {
+              listaCosturas.innerHTML = costurasUnicas.map(op => `
+                <label class="check-item">
+                  <input type="checkbox" value="${op.opId}" data-costura="${op.costura}" data-maquina="${op.maquina}" data-precio="${op.precio}" onchange="actualizarResumenEnc()">
+                  <span class="check-label">${op.costura} <span class="check-detail">(${op.maquina})</span></span>
+                </label>
+              `).join("");
             }
-          }
+            document.getElementById("costuras-container-enc").classList.remove("oculto");
 
-          await cargarOperacionesEnc();
-        });
+            const item = pedidoCacheEnc && pedidoCacheEnc.items ? pedidoCacheEnc.items.find(i => Number(i.prendaId) === Number(prendaId)) : null;
+            const listaTallas = document.getElementById("lista-tallas-check-enc");
+            if (item && Array.isArray(item.tallas) && item.tallas.length > 0) {
+              listaTallas.innerHTML = item.tallas.map(t => `
+                <div class="talla-row">
+                  <input type="checkbox" value="${t.talla}" onchange="toggleTallaCantEnc(this)" checked>
+                  <span class="talla-name">T-${t.talla}</span>
+                  <input type="number" class="talla-cant" data-talla="${t.talla}" placeholder="Cant." min="1" max="${t.cantidad}" oninput="actualizarResumenEnc()">
+                  <span class="faltante-info">de ${t.cantidad}</span>
+                </div>
+              `).join("");
+              document.getElementById("tallas-container-enc").classList.remove("oculto");
+            } else {
+              listaTallas.innerHTML = `
+                <div class="talla-row">
+                  <input type="checkbox" value="" checked disabled>
+                  <span class="talla-name">Sin tallas</span>
+                  <input type="number" class="talla-cant" data-talla="" placeholder="Cant." min="1" oninput="actualizarResumenEnc()">
+                  <span class="faltante-info">de ${item ? item.cantidad : '?'}</span>
+                </div>
+              `;
+              document.getElementById("tallas-container-enc").classList.remove("oculto");
+            }
 
-        // Auto-llenar máquina al seleccionar operación
-        
-        // Si cambia talla (encargada), recargar operaciones
-        document.getElementById("select-talla-enc").addEventListener("change", async () => {
+            document.getElementById("manual-toggle-enc").classList.remove("oculto");
+            actualizarResumenEnc();
+          } catch (err) { console.error("Error cargando costuras/tallas enc:", err); }
+        }
+
+        window._recargarOperacionesEnc = async function() {
           const prendaId = document.getElementById("select-prenda-enc").value;
-          if (!prendaId) return;
-          await cargarOperacionesEnc();
-        });
+          const pedidoId = document.getElementById("select-pedido-enc").value;
+          if (prendaId && pedidoId) await cargarCosturasYTallasEnc(pedidoId, prendaId);
+        };
 
-document.getElementById("select-operacion-enc").addEventListener("change", (e) => {
-          const opt = e.target.selectedOptions[0];
-          const infoDiv = document.getElementById("info-operacion-enc");
-          const selMaq = document.getElementById("select-maquina-enc");
+        document.getElementById("check-manual-enc").addEventListener("change", (e) => {
           const manualFields = document.getElementById("manual-fields-enc");
-          
-          if (!opt || !opt.value) {
-            infoDiv.style.display = "none";
-            selMaq.value = "";
-            selMaq.disabled = true;
-            manualFields.style.display = "none";
-            return;
-          }
-
-          // Modo manual
-          if (opt.value === "manual") {
-            manualFields.style.display = "block";
-            selMaq.disabled = false;
-            selMaq.value = "";
-            infoDiv.innerHTML = '✏️ <strong>Modo manual</strong> · Escribe la costura y selecciona la máquina · Precio se asigna después';
-            infoDiv.style.display = "block";
-            document.getElementById("input-descripcion-manual-enc").focus();
-            return;
-          }
-
-          // Modo normal
-          manualFields.style.display = "none";
-          selMaq.disabled = true;
-          
-          const maquina = opt.dataset.maquina;
-          for (let o of selMaq.options) {
-            if (o.value === maquina) { selMaq.value = maquina; break; }
-          }
-          
-          const faltante = opt.dataset.faltante;
-          const precio = opt.dataset.precio;
-          infoDiv.innerHTML = `✂️ <strong>${opt.dataset.costura}</strong> · ${maquina} · Faltan <strong>${faltante}</strong> pzas${precio > 0 ? ` · $${Number(precio).toFixed(2)}/pza` : ''}`;
-          infoDiv.style.display = "block";
+          const costurasContainer = document.getElementById("costuras-container-enc");
+          if (e.target.checked) { manualFields.classList.remove("oculto"); costurasContainer.classList.add("oculto"); }
+          else { manualFields.classList.add("oculto"); costurasContainer.classList.remove("oculto"); }
+          actualizarResumenEnc();
         });
 
-        document.getElementById("btn-guardar-enc").addEventListener("click", guardarCosturaEncargada);
+        document.getElementById("btn-guardar-enc").addEventListener("click", () => guardarLoteEncargada());
+
+        function ocultarMultiSelectEnc() {
+          ["costuras-container-enc","tallas-container-enc","manual-toggle-enc","manual-fields-enc","resumen-lote-enc"].forEach(id => document.getElementById(id).classList.add("oculto"));
+          document.getElementById("check-manual-enc").checked = false;
+        }
       }
 
-      async function guardarCosturaEncargada() {
+      window.toggleTallaCantEnc = function(cb) {
+        const row = cb.closest(".talla-row");
+        const cantInput = row.querySelector(".talla-cant");
+        cantInput.disabled = !cb.checked;
+        if (!cb.checked) cantInput.value = "";
+        actualizarResumenEnc();
+      };
+
+      window.actualizarResumenEnc = function() {
+        const esManual = document.getElementById("check-manual-enc").checked;
+        const resumenDiv = document.getElementById("resumen-lote-enc");
+        const tallasChecked = document.querySelectorAll("#lista-tallas-check-enc input[type='checkbox']:checked");
+        if (esManual) {
+          const tallasConCant = [...tallasChecked].filter(cb => { const row = cb.closest(".talla-row"); return Number(row.querySelector(".talla-cant").value) > 0; });
+          resumenDiv.textContent = tallasConCant.length > 0 ? `Se creará ${tallasConCant.length} registro(s) manual(es)` : "Completa los campos";
+        } else {
+          const costurasChecked = document.querySelectorAll("#lista-costuras-check-enc input[type='checkbox']:checked");
+          let totalRegs = 0;
+          tallasChecked.forEach(cb => { const cant = Number(cb.closest(".talla-row").querySelector(".talla-cant").value); if (cant > 0) totalRegs += costurasChecked.length; });
+          resumenDiv.textContent = totalRegs > 0 ? `Se crearán ${totalRegs} registro(s)` : "Selecciona costuras y cantidades";
+        }
+        resumenDiv.classList.remove("oculto");
+      };
+
+      async function guardarLoteEncargada() {
         const operariaId = document.getElementById("select-operaria-enc").value;
         const pedidoId = document.getElementById("select-pedido-enc").value;
         const prendaId = document.getElementById("select-prenda-enc").value;
-        const talla = document.getElementById("select-talla-enc").value;
-        const operacionSel = document.getElementById("select-operacion-enc");
-        const operacionId = operacionSel.value;
-        const maquina = document.getElementById("select-maquina-enc").value;
-        const cantidad = Number(document.getElementById("input-cantidad-enc").value);
+        const esManual = document.getElementById("check-manual-enc").checked;
+        const btn = document.getElementById("btn-guardar-enc");
 
-        const esManual = operacionId === "manual";
+        if (!operariaId) { mostrarError("❌ Selecciona una operaria"); return; }
+        if (!pedidoId || !prendaId) { mostrarError("❌ Selecciona pedido y prenda"); return; }
 
-        // Obtener datos de la operación seleccionada
-        const opOpt = operacionSel.selectedOptions[0];
-        let descripcion;
-        if (esManual) {
-          descripcion = (document.getElementById("input-descripcion-manual-enc").value || "").trim();
-        } else {
-          descripcion = opOpt ? opOpt.dataset.costura : "";
-        }
-
-        if (!operariaId) {
-          mostrarError("❌ Selecciona una operaria");
-          return;
-        }
-        if (!pedidoId || !prendaId || !cantidad || cantidad <= 0) {
-          mostrarError("❌ Completa todos los campos correctamente");
-          return;
-        }
-        if (!operacionId) {
-          mostrarError("❌ Selecciona una operación");
-          return;
-        }
-        if (esManual && !descripcion) {
-          mostrarError("❌ Escribe la descripción de la costura");
-          return;
-        }
-        if (esManual && !maquina) {
-          mostrarError("❌ Selecciona la máquina");
-          return;
-        }
-
-        const btnGuardar = document.getElementById("btn-guardar-enc");
-        btnGuardar.disabled = true;
-        btnGuardar.textContent = "⏳ Guardando...";
+        btn.disabled = true;
+        btn.textContent = "⏳ Guardando...";
 
         try {
-          const nuevoRegistro = {
-            operariaId: Number(operariaId),
-            pedidoId: Number(pedidoId),
-            prendaId: Number(prendaId),
-            talla: talla || null,
-            maquina: maquina,
-            descripcion: descripcion,
-            cantidad: cantidad,
-            pagoPorPieza: 0,
-            fuente: "encargada"
-          };
-          if (!esManual) {
-            nuevoRegistro.operacionId = Number(operacionId);
+          const items = [];
+          const tallasChecked = document.querySelectorAll("#lista-tallas-check-enc input[type='checkbox']:checked");
+
+          if (esManual) {
+            const descripcion = (document.getElementById("input-descripcion-manual-enc").value || "").trim();
+            const maquina = document.getElementById("select-maquina-enc").value;
+            if (!descripcion || !maquina) { mostrarError("❌ Completa descripción y máquina"); return; }
+            tallasChecked.forEach(cb => {
+              const cant = Number(cb.closest(".talla-row").querySelector(".talla-cant").value);
+              if (cant > 0) {
+                items.push({
+                  operariaId: Number(operariaId), pedidoId: Number(pedidoId), prendaId: Number(prendaId),
+                  talla: cb.value || null, maquina, descripcion, cantidad: cant, pagoPorPieza: 0, fuente: "encargada"
+                });
+              }
+            });
+          } else {
+            const costurasChecked = document.querySelectorAll("#lista-costuras-check-enc input[type='checkbox']:checked");
+            if (costurasChecked.length === 0) { mostrarError("❌ Selecciona al menos una costura"); return; }
+            costurasChecked.forEach(costCb => {
+              tallasChecked.forEach(tallaCb => {
+                const cant = Number(tallaCb.closest(".talla-row").querySelector(".talla-cant").value);
+                if (cant > 0) {
+                  items.push({
+                    operariaId: Number(operariaId), pedidoId: Number(pedidoId), prendaId: Number(prendaId),
+                    operacionId: Number(costCb.value), talla: tallaCb.value || null,
+                    maquina: costCb.dataset.maquina, descripcion: costCb.dataset.costura,
+                    cantidad: cant, pagoPorPieza: 0, fuente: "encargada"
+                  });
+                }
+              });
+            });
           }
 
-          const res = await fetch("/api/registros", {
+          if (items.length === 0) { mostrarError("❌ No hay registros — verifica cantidades"); return; }
+
+          const res = await fetch("/api/registros/lote", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(nuevoRegistro)
+            body: JSON.stringify({ items })
           });
-
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || "Error al guardar");
 
-          mostrarExito("✅ Costura registrada correctamente");
-          
-          // Limpiar
-          document.getElementById("select-operaria-enc").value = "";
-          document.getElementById("select-pedido-enc").value = "";
-          document.getElementById("select-prenda-enc").innerHTML = '<option value="">-- Primero selecciona un pedido --</option>';
-          document.getElementById("select-operacion-enc").innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
-          document.getElementById("select-maquina-enc").value = "";
-          document.getElementById("select-maquina-enc").disabled = true;
-          document.getElementById("input-cantidad-enc").value = "";
-          document.getElementById("info-operacion-enc").style.display = "none";
-          document.getElementById("manual-fields-enc").style.display = "none";
-          document.getElementById("input-descripcion-manual-enc").value = "";
+          let msg = `✅ ${data.creados} registro(s) guardado(s)`;
+          if (data.errores && data.errores.length > 0) msg += `\n⚠️ ${data.errores.map(e => e.error).join(", ")}`;
+          mostrarExito(msg);
 
+          document.querySelectorAll("#lista-tallas-check-enc .talla-cant").forEach(inp => inp.value = "");
+          document.querySelectorAll("#lista-costuras-check-enc input[type='checkbox']").forEach(cb => cb.checked = false);
+          if (typeof window._recargarOperacionesEnc === 'function') await window._recargarOperacionesEnc();
         } catch (err) {
           mostrarError("❌ " + err.message);
         } finally {
-          btnGuardar.disabled = false;
-          btnGuardar.textContent = "💾 Guardar Costura";
+          btn.disabled = false;
+          btn.textContent = "💾 Guardar Costura";
         }
       }
 
@@ -1389,7 +1436,7 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
               </div>
               
               <div class="costura-info">
-                <strong>${r.escuela || "Pedido"}</strong> - ${r.prenda || r.prendaNombre || "Prenda"} - ${r.descripcion}
+                <strong>${r.escuela || "Pedido"}</strong> - ${r.prenda || r.prendaNombre || "Prenda"}${r.talla ? ` (T-${r.talla})` : ''} - ${r.descripcion}
               </div>
               <div class="costura-info">
                 📦 Cantidad: <strong>${r.cantidad} piezas</strong> | 🔧 ${r.maquina}
@@ -1497,97 +1544,6 @@ document.getElementById("select-operacion-enc").addEventListener("change", (e) =
           });
         } catch (err) {
           mostrarError("Error cargando operarias: " + err.message);
-        }
-      }
-
-      async function guardarCostura(operariaId, fuente) {
-        const pedidoId = document.getElementById("select-pedido").value;
-        const prendaId = document.getElementById("select-prenda").value;
-        const talla = document.getElementById("select-talla").value;
-        const operacionSel = document.getElementById("select-operacion");
-        const operacionId = operacionSel.value;
-        const maquina = document.getElementById("select-maquina").value;
-        const cantidad = Number(document.getElementById("input-cantidad").value);
-
-        const esManual = operacionId === "manual";
-
-        // Obtener datos de la operación seleccionada
-        const opOpt = operacionSel.selectedOptions[0];
-        let descripcion;
-        if (esManual) {
-          descripcion = (document.getElementById("input-descripcion-manual").value || "").trim();
-        } else {
-          descripcion = opOpt ? opOpt.dataset.costura : "";
-        }
-
-        if (!pedidoId || !prendaId || !cantidad || cantidad <= 0) {
-          mostrarError("❌ Completa todos los campos correctamente");
-          return;
-        }
-        if (!operacionId) {
-          mostrarError("❌ Selecciona una operación");
-          return;
-        }
-        if (esManual && !descripcion) {
-          mostrarError("❌ Escribe la descripción de la costura");
-          return;
-        }
-        if (esManual && !maquina) {
-          mostrarError("❌ Selecciona la máquina");
-          return;
-        }
-
-        const btnGuardar = document.getElementById("btn-guardar");
-        btnGuardar.disabled = true;
-        btnGuardar.textContent = "⏳ Guardando...";
-
-        try {
-          const nuevoRegistro = {
-            operariaId: operariaId,
-            pedidoId: Number(pedidoId),
-            prendaId: Number(prendaId),
-            talla: talla || null,
-            maquina: maquina,
-            descripcion: descripcion,
-            cantidad: cantidad,
-            pagoPorPieza: 0,
-            fuente: fuente
-          };
-          // Solo enviar operacionId si NO es manual
-          if (!esManual) {
-            nuevoRegistro.operacionId = Number(operacionId);
-          }
-
-          const res = await fetch("/api/registros", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(nuevoRegistro)
-          });
-
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "Error al guardar");
-
-          mostrarExito("✅ Costura registrada correctamente");
-          
-          // Limpiar
-          document.getElementById("select-pedido").value = "";
-          document.getElementById("select-prenda").innerHTML = '<option value="">-- Primero selecciona un pedido --</option>';
-          document.getElementById("select-talla").innerHTML = '<option value="">-- Selecciona prenda primero --</option>';
-          document.getElementById("select-operacion").innerHTML = '<option value="">-- Primero selecciona una prenda --</option>';
-          document.getElementById("select-maquina").value = "";
-          document.getElementById("select-maquina").disabled = true;
-          document.getElementById("input-cantidad").value = "";
-          document.getElementById("info-operacion").style.display = "none";
-          document.getElementById("manual-fields").style.display = "none";
-          document.getElementById("input-descripcion-manual").value = "";
-
-          await cargarMisCosturas();
-
-        } catch (err) {
-          mostrarError("❌ " + err.message);
-        } finally {
-          btnGuardar.disabled = false;
-          btnGuardar.textContent = "💾 Guardar Costura";
         }
       }
 
