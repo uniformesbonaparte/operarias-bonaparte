@@ -899,9 +899,9 @@
             if (item && Array.isArray(item.tallas) && item.tallas.length > 0) {
               listaTallas.innerHTML = item.tallas.map(t => `
                 <div class="talla-row">
-                  <input type="checkbox" value="${t.talla}" onchange="toggleTallaCantOp(this)" checked>
+                  <input type="checkbox" value="${t.talla}" onchange="toggleTallaCantOp(this)">
                   <span class="talla-name">T-${t.talla}</span>
-                  <input type="number" class="talla-cant" data-talla="${t.talla}" placeholder="Cant." min="1" max="${t.cantidad}" oninput="actualizarResumenOp()">
+                  <input type="number" class="talla-cant" data-talla="${t.talla}" placeholder="Cant." min="1" max="${t.cantidad}" oninput="actualizarResumenOp()" disabled>
                   <span class="faltante-info">de ${t.cantidad}</span>
                 </div>
               `).join("");
@@ -1200,9 +1200,9 @@
             if (item && Array.isArray(item.tallas) && item.tallas.length > 0) {
               listaTallas.innerHTML = item.tallas.map(t => `
                 <div class="talla-row">
-                  <input type="checkbox" value="${t.talla}" onchange="toggleTallaCantEnc(this)" checked>
+                  <input type="checkbox" value="${t.talla}" onchange="toggleTallaCantEnc(this)">
                   <span class="talla-name">T-${t.talla}</span>
-                  <input type="number" class="talla-cant" data-talla="${t.talla}" placeholder="Cant." min="1" max="${t.cantidad}" oninput="actualizarResumenEnc()">
+                  <input type="number" class="talla-cant" data-talla="${t.talla}" placeholder="Cant." min="1" max="${t.cantidad}" oninput="actualizarResumenEnc()" disabled>
                   <span class="faltante-info">de ${t.cantidad}</span>
                 </div>
               `).join("");
