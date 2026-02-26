@@ -1095,13 +1095,20 @@ app.get("/api/operarias/:id/perfil", (req, res) => {
     return res.status(404).json({ error: "Operaria no encontrada." });
   }
 
+  const fuenteFiltro = req.query.fuente || null; // "operaria" | "encargada" | null (todas)
+
   // Filtrar todos los registros de esta operaria (solo pendientes)
-  const registrosOperaria = registros.filter(r => 
+  let registrosOperaria = registros.filter(r => 
     r.operariaId === id && 
     (r.estadoPago || "pendiente") === "pendiente"
   );
 
-  // Separar por fuente
+  // Aplicar filtro de fuente si se especifica
+  if (fuenteFiltro) {
+    registrosOperaria = registrosOperaria.filter(r => (r.fuente || "operaria") === fuenteFiltro);
+  }
+
+  // Separar por fuente (para resumenPorFuente)
   const regOperaria = registrosOperaria.filter(r => (r.fuente || "operaria") === "operaria");
   const regEncargada = registrosOperaria.filter(r => r.fuente === "encargada");
 
@@ -1112,9 +1119,9 @@ app.get("/api/operarias/:id/perfil", (req, res) => {
   const totalPiezasEncargada = regEncargada.reduce((sum, r) => sum + r.cantidad, 0);
   const totalGanadoEncargada = regEncargada.reduce((sum, r) => sum + r.totalGanado, 0);
 
-  // Totales generales
-  const totalPiezas = totalPiezasOperaria + totalPiezasEncargada;
-  const totalGanado = totalGanadoOperaria + totalGanadoEncargada;
+  // Totales (filtrados)
+  const totalPiezas = registrosOperaria.reduce((sum, r) => sum + r.cantidad, 0);
+  const totalGanado = registrosOperaria.reduce((sum, r) => sum + r.totalGanado, 0);
 
   // Enriquecer registros con información de pedidos
   const registrosDetallados = registrosOperaria.map(r => {
@@ -1134,6 +1141,9 @@ app.get("/api/operarias/:id/perfil", (req, res) => {
       rol: operaria.rol,
       activa: operaria.activa
     },
+    // Campos planos para compatibilidad con frontend
+    totalPiezas,
+    totalGanado,
     resumenPorFuente: {
       operaria: {
         piezas: totalPiezasOperaria,
@@ -1808,6 +1818,125 @@ app.post("/api/registros", (req, res) => {
     mensaje: "Registro guardado correctamente.",
     ok: true, 
     registro: nuevo 
+  });
+});
+
+/**
+ * POST /api/registros/lote
+ * Crea múltiples registros en un solo request (multi-talla y/o multi-costura)
+ * Body: { items: [{ operariaId, pedidoId, prendaId, operacionId, talla, cantidad, maquina, descripcion, fuente }] }
+ */
+app.post("/api/registros/lote", (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: "Se requiere un array de items." });
+  }
+  if (items.length > 50) {
+    return res.status(400).json({ error: "Máximo 50 registros por lote." });
+  }
+
+  const creados = [];
+  const errores = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const { operariaId, pedidoId, prendaId, operacionId, talla, cantidad, maquina, descripcion, fuente } = item;
+    const cant = Number(cantidad);
+
+    if (!operariaId || !pedidoId || !cant || cant <= 0) {
+      errores.push({ index: i, error: "Datos incompletos o cantidad inválida" });
+      continue;
+    }
+
+    const pedido = pedidos.find(p => p.id === Number(pedidoId));
+    if (!pedido) {
+      errores.push({ index: i, error: `Pedido ${pedidoId} no encontrado` });
+      continue;
+    }
+
+    let maqFinal = maquina || "";
+    let descFinal = descripcion || "";
+    let pagoFinal = Number(item.pagoPorPieza) || 0;
+    let opIdFinal = operacionId ? Number(operacionId) : null;
+    let prendaIdFinal = Number(prendaId) || null;
+
+    // Buscar operación en el pedido para auto-llenar datos
+    if (opIdFinal && pedido.items) {
+      for (const it of pedido.items) {
+        if (it.prendaId !== Number(prendaId)) continue;
+        const opEncontrada = (it.operaciones || []).find(op => op.opId === opIdFinal);
+        if (opEncontrada) {
+          maqFinal = opEncontrada.maquina || maqFinal;
+          descFinal = opEncontrada.costura || opEncontrada.descripcion || descFinal;
+          pagoFinal = opEncontrada.precio || pagoFinal;
+
+          // Validar exceso
+          const tallaNorm = (talla !== undefined && talla !== null) ? String(talla).trim() : null;
+          const fuenteActual = fuente || "operaria";
+          const piezasYaHechas = registros
+            .concat(creados) // Incluir los que ya creamos en este lote
+            .filter(r =>
+              r.pedidoId === Number(pedidoId) &&
+              r.operacionId === opIdFinal &&
+              (r.fuente || 'operaria') === fuenteActual &&
+              (tallaNorm ? (String(r.talla || '').trim() === tallaNorm) : true)
+            )
+            .reduce((sum, r) => sum + r.cantidad, 0);
+
+          let limite = Number(it.cantidad) || 0;
+          if (tallaNorm && Array.isArray(it.tallas) && it.tallas.length > 0) {
+            const tObj = it.tallas.find(t => String(t.talla || '').trim() === tallaNorm);
+            if (tObj) limite = Number(tObj.cantidad) || 0;
+          }
+
+          const cantidadDisponible = Math.max(0, limite - piezasYaHechas);
+          if (cant > cantidadDisponible) {
+            errores.push({ index: i, error: `${descFinal} talla ${tallaNorm || 'N/A'}: solo faltan ${cantidadDisponible} piezas` });
+            continue;
+          }
+          break;
+        }
+      }
+    }
+
+    if (!maqFinal || !descFinal) {
+      errores.push({ index: i, error: "Se requiere máquina y descripción" });
+      continue;
+    }
+
+    const nuevo = {
+      id: registroIdCounter++,
+      operariaId: Number(operariaId),
+      pedidoId: Number(pedidoId),
+      prendaId: prendaIdFinal,
+      operacionId: opIdFinal,
+      talla: (talla !== undefined && talla !== null && String(talla).trim() !== '') ? String(talla).trim() : null,
+      maquina: maqFinal,
+      descripcion: descFinal,
+      cantidad: cant,
+      pagoPorPieza: pagoFinal,
+      totalGanado: cant * pagoFinal,
+      fecha: new Date().toISOString(),
+      fuente: fuente || "operaria",
+      estadoPago: "pendiente",
+      semanaPago: null,
+      fechaPago: null
+    };
+
+    creados.push(nuevo);
+  }
+
+  // Guardar todos los creados
+  if (creados.length > 0) {
+    registros.push(...creados);
+    guardarDatos();
+  }
+
+  res.status(201).json({
+    ok: true,
+    mensaje: `${creados.length} registro(s) guardado(s)${errores.length > 0 ? `, ${errores.length} error(es)` : ''}`,
+    creados: creados.length,
+    errores
   });
 });
 
@@ -2541,6 +2670,7 @@ app.get("/api/pedidos/:id/operaciones", (req, res) => {
   const prendaIdFiltro = req.query.prendaId ? Number(req.query.prendaId) : null;
   const tallaFiltro = (req.query.talla !== undefined && req.query.talla !== null && String(req.query.talla).trim() !== '') ? String(req.query.talla).trim() : null;
   const fuenteFiltro = req.query.fuente || null; // "operaria" | "encargada" | null (todas)
+  const soloConPrecio = req.query.soloConPrecio === "true"; // Solo operaciones con precio asignado
   const regsPedido = registros.filter(r => r.pedidoId === id && (fuenteFiltro ? (r.fuente || 'operaria') === fuenteFiltro : true));
 
   const resultado = [];
@@ -2549,6 +2679,9 @@ app.get("/api/pedidos/:id/operaciones", (req, res) => {
     const prenda = prendas.find(p => p.id === item.prendaId);
 
     (item.operaciones || []).forEach(op => {
+      // Filtrar: solo mostrar operaciones con precio > 0 si se pide
+      if (soloConPrecio && (!op.precio || Number(op.precio) <= 0)) return;
+
       const piezasHechas = regsPedido
         .filter(r =>
           r.operacionId === op.opId &&
@@ -2796,6 +2929,7 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
       id: reg.id,
       escuela: pedido ? pedido.escuela : 'N/A',
       prenda: prenda ? prenda.nombre : 'N/A',
+      talla: reg.talla || null,
       descripcion: reg.descripcion,
       cantidad: reg.cantidad,
       maquina: reg.maquina,
