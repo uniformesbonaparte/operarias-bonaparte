@@ -23,6 +23,14 @@ function toMexicoParts(date) {
   return p;
 }
 
+/** Normaliza talla para evitar null/undefined/"" */
+function normalizarTalla(valor) {
+  if (valor === undefined || valor === null) return null;
+  const t = String(valor).trim();
+  if (!t || t.toLowerCase() === 'null' || t.toLowerCase() === 'undefined') return null;
+  return t;
+}
+
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
@@ -341,6 +349,7 @@ async function cargarDatosDesdeSupabase() {
     pedidoId: Number(r.pedidoid),
     prendaId: (r.prendaid === null || r.prendaid === undefined) ? null : Number(r.prendaid),
     operacionId: r.operacionid ? Number(r.operacionid) : null,
+    talla: normalizarTalla(r.talla ?? r.tallas ?? r.size ?? r.tamano),
     maquina: r.maquina,
     descripcion: r.descripcion,
     cantidad: Number(r.cantidad),
@@ -444,6 +453,7 @@ async function guardarTodoASupabase() {
     pedidoid: r.pedidoId,
     prendaid: r.prendaId,
     operacionid: r.operacionId || null,
+    talla: normalizarTalla(r.talla),
     maquina: r.maquina,
     descripcion: r.descripcion,
     cantidad: Number(r.cantidad),
@@ -1755,7 +1765,7 @@ app.post("/api/registros", (req, res) => {
         prendaIdFinal = itemEncontrado.prendaId || prendaIdFinal;
 
         // Validar que no se exceda la cantidad del pedido
-        const tallaNorm = (talla !== undefined && talla !== null) ? String(talla).trim() : null;
+        const tallaNorm = normalizarTalla(talla);
 
         // Sumar piezas ya hechas para esta operación (y talla si aplica)
         // Solo contar registros de la MISMA fuente (operaria vs encargada son bases independientes)
@@ -1798,7 +1808,7 @@ app.post("/api/registros", (req, res) => {
     pedidoId: Number(pedidoId),
     prendaId: prendaIdFinal,
     operacionId: opIdFinal,
-    talla: (talla !== undefined && talla !== null && String(talla).trim() !== '') ? String(talla).trim() : null,
+    talla: normalizarTalla(talla),
     maquina: maqFinal,
     descripcion: descFinal,
     cantidad: cant,
@@ -1871,7 +1881,7 @@ app.post("/api/registros/lote", (req, res) => {
           pagoFinal = opEncontrada.precio || pagoFinal;
 
           // Validar exceso
-          const tallaNorm = (talla !== undefined && talla !== null) ? String(talla).trim() : null;
+          const tallaNorm = normalizarTalla(talla);
           const fuenteActual = fuente || "operaria";
           const piezasYaHechas = registros
             .concat(creados) // Incluir los que ya creamos en este lote
@@ -1910,7 +1920,7 @@ app.post("/api/registros/lote", (req, res) => {
       pedidoId: Number(pedidoId),
       prendaId: prendaIdFinal,
       operacionId: opIdFinal,
-      talla: (talla !== undefined && talla !== null && String(talla).trim() !== '') ? String(talla).trim() : null,
+      talla: normalizarTalla(talla),
       maquina: maqFinal,
       descripcion: descFinal,
       cantidad: cant,
@@ -2806,7 +2816,7 @@ function obtenerNumeroSemana(date) {
 /**
  * Obtiene todas las semanas con registros
  */
-function obtenerSemanasConRegistros(estadoPago = 'pendiente') {
+function obtenerSemanasConRegistros(estadoPago = 'pendiente', fuente = null) {
   const semanas = {};
   
   let registrosFiltrados = registros;
@@ -2814,8 +2824,12 @@ function obtenerSemanasConRegistros(estadoPago = 'pendiente') {
     registrosFiltrados = registros.filter(r => (r.estadoPago || 'pendiente') === estadoPago);
   }
   
-  // FILTRAR: Solo registros de operarias (excluir encargada del total)
-  registrosFiltrados = registrosFiltrados.filter(r => (r.fuente || 'operaria') !== 'encargada');
+  // Filtrar por fuente: si se pasa, usar ese filtro. Si no, excluir encargada (backward compat)
+  if (fuente) {
+    registrosFiltrados = registrosFiltrados.filter(r => (r.fuente || 'operaria') === fuente);
+  } else {
+    registrosFiltrados = registrosFiltrados.filter(r => (r.fuente || 'operaria') !== 'encargada');
+  }
   
   registrosFiltrados.forEach(reg => {
     const semana = obtenerSemanaLaboral(reg.fecha);
@@ -2846,8 +2860,8 @@ function obtenerSemanasConRegistros(estadoPago = 'pendiente') {
  * Obtiene las semanas con registros
  */
 app.get("/api/semanas", (req, res) => {
-  const { estado } = req.query;
-  const semanas = obtenerSemanasConRegistros(estado || 'pendiente');
+  const { estado, fuente } = req.query;
+  const semanas = obtenerSemanasConRegistros(estado || 'pendiente', fuente || null);
   res.json(semanas);
 });
 
@@ -2892,8 +2906,9 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
     
     const estadoMatch = estadoPago ? (r.estadoPago || 'pendiente') === estadoPago : true;
     
-    // SIEMPRE excluir registros de encargada (solo mostrar operaria)
-    const fuenteMatch = (r.fuente || 'operaria') !== 'encargada';
+    // Filtrar por fuente: si se pasa ?fuente=, usar ese filtro. Si no, solo mostrar operaria (backward compat)
+    const fuenteFiltroDetalle = fuente || "operaria";
+    const fuenteMatch = (r.fuente || 'operaria') === fuenteFiltroDetalle;
 
     return r.operariaId === opId &&
            f >= semanaInfo.inicio &&
@@ -2929,10 +2944,11 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
       id: reg.id,
       escuela: pedido ? pedido.escuela : 'N/A',
       prenda: prenda ? prenda.nombre : 'N/A',
-      talla: reg.talla || null,
+      talla: normalizarTalla(reg.talla),
       descripcion: reg.descripcion,
       cantidad: reg.cantidad,
       maquina: reg.maquina,
+      fecha: reg.fecha,
       pagoPorPieza: reg.pagoPorPieza || 0,
       totalGanado: reg.totalGanado || (reg.cantidad * (reg.pagoPorPieza || 0))
     });
