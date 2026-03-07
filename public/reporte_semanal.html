@@ -721,6 +721,7 @@
       } else if (esEncargada) {
         filtroOperariaContainer.classList.add("oculto");
         filtroFuenteContainer.classList.add("oculto");
+        filtroEstadoContainer.classList.add("oculto"); // Encargada no filtra por pago
         selectFuente.value = "encargada"; // Encargada siempre ve su propia base
       } else if (esAdmin) {
         // Admin ve todos los filtros
@@ -746,8 +747,10 @@
       // Cargar semanas disponibles
       async function cargarSemanas() {
         try {
-          const estado = selectEstadoPago.value;
-          const res = await fetch(`/api/semanas?estado=${estado}`);
+          const estado = esEncargada ? 'todos' : selectEstadoPago.value;
+          let urlSemanas = `/api/semanas?estado=${estado}`;
+          if (esEncargada) urlSemanas += '&fuente=encargada';
+          const res = await fetch(urlSemanas);
           if (!res.ok) throw new Error("Error al cargar semanas");
           
           const semanas = await res.json();
@@ -809,7 +812,7 @@
         }
 
         try {
-          let url = `/api/registros?fecha=${fecha}&estadoPago=pendiente`;
+          let url = `/api/registros?fecha=${fecha}&estadoPago=${esEncargada ? 'todos' : 'pendiente'}`;
           
           if (esOperaria) {
             url += `&operariaId=${usuarioActual.id}`;
@@ -850,7 +853,7 @@
         }
 
         try {
-          const estado = selectEstadoPago.value;
+          const estado = esEncargada ? 'todos' : selectEstadoPago.value;
           let url = `/api/reporte-semanal?semana=${semanaCodigo}&estado=${estado}`;
           
           // Agregar filtros de admin
