@@ -760,7 +760,9 @@
           semanas.forEach(s => {
             const opt = document.createElement("option");
             opt.value = s.codigo;
-            opt.textContent = `${s.codigo} (${formatearFecha(s.inicio)} - ${formatearFecha(s.fin)}) - $${s.totalPagar.toFixed(2)}`;
+            opt.textContent = esEncargada ?
+              `${s.codigo} (${formatearFecha(s.inicio)} - ${formatearFecha(s.fin)}) - ${s.registros} registros` :
+              `${s.codigo} (${formatearFecha(s.inicio)} - ${formatearFecha(s.fin)}) - $${s.totalPagar.toFixed(2)}`;
             selectSemana.appendChild(opt);
           });
 
@@ -943,21 +945,23 @@
 
           const totalGeneral = Object.values(porOperaria).reduce((sum, op) => sum + op.total, 0);
           totalGeneralValor.textContent = `$${totalGeneral.toFixed(2)}`;
-          totalGeneralContainer.classList.remove("oculto");
+          if (!esEncargada) {
+            totalGeneralContainer.classList.remove("oculto");
+          }
 
           listaResultados.innerHTML = Object.values(porOperaria).map(op => `
             <div class="operaria-item">
               <div class="operaria-nombre">👤 ${op.nombre}</div>
               <div class="operaria-stats">
                 <div>📦 Piezas: <strong>${op.piezas}</strong></div>
-                <div>💰 Total: <strong>$${op.total.toFixed(2)}</strong></div>
+                ${!esEncargada ? `<div>💰 Total: <strong>$${op.total.toFixed(2)}</strong></div>` : ''}
               </div>
               ${(esAdmin || esEncargada) ? `
                 <div style="margin-top: 8px;">
                   ${op.registros.map(r => `
                     <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 4px; font-size: 13px;">
                       <strong>${r.escuela || 'Pedido'}</strong> - ${r.prenda || r.prendaNombre || 'Prenda'}${r.talla ? ` (T-${r.talla})` : ''}<br>
-                      ${r.descripcion} | ${r.cantidad} pzs${r.pagoPorPieza > 0 ? ` × $${r.pagoPorPieza.toFixed(2)} = $${r.totalGanado.toFixed(2)}` : ''}
+                      ${r.descripcion} | ${r.cantidad} pzs${!esEncargada && r.pagoPorPieza > 0 ? ` × $${r.pagoPorPieza.toFixed(2)} = $${r.totalGanado.toFixed(2)}` : ''}
                     </div>
                   `).join('')}
                 </div>
@@ -1010,7 +1014,9 @@
 
         const totalGeneral = datos.reduce((sum, op) => sum + op.ganado, 0);
         totalGeneralValor.textContent = `$${totalGeneral.toFixed(2)}`;
-        totalGeneralContainer.classList.remove("oculto");
+        if (!esEncargada) {
+          totalGeneralContainer.classList.remove("oculto");
+        }
 
         // Mostrar acciones solo si es admin y hay pendientes
         if (esAdmin && estado === 'pendiente') {
@@ -1024,7 +1030,7 @@
             <div class="operaria-nombre">👤 ${op.nombre}</div>
             <div class="operaria-stats">
               <div>📦 Piezas: <strong>${op.piezas}</strong></div>
-              <div>💰 Total: <strong>$${op.ganado.toFixed(2)}</strong></div>
+              ${!esEncargada ? `<div>💰 Total: <strong>$${op.ganado.toFixed(2)}</strong></div>` : ''}
               <div>📊 Registros: <strong>${op.registros}</strong></div>
             </div>
             ${(esAdmin || esEncargada) ? `
@@ -1032,9 +1038,9 @@
                 <button class="btn-secondary" onclick="verDetalleRegistros(${op.operariaId}, '${op.nombre}', '${semanaCodigo}')">
                   📋 Ver Detalle
                 </button>
-                <button class="btn-secondary" onclick="imprimirRecibo(${op.operariaId}, '${semanaCodigo}')">
+                ${esAdmin ? `<button class="btn-secondary" onclick="imprimirRecibo(${op.operariaId}, '${semanaCodigo}')">
                   🖨️ Imprimir Recibo
-                </button>
+                </button>` : ''}
                 ${esAdmin && estado === 'pendiente' ? `
                   <button class="btn-success" onclick="marcarOperariaPagada(${op.operariaId}, '${op.nombre}', '${semanaCodigo}', ${op.ganado})">
                     💰 Marcar Pagada
@@ -1181,7 +1187,7 @@
           
           // Actualizar título
           document.getElementById('modal-detalle-titulo').textContent = `📋 Detalle de Registros - ${operariaNombre}`;
-          document.getElementById('modal-detalle-subtitulo').textContent = `${data.semana.label} | Total: $${data.resumen.totalPagar.toFixed(2)}`;
+          document.getElementById('modal-detalle-subtitulo').textContent = esEncargada ? `${data.semana.label} | ${data.resumen.totalPiezas} piezas` : `${data.semana.label} | Total: $${data.resumen.totalPagar.toFixed(2)}`;
           
           // Generar contenido
           let html = '';
@@ -1202,20 +1208,20 @@
                         </div>
                       </div>
                       <div class="detalle-calculo">
-                        <span class="detalle-cantidad">${reg.cantidad} piezas × $${(reg.pagoPorPieza || 0).toFixed(2)}</span>
-                        <span class="detalle-total">$${(reg.totalGanado || 0).toFixed(2)}</span>
+                        <span class="detalle-cantidad">${reg.cantidad} piezas${!esEncargada ? ` × $${(reg.pagoPorPieza || 0).toFixed(2)}` : ''}</span>
+                        ${!esEncargada ? `<span class="detalle-total">$${(reg.totalGanado || 0).toFixed(2)}</span>` : ''}
                       </div>
                     </div>
                   `).join('')}
-                  <div class="detalle-subtotal">Subtotal día: $${(dia.subtotal || 0).toFixed(2)}</div>
+                  ${!esEncargada ? `<div class="detalle-subtotal">Subtotal día: $${(dia.subtotal || 0).toFixed(2)}</div>` : ''}
                 </div>
               `;
             });
             
             html += `
               <div class="detalle-total-general">
-                <div class="detalle-total-general-label">TOTAL SEMANA</div>
-                <div class="detalle-total-general-valor">$${data.resumen.totalPagar.toFixed(2)}</div>
+                ${!esEncargada ? `<div class="detalle-total-general-label">TOTAL SEMANA</div>
+                <div class="detalle-total-general-valor">$${data.resumen.totalPagar.toFixed(2)}</div>` : ''}
                 <div style="margin-top: 12px; color: var(--text-muted); font-size: 14px;">
                   ${data.resumen.totalPiezas} piezas | ${data.resumen.totalRegistros} registros | ${data.resumen.diasTrabajados} días
                 </div>
