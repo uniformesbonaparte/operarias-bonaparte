@@ -2892,8 +2892,9 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
     
     const estadoMatch = estadoPago ? (r.estadoPago || 'pendiente') === estadoPago : true;
     
-    // SIEMPRE excluir registros de encargada (solo mostrar operaria)
-    const fuenteMatch = (r.fuente || 'operaria') !== 'encargada';
+    // Filtrar por fuente: si se pasa ?fuente=, usar ese filtro. Si no, solo mostrar operaria (backward compat)
+    const fuenteFiltroDetalle = fuente || "operaria";
+    const fuenteMatch = (r.fuente || 'operaria') === fuenteFiltroDetalle;
 
     return r.operariaId === opId &&
            f >= semanaInfo.inicio &&
