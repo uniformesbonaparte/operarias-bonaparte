@@ -721,6 +721,7 @@
       } else if (esEncargada) {
         filtroOperariaContainer.classList.add("oculto");
         filtroFuenteContainer.classList.add("oculto");
+        selectFuente.value = "encargada"; // Encargada siempre ve su propia base
       } else if (esAdmin) {
         // Admin ve todos los filtros
         cargarOperariasParaFiltro();
@@ -824,6 +825,8 @@
             if (fuente !== 'todos') {
               url += `&fuente=${fuente}`;
             }
+          } else if (esEncargada) {
+            url += `&fuente=encargada`;
           }
 
           const res = await fetch(url);
@@ -861,6 +864,8 @@
             if (fuente !== 'todos') {
               url += `&fuente=${fuente}`;
             }
+          } else if (esEncargada) {
+            url += `&fuente=encargada`;
           }
           
           const res = await fetch(url);
@@ -1107,7 +1112,8 @@
       window.imprimirRecibo = async function(operariaId, semanaCodigo) {
         try {
           const estado = selectEstadoPago.value;
-          const res = await fetch(`/api/reporte-semanal/detalle?semana=${semanaCodigo}&operariaId=${operariaId}&estadoPago=${estado}`);
+          const fuenteVal = selectFuente.value !== 'todos' ? `&fuente=${selectFuente.value}` : '';
+          const res = await fetch(`/api/reporte-semanal/detalle?semana=${semanaCodigo}&operariaId=${operariaId}&estadoPago=${estado}${fuenteVal}`);
           
           if (!res.ok) throw new Error("Error al obtener detalle");
           
@@ -1146,7 +1152,8 @@
           }
           
           const estado = selectEstadoPago.value;
-          const url = `/api/reporte-semanal/detalle?semana=${encodeURIComponent(semanaCodigo)}&operariaId=${operariaId}&estadoPago=${estado}`;
+          const fuenteVal2 = selectFuente.value !== 'todos' ? `&fuente=${selectFuente.value}` : '';
+          const url = `/api/reporte-semanal/detalle?semana=${encodeURIComponent(semanaCodigo)}&operariaId=${operariaId}&estadoPago=${estado}${fuenteVal2}`;
           
           console.log('📋 Llamando a Ver Detalle:', { semanaCodigo, operariaId, estado, url });
           
@@ -1489,7 +1496,8 @@ px;
           `;
 
           for (const op of operarias) {
-            const resDetalle = await fetch(`/api/reporte-semanal/detalle?semana=${semanaCodigo}&operariaId=${op.operariaId}&estadoPago=${estado}`);
+            const fuenteValPrint = selectFuente.value !== 'todos' ? `&fuente=${selectFuente.value}` : '';
+            const resDetalle = await fetch(`/api/reporte-semanal/detalle?semana=${semanaCodigo}&operariaId=${op.operariaId}&estadoPago=${estado}${fuenteValPrint}`);
             const detalle = await resDetalle.json();
             htmlCompleto += generarReciboHTML(detalle);
           }
