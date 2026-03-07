@@ -23,6 +23,13 @@
       --success: #10b981;
       --danger: #ef4444;
       --warning: #f59e0b;
+      /* Variables para el modal de detalle */
+      --card-bg: #0f1535;
+      --bg-color: rgba(0, 0, 0, 0.3);
+      --border-color: rgba(255, 255, 255, 0.1);
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
+      --primary-color: #3b82f6;
     }
 
     * {
@@ -721,6 +728,8 @@
       } else if (esEncargada) {
         filtroOperariaContainer.classList.add("oculto");
         filtroFuenteContainer.classList.add("oculto");
+        filtroEstadoContainer.classList.add("oculto"); // Encargada no filtra por pago
+        selectFuente.value = "encargada"; // Encargada siempre ve su propia base
       } else if (esAdmin) {
         // Admin ve todos los filtros
         cargarOperariasParaFiltro();
@@ -745,8 +754,10 @@
       // Cargar semanas disponibles
       async function cargarSemanas() {
         try {
-          const estado = selectEstadoPago.value;
-          const res = await fetch(`/api/semanas?estado=${estado}`);
+          const estado = esEncargada ? 'todos' : selectEstadoPago.value;
+          let urlSemanas = `/api/semanas?estado=${estado}`;
+          if (esEncargada) urlSemanas += '&fuente=encargada';
+          const res = await fetch(urlSemanas);
           if (!res.ok) throw new Error("Error al cargar semanas");
           
           const semanas = await res.json();
@@ -756,7 +767,9 @@
           semanas.forEach(s => {
             const opt = document.createElement("option");
             opt.value = s.codigo;
-            opt.textContent = `${s.codigo} (${formatearFecha(s.inicio)} - ${formatearFecha(s.fin)}) - $${s.totalPagar.toFixed(2)}`;
+            opt.textContent = esEncargada ?
+              `${s.codigo} (${formatearFecha(s.inicio)} - ${formatearFecha(s.fin)}) - ${s.registros} registros` :
+              `${s.codigo} (${formatearFecha(s.inicio)} - ${formatearFecha(s.fin)}) - $${s.totalPagar.toFixed(2)}`;
             selectSemana.appendChild(opt);
           });
 
@@ -808,7 +821,7 @@
         }
 
         try {
-          let url = `/api/registros?fecha=${fecha}&estadoPago=pendiente`;
+          let url = `/api/registros?fecha=${fecha}&estadoPago=${esEncargada ? 'todos' : 'pendiente'}`;
           
           if (esOperaria) {
             url += `&operariaId=${usuarioActual.id}`;
@@ -824,6 +837,8 @@
             if (fuente !== 'todos') {
               url += `&fuente=${fuente}`;
             }
+          } else if (esEncargada) {
+            url += `&fuente=encargada`;
           }
 
           const res = await fetch(url);
@@ -847,7 +862,7 @@
         }
 
         try {
-          const estado = selectEstadoPago.value;
+          const estado = esEncargada ? 'todos' : selectEstadoPago.value;
           let url = `/api/reporte-semanal?semana=${semanaCodigo}&estado=${estado}`;
           
           // Agregar filtros de admin
@@ -861,6 +876,8 @@
             if (fuente !== 'todos') {
               url += `&fuente=${fuente}`;
             }
+          } else if (esEncargada) {
+            url += `&fuente=encargada`;
           }
           
           const res = await fetch(url);
@@ -906,8 +923,8 @@
               </div>
               <div style="margin-top: 12px;">
                 ${registros.map(r => `
-                  <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 8px; font-size: 13px;">
-                    <strong>${r.escuela}</strong>${r.talla ? ` · T-${r.talla}` : ''}<br>
+                    <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 8px; font-size: 13px;">
+                    <strong>${r.escuela}</strong>${r.talla ? ` · T-${r.talla}` : ''}${r.fecha ? ` · 🕐 ${formatearHoraMexico(r.fecha)}` : ''}<br>
                     ${r.descripcion} | ${r.cantidad} pzs × $${r.pagoPorPieza.toFixed(2)} = $${r.totalGanado.toFixed(2)}
                   </div>
                 `).join('')}
@@ -935,15 +952,27 @@
 
           const totalGeneral = Object.values(porOperaria).reduce((sum, op) => sum + op.total, 0);
           totalGeneralValor.textContent = `$${totalGeneral.toFixed(2)}`;
-          totalGeneralContainer.classList.remove("oculto");
+          if (!esEncargada) {
+            totalGeneralContainer.classList.remove("oculto");
+          }
 
           listaResultados.innerHTML = Object.values(porOperaria).map(op => `
             <div class="operaria-item">
               <div class="operaria-nombre">👤 ${op.nombre}</div>
               <div class="operaria-stats">
                 <div>📦 Piezas: <strong>${op.piezas}</strong></div>
-                <div>💰 Total: <strong>$${op.total.toFixed(2)}</strong></div>
+                ${!esEncargada ? `<div>💰 Total: <strong>$${op.total.toFixed(2)}</strong></div>` : ''}
               </div>
+              ${(esAdmin || esEncargada) ? `
+                <div style="margin-top: 8px;">
+                  ${op.registros.map(r => `
+                    <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 4px; font-size: 13px;">
+                      <strong>${r.escuela || 'Pedido'}</strong> - ${r.prenda || r.prendaNombre || 'Prenda'}${r.talla ? ` (T-${r.talla})` : ''}${r.fecha ? ` · 🕐 ${formatearHoraMexico(r.fecha)}` : ''}<br>
+                      ${r.descripcion} | ${r.cantidad} pzs${!esEncargada && r.pagoPorPieza > 0 ? ` × $${r.pagoPorPieza.toFixed(2)} = $${r.totalGanado.toFixed(2)}` : ''}
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
             </div>
           `).join('');
         }
@@ -992,7 +1021,9 @@
 
         const totalGeneral = datos.reduce((sum, op) => sum + op.ganado, 0);
         totalGeneralValor.textContent = `$${totalGeneral.toFixed(2)}`;
-        totalGeneralContainer.classList.remove("oculto");
+        if (!esEncargada) {
+          totalGeneralContainer.classList.remove("oculto");
+        }
 
         // Mostrar acciones solo si es admin y hay pendientes
         if (esAdmin && estado === 'pendiente') {
@@ -1006,18 +1037,18 @@
             <div class="operaria-nombre">👤 ${op.nombre}</div>
             <div class="operaria-stats">
               <div>📦 Piezas: <strong>${op.piezas}</strong></div>
-              <div>💰 Total: <strong>$${op.ganado.toFixed(2)}</strong></div>
+              ${!esEncargada ? `<div>💰 Total: <strong>$${op.ganado.toFixed(2)}</strong></div>` : ''}
               <div>📊 Registros: <strong>${op.registros}</strong></div>
             </div>
-            ${esAdmin ? `
+            ${(esAdmin || esEncargada) ? `
               <div class="operaria-acciones">
                 <button class="btn-secondary" onclick="verDetalleRegistros(${op.operariaId}, '${op.nombre}', '${semanaCodigo}')">
                   📋 Ver Detalle
                 </button>
-                <button class="btn-secondary" onclick="imprimirRecibo(${op.operariaId}, '${semanaCodigo}')">
+                ${esAdmin ? `<button class="btn-secondary" onclick="imprimirRecibo(${op.operariaId}, '${semanaCodigo}')">
                   🖨️ Imprimir Recibo
-                </button>
-                ${estado === 'pendiente' ? `
+                </button>` : ''}
+                ${esAdmin && estado === 'pendiente' ? `
                   <button class="btn-success" onclick="marcarOperariaPagada(${op.operariaId}, '${op.nombre}', '${semanaCodigo}', ${op.ganado})">
                     💰 Marcar Pagada
                   </button>
@@ -1107,7 +1138,8 @@
       window.imprimirRecibo = async function(operariaId, semanaCodigo) {
         try {
           const estado = selectEstadoPago.value;
-          const res = await fetch(`/api/reporte-semanal/detalle?semana=${semanaCodigo}&operariaId=${operariaId}&estadoPago=${estado}`);
+          const fuenteVal = esOperaria ? '&fuente=operaria' : (selectFuente.value !== 'todos' ? `&fuente=${selectFuente.value}` : '');
+          const res = await fetch(`/api/reporte-semanal/detalle?semana=${semanaCodigo}&operariaId=${operariaId}&estadoPago=${estado}${fuenteVal}`);
           
           if (!res.ok) throw new Error("Error al obtener detalle");
           
@@ -1146,7 +1178,8 @@
           }
           
           const estado = selectEstadoPago.value;
-          const url = `/api/reporte-semanal/detalle?semana=${encodeURIComponent(semanaCodigo)}&operariaId=${operariaId}&estadoPago=${estado}`;
+          const fuenteVal2 = esOperaria ? '&fuente=operaria' : (selectFuente.value !== 'todos' ? `&fuente=${selectFuente.value}` : '');
+          const url = `/api/reporte-semanal/detalle?semana=${encodeURIComponent(semanaCodigo)}&operariaId=${operariaId}&estadoPago=${estado}${fuenteVal2}`;
           
           console.log('📋 Llamando a Ver Detalle:', { semanaCodigo, operariaId, estado, url });
           
@@ -1161,7 +1194,7 @@
           
           // Actualizar título
           document.getElementById('modal-detalle-titulo').textContent = `📋 Detalle de Registros - ${operariaNombre}`;
-          document.getElementById('modal-detalle-subtitulo').textContent = `${data.semana.label} | Total: $${data.resumen.totalPagar.toFixed(2)}`;
+          document.getElementById('modal-detalle-subtitulo').textContent = esEncargada ? `${data.semana.label} | ${data.resumen.totalPiezas} piezas` : `${data.semana.label} | Total: $${data.resumen.totalPagar.toFixed(2)}`;
           
           // Generar contenido
           let html = '';
@@ -1177,25 +1210,25 @@
                     <div class="detalle-registro">
                       <div class="detalle-registro-header">
                         <div>
-                          <div class="detalle-escuela">${reg.escuela} - ${reg.prenda}${reg.talla ? ` (T-${reg.talla})` : ''}</div>
+                          <div class="detalle-escuela">${reg.escuela} - ${reg.prenda}${reg.talla ? ` (T-${reg.talla})` : ''} · 🕐 ${formatearHoraMexico(reg.fecha)}</div>
                           <div class="detalle-descripcion">"${reg.descripcion}"</div>
                         </div>
                       </div>
                       <div class="detalle-calculo">
-                        <span class="detalle-cantidad">${reg.cantidad} piezas × $${(reg.pagoPorPieza || 0).toFixed(2)}</span>
-                        <span class="detalle-total">$${(reg.totalGanado || 0).toFixed(2)}</span>
+                        <span class="detalle-cantidad">${reg.cantidad} piezas${!esEncargada ? ` × $${(reg.pagoPorPieza || 0).toFixed(2)}` : ''}</span>
+                        ${!esEncargada ? `<span class="detalle-total">$${(reg.totalGanado || 0).toFixed(2)}</span>` : ''}
                       </div>
                     </div>
                   `).join('')}
-                  <div class="detalle-subtotal">Subtotal día: $${(dia.subtotal || 0).toFixed(2)}</div>
+                  ${!esEncargada ? `<div class="detalle-subtotal">Subtotal día: $${(dia.subtotal || 0).toFixed(2)}</div>` : ''}
                 </div>
               `;
             });
             
             html += `
               <div class="detalle-total-general">
-                <div class="detalle-total-general-label">TOTAL SEMANA</div>
-                <div class="detalle-total-general-valor">$${data.resumen.totalPagar.toFixed(2)}</div>
+                ${!esEncargada ? `<div class="detalle-total-general-label">TOTAL SEMANA</div>
+                <div class="detalle-total-general-valor">$${data.resumen.totalPagar.toFixed(2)}</div>` : ''}
                 <div style="margin-top: 12px; color: var(--text-muted); font-size: 14px;">
                   ${data.resumen.totalPiezas} piezas | ${data.resumen.totalRegistros} registros | ${data.resumen.diasTrabajados} días
                 </div>
@@ -1273,7 +1306,7 @@
               </div>
               ${dia.registros.map(reg => `
                 <div class="registro-card" style="background: #f9fafb; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e5e7eb;">
-                  <div style="font-weight: 600; margin-bottom: 4px;">${reg.escuela} - ${reg.prenda}${reg.talla ? ` (T-${reg.talla})` : ''}</div>
+                  <div style="font-weight: 600; margin-bottom: 4px;">${reg.escuela} - ${reg.prenda}${reg.talla ? ` (T-${reg.talla})` : ''} · 🕐 ${formatearHoraMexico(reg.fecha)}</div>
                   <div class="registro-desc" style="color: #6b7280; font-style: italic; font-size: 14px; margin-bottom: 8px;">"${reg.descripcion}"</div>
                   <div class="registro-line" style="display: flex; align-items: baseline; justify-content: flex-start; gap: 10px; padding: 6px 8px; background: rgba(37, 99, 235, 0.08); border-radius: 6px;">
                     <span style="color: #374151;">${reg.cantidad} piezas × $${(reg.pagoPorPieza || 0).toFixed(2)}</span>
@@ -1489,7 +1522,8 @@ px;
           `;
 
           for (const op of operarias) {
-            const resDetalle = await fetch(`/api/reporte-semanal/detalle?semana=${semanaCodigo}&operariaId=${op.operariaId}&estadoPago=${estado}`);
+            const fuenteValPrint = selectFuente.value !== 'todos' ? `&fuente=${selectFuente.value}` : '';
+            const resDetalle = await fetch(`/api/reporte-semanal/detalle?semana=${semanaCodigo}&operariaId=${op.operariaId}&estadoPago=${estado}${fuenteValPrint}`);
             const detalle = await resDetalle.json();
             htmlCompleto += generarReciboHTML(detalle);
           }
@@ -1715,6 +1749,15 @@ px;
             </div>
           </div>
         `;
+      }
+
+      // Formatear hora en zona México
+      function formatearHoraMexico(fechaISO) {
+        if (!fechaISO) return '';
+        try {
+          const d = new Date(fechaISO);
+          return d.toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City', hour: '2-digit', minute: '2-digit', hour12: true });
+        } catch(e) { return ''; }
       }
 
       // Funciones helper
