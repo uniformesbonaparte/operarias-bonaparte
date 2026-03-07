@@ -341,7 +341,6 @@ async function cargarDatosDesdeSupabase() {
     pedidoId: Number(r.pedidoid),
     prendaId: (r.prendaid === null || r.prendaid === undefined) ? null : Number(r.prendaid),
     operacionId: r.operacionid ? Number(r.operacionid) : null,
-    talla: r.talla || null,
     maquina: r.maquina,
     descripcion: r.descripcion,
     cantidad: Number(r.cantidad),
@@ -445,7 +444,6 @@ async function guardarTodoASupabase() {
     pedidoid: r.pedidoId,
     prendaid: r.prendaId,
     operacionid: r.operacionId || null,
-    talla: r.talla || null,
     maquina: r.maquina,
     descripcion: r.descripcion,
     cantidad: Number(r.cantidad),
@@ -2808,7 +2806,7 @@ function obtenerNumeroSemana(date) {
 /**
  * Obtiene todas las semanas con registros
  */
-function obtenerSemanasConRegistros(estadoPago = 'pendiente', fuente = null) {
+function obtenerSemanasConRegistros(estadoPago = 'pendiente') {
   const semanas = {};
   
   let registrosFiltrados = registros;
@@ -2816,12 +2814,8 @@ function obtenerSemanasConRegistros(estadoPago = 'pendiente', fuente = null) {
     registrosFiltrados = registros.filter(r => (r.estadoPago || 'pendiente') === estadoPago);
   }
   
-  // Filtrar por fuente: si se pasa, usar ese filtro. Si no, excluir encargada (backward compat)
-  if (fuente) {
-    registrosFiltrados = registrosFiltrados.filter(r => (r.fuente || 'operaria') === fuente);
-  } else {
-    registrosFiltrados = registrosFiltrados.filter(r => (r.fuente || 'operaria') !== 'encargada');
-  }
+  // FILTRAR: Solo registros de operarias (excluir encargada del total)
+  registrosFiltrados = registrosFiltrados.filter(r => (r.fuente || 'operaria') !== 'encargada');
   
   registrosFiltrados.forEach(reg => {
     const semana = obtenerSemanaLaboral(reg.fecha);
@@ -2852,8 +2846,8 @@ function obtenerSemanasConRegistros(estadoPago = 'pendiente', fuente = null) {
  * Obtiene las semanas con registros
  */
 app.get("/api/semanas", (req, res) => {
-  const { estado, fuente } = req.query;
-  const semanas = obtenerSemanasConRegistros(estado || 'pendiente', fuente || null);
+  const { estado } = req.query;
+  const semanas = obtenerSemanasConRegistros(estado || 'pendiente');
   res.json(semanas);
 });
 
@@ -2898,9 +2892,8 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
     
     const estadoMatch = estadoPago ? (r.estadoPago || 'pendiente') === estadoPago : true;
     
-    // Filtrar por fuente: si se pasa ?fuente=, usar ese filtro. Si no, solo mostrar operaria (backward compat)
-    const fuenteFiltroDetalle = fuente || "operaria";
-    const fuenteMatch = (r.fuente || 'operaria') === fuenteFiltroDetalle;
+    // SIEMPRE excluir registros de encargada (solo mostrar operaria)
+    const fuenteMatch = (r.fuente || 'operaria') !== 'encargada';
 
     return r.operariaId === opId &&
            f >= semanaInfo.inicio &&
