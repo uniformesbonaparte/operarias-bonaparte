@@ -23,6 +23,13 @@
       --success: #10b981;
       --danger: #ef4444;
       --warning: #f59e0b;
+      /* Variables para el modal de detalle */
+      --card-bg: #0f1535;
+      --bg-color: rgba(0, 0, 0, 0.3);
+      --border-color: rgba(255, 255, 255, 0.1);
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
+      --primary-color: #3b82f6;
     }
 
     * {
@@ -916,8 +923,8 @@
               </div>
               <div style="margin-top: 12px;">
                 ${registros.map(r => `
-                  <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 8px; font-size: 13px;">
-                    <strong>${r.escuela}</strong>${r.talla ? ` · T-${r.talla}` : ''}<br>
+                    <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 8px; font-size: 13px;">
+                    <strong>${r.escuela}</strong>${r.talla ? ` · T-${r.talla}` : ''}${r.fecha ? ` · 🕐 ${formatearHoraMexico(r.fecha)}` : ''}<br>
                     ${r.descripcion} | ${r.cantidad} pzs × $${r.pagoPorPieza.toFixed(2)} = $${r.totalGanado.toFixed(2)}
                   </div>
                 `).join('')}
@@ -960,7 +967,7 @@
                 <div style="margin-top: 8px;">
                   ${op.registros.map(r => `
                     <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 4px; font-size: 13px;">
-                      <strong>${r.escuela || 'Pedido'}</strong> - ${r.prenda || r.prendaNombre || 'Prenda'}${r.talla ? ` (T-${r.talla})` : ''}<br>
+                      <strong>${r.escuela || 'Pedido'}</strong> - ${r.prenda || r.prendaNombre || 'Prenda'}${r.talla ? ` (T-${r.talla})` : ''}${r.fecha ? ` · 🕐 ${formatearHoraMexico(r.fecha)}` : ''}<br>
                       ${r.descripcion} | ${r.cantidad} pzs${!esEncargada && r.pagoPorPieza > 0 ? ` × $${r.pagoPorPieza.toFixed(2)} = $${r.totalGanado.toFixed(2)}` : ''}
                     </div>
                   `).join('')}
@@ -1131,7 +1138,7 @@
       window.imprimirRecibo = async function(operariaId, semanaCodigo) {
         try {
           const estado = selectEstadoPago.value;
-          const fuenteVal = selectFuente.value !== 'todos' ? `&fuente=${selectFuente.value}` : '';
+          const fuenteVal = esOperaria ? '&fuente=operaria' : (selectFuente.value !== 'todos' ? `&fuente=${selectFuente.value}` : '');
           const res = await fetch(`/api/reporte-semanal/detalle?semana=${semanaCodigo}&operariaId=${operariaId}&estadoPago=${estado}${fuenteVal}`);
           
           if (!res.ok) throw new Error("Error al obtener detalle");
@@ -1171,7 +1178,7 @@
           }
           
           const estado = selectEstadoPago.value;
-          const fuenteVal2 = selectFuente.value !== 'todos' ? `&fuente=${selectFuente.value}` : '';
+          const fuenteVal2 = esOperaria ? '&fuente=operaria' : (selectFuente.value !== 'todos' ? `&fuente=${selectFuente.value}` : '');
           const url = `/api/reporte-semanal/detalle?semana=${encodeURIComponent(semanaCodigo)}&operariaId=${operariaId}&estadoPago=${estado}${fuenteVal2}`;
           
           console.log('📋 Llamando a Ver Detalle:', { semanaCodigo, operariaId, estado, url });
@@ -1203,7 +1210,7 @@
                     <div class="detalle-registro">
                       <div class="detalle-registro-header">
                         <div>
-                          <div class="detalle-escuela">${reg.escuela} - ${reg.prenda}${reg.talla ? ` (T-${reg.talla})` : ''}</div>
+                          <div class="detalle-escuela">${reg.escuela} - ${reg.prenda}${reg.talla ? ` (T-${reg.talla})` : ''} · 🕐 ${formatearHoraMexico(reg.fecha)}</div>
                           <div class="detalle-descripcion">"${reg.descripcion}"</div>
                         </div>
                       </div>
@@ -1299,7 +1306,7 @@
               </div>
               ${dia.registros.map(reg => `
                 <div class="registro-card" style="background: #f9fafb; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e5e7eb;">
-                  <div style="font-weight: 600; margin-bottom: 4px;">${reg.escuela} - ${reg.prenda}${reg.talla ? ` (T-${reg.talla})` : ''}</div>
+                  <div style="font-weight: 600; margin-bottom: 4px;">${reg.escuela} - ${reg.prenda}${reg.talla ? ` (T-${reg.talla})` : ''} · 🕐 ${formatearHoraMexico(reg.fecha)}</div>
                   <div class="registro-desc" style="color: #6b7280; font-style: italic; font-size: 14px; margin-bottom: 8px;">"${reg.descripcion}"</div>
                   <div class="registro-line" style="display: flex; align-items: baseline; justify-content: flex-start; gap: 10px; padding: 6px 8px; background: rgba(37, 99, 235, 0.08); border-radius: 6px;">
                     <span style="color: #374151;">${reg.cantidad} piezas × $${(reg.pagoPorPieza || 0).toFixed(2)}</span>
@@ -1742,6 +1749,15 @@ px;
             </div>
           </div>
         `;
+      }
+
+      // Formatear hora en zona México
+      function formatearHoraMexico(fechaISO) {
+        if (!fechaISO) return '';
+        try {
+          const d = new Date(fechaISO);
+          return d.toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City', hour: '2-digit', minute: '2-digit', hour12: true });
+        } catch(e) { return ''; }
       }
 
       // Funciones helper
