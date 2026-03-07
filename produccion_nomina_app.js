@@ -2806,7 +2806,7 @@ function obtenerNumeroSemana(date) {
 /**
  * Obtiene todas las semanas con registros
  */
-function obtenerSemanasConRegistros(estadoPago = 'pendiente') {
+function obtenerSemanasConRegistros(estadoPago = 'pendiente', fuente = null) {
   const semanas = {};
   
   let registrosFiltrados = registros;
@@ -2814,8 +2814,12 @@ function obtenerSemanasConRegistros(estadoPago = 'pendiente') {
     registrosFiltrados = registros.filter(r => (r.estadoPago || 'pendiente') === estadoPago);
   }
   
-  // FILTRAR: Solo registros de operarias (excluir encargada del total)
-  registrosFiltrados = registrosFiltrados.filter(r => (r.fuente || 'operaria') !== 'encargada');
+  // Filtrar por fuente: si se pasa, usar ese filtro. Si no, excluir encargada (backward compat)
+  if (fuente) {
+    registrosFiltrados = registrosFiltrados.filter(r => (r.fuente || 'operaria') === fuente);
+  } else {
+    registrosFiltrados = registrosFiltrados.filter(r => (r.fuente || 'operaria') !== 'encargada');
+  }
   
   registrosFiltrados.forEach(reg => {
     const semana = obtenerSemanaLaboral(reg.fecha);
@@ -2846,8 +2850,8 @@ function obtenerSemanasConRegistros(estadoPago = 'pendiente') {
  * Obtiene las semanas con registros
  */
 app.get("/api/semanas", (req, res) => {
-  const { estado } = req.query;
-  const semanas = obtenerSemanasConRegistros(estado || 'pendiente');
+  const { estado, fuente } = req.query;
+  const semanas = obtenerSemanasConRegistros(estado || 'pendiente', fuente || null);
   res.json(semanas);
 });
 
