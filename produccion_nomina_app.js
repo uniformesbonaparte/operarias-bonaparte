@@ -1717,7 +1717,8 @@ app.get("/api/registros", (req, res) => {
  * Crea un nuevo registro de producción
  */
 app.post("/api/registros", (req, res) => {
-  const { operariaId, pedidoId, prendaId, operacionId, maquina, descripcion, cantidad, pagoPorPieza, fuente, talla } = req.body;
+  const { operariaId, pedidoId, prendaId, operacionId, maquina, descripcion, cantidad, pagoPorPieza, fuente } = req.body;
+  const tallaRaw = req.body?.talla ?? req.body?.tallas ?? req.body?.size ?? req.body?.tamano ?? null;
 
   // Validaciones básicas
   if (!operariaId || !pedidoId || !cantidad) {
@@ -1765,19 +1766,20 @@ app.post("/api/registros", (req, res) => {
         prendaIdFinal = itemEncontrado.prendaId || prendaIdFinal;
 
         // Validar que no se exceda la cantidad del pedido
-        const tallaNorm = normalizarTalla(talla);
+        const tallaNorm = normalizarTalla(tallaRaw);
 
         // Sumar piezas ya hechas para esta operación (y talla si aplica)
-        // Solo contar registros de la MISMA fuente (operaria vs encargada son bases independientes)
+        // Solo contar registros de OPERARIAS — la base de encargada es independiente
         const fuenteActual = fuente || "operaria";
-        const piezasYaHechas = registros
-          .filter(r =>
-            r.pedidoId === Number(pedidoId) &&
-            r.operacionId === opIdFinal &&
-            (r.fuente || 'operaria') === fuenteActual &&
-            (tallaNorm ? (String(r.talla || '').trim() === tallaNorm) : true)
-          )
-          .reduce((sum, r) => sum + r.cantidad, 0);
+        if (fuenteActual === "operaria") {
+          const piezasYaHechas = registros
+            .filter(r =>
+              r.pedidoId === Number(pedidoId) &&
+              r.operacionId === opIdFinal &&
+              (r.fuente || 'operaria') === 'operaria' &&
+              (tallaNorm ? (String(r.talla || '').trim() === tallaNorm) : true)
+            )
+            .reduce((sum, r) => sum + r.cantidad, 0);
 
         // Límite: por talla si el pedido lo trae, si no, por cantidad total del item
         let limite = Number(itemEncontrado.cantidad) || 0;
@@ -1793,6 +1795,7 @@ app.post("/api/registros", (req, res) => {
             error: `Solo faltan ${cantidadDisponible} piezas por hacer en esta operación (ya se hicieron ${piezasYaHechas} de ${itemEncontrado.cantidad}).`
           });
         }
+        } // fin if fuenteActual === "operaria"
       }
     }
   }
@@ -1808,7 +1811,7 @@ app.post("/api/registros", (req, res) => {
     pedidoId: Number(pedidoId),
     prendaId: prendaIdFinal,
     operacionId: opIdFinal,
-    talla: normalizarTalla(talla),
+    talla: normalizarTalla(tallaRaw),
     maquina: maqFinal,
     descripcion: descFinal,
     cantidad: cant,
@@ -1850,7 +1853,8 @@ app.post("/api/registros/lote", (req, res) => {
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    const { operariaId, pedidoId, prendaId, operacionId, talla, cantidad, maquina, descripcion, fuente } = item;
+    const { operariaId, pedidoId, prendaId, operacionId, cantidad, maquina, descripcion, fuente } = item;
+    const tallaRaw = item?.talla ?? item?.tallas ?? item?.size ?? item?.tamano ?? null;
     const cant = Number(cantidad);
 
     if (!operariaId || !pedidoId || !cant || cant <= 0) {
@@ -1880,29 +1884,31 @@ app.post("/api/registros/lote", (req, res) => {
           descFinal = opEncontrada.costura || opEncontrada.descripcion || descFinal;
           pagoFinal = opEncontrada.precio || pagoFinal;
 
-          // Validar exceso
-          const tallaNorm = normalizarTalla(talla);
+          // Validar exceso — solo para registros de operarias (encargada es base independiente)
+          const tallaNorm = normalizarTalla(tallaRaw);
           const fuenteActual = fuente || "operaria";
-          const piezasYaHechas = registros
-            .concat(creados) // Incluir los que ya creamos en este lote
-            .filter(r =>
-              r.pedidoId === Number(pedidoId) &&
-              r.operacionId === opIdFinal &&
-              (r.fuente || 'operaria') === fuenteActual &&
-              (tallaNorm ? (String(r.talla || '').trim() === tallaNorm) : true)
-            )
-            .reduce((sum, r) => sum + r.cantidad, 0);
+          if (fuenteActual === "operaria") {
+            const piezasYaHechas = registros
+              .concat(creados)
+              .filter(r =>
+                r.pedidoId === Number(pedidoId) &&
+                r.operacionId === opIdFinal &&
+                (r.fuente || 'operaria') === 'operaria' &&
+                (tallaNorm ? (String(r.talla || '').trim() === tallaNorm) : true)
+              )
+              .reduce((sum, r) => sum + r.cantidad, 0);
 
-          let limite = Number(it.cantidad) || 0;
-          if (tallaNorm && Array.isArray(it.tallas) && it.tallas.length > 0) {
-            const tObj = it.tallas.find(t => String(t.talla || '').trim() === tallaNorm);
-            if (tObj) limite = Number(tObj.cantidad) || 0;
-          }
+            let limite = Number(it.cantidad) || 0;
+            if (tallaNorm && Array.isArray(it.tallas) && it.tallas.length > 0) {
+              const tObj = it.tallas.find(t => String(t.talla || '').trim() === tallaNorm);
+              if (tObj) limite = Number(tObj.cantidad) || 0;
+            }
 
-          const cantidadDisponible = Math.max(0, limite - piezasYaHechas);
-          if (cant > cantidadDisponible) {
-            errores.push({ index: i, error: `${descFinal} talla ${tallaNorm || 'N/A'}: solo faltan ${cantidadDisponible} piezas` });
-            continue;
+            const cantidadDisponible = Math.max(0, limite - piezasYaHechas);
+            if (cant > cantidadDisponible) {
+              errores.push({ index: i, error: `${descFinal} talla ${tallaNorm || 'N/A'}: solo faltan ${cantidadDisponible} piezas` });
+              continue;
+            }
           }
           break;
         }
@@ -1920,7 +1926,7 @@ app.post("/api/registros/lote", (req, res) => {
       pedidoId: Number(pedidoId),
       prendaId: prendaIdFinal,
       operacionId: opIdFinal,
-      talla: normalizarTalla(talla),
+      talla: normalizarTalla(tallaRaw),
       maquina: maqFinal,
       descripcion: descFinal,
       cantidad: cant,
@@ -1979,6 +1985,9 @@ app.put("/api/registros/:id", (req, res) => {
   }
   if (prendaId !== undefined) {
     registro.prendaId = prendaId ? Number(prendaId) : null;
+  }
+  if (talla !== undefined) {
+    registro.talla = normalizarTalla(talla);
   }
   if (maquina !== undefined) {
     registro.maquina = maquina;
@@ -2680,8 +2689,9 @@ app.get("/api/pedidos/:id/operaciones", (req, res) => {
   const prendaIdFiltro = req.query.prendaId ? Number(req.query.prendaId) : null;
   const tallaFiltro = (req.query.talla !== undefined && req.query.talla !== null && String(req.query.talla).trim() !== '') ? String(req.query.talla).trim() : null;
   const fuenteFiltro = req.query.fuente || null; // "operaria" | "encargada" | null (todas)
-  const soloConPrecio = req.query.soloConPrecio === "true"; // Solo operaciones con precio asignado
-  const regsPedido = registros.filter(r => r.pedidoId === id && (fuenteFiltro ? (r.fuente || 'operaria') === fuenteFiltro : true));
+  const soloConPrecio = req.query.soloConPrecio === "true";
+  // Para cantidadFaltante, solo contar registros de operarias (encargada es base independiente)
+  const regsPedido = registros.filter(r => r.pedidoId === id && (r.fuente || 'operaria') === 'operaria');
 
   const resultado = [];
   pedido.items.forEach(item => {
