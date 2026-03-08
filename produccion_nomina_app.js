@@ -1863,6 +1863,7 @@ app.post("/api/registros/lote", (req, res) => {
     let prendaIdFinal = Number(prendaId) || null;
 
     // Buscar operación en el pedido para auto-llenar datos
+    let itemRechazado = false;
     if (opIdFinal && pedido.items) {
       for (const it of pedido.items) {
         if (it.prendaId !== Number(prendaId)) continue;
@@ -1895,13 +1896,15 @@ app.post("/api/registros/lote", (req, res) => {
             const cantidadDisponible = Math.max(0, limite - piezasYaHechas);
             if (cant > cantidadDisponible) {
               errores.push({ index: i, error: `${descFinal} talla ${tallaNorm || 'N/A'}: solo faltan ${cantidadDisponible} piezas` });
-              continue;
+              itemRechazado = true;
             }
           }
           break;
         }
       }
     }
+
+    if (itemRechazado) continue;
 
     if (!maqFinal || !descFinal) {
       errores.push({ index: i, error: "Se requiere máquina y descripción" });
