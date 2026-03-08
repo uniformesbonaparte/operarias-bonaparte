@@ -254,9 +254,9 @@ function inicializarPlantillasCosturas() {
   // Solo inicializar si plantillasCosturas está vacío
   if (Object.keys(plantillasCosturas).length > 0) return;
 
-  for (const [prendaId, maquinas] of Object.entries(defaults)) {
+  for (const [prendaId, maquinasPrenda] of Object.entries(defaults)) {
     plantillasCosturas[Number(prendaId)] = [];
-    for (const [maquina, ops] of Object.entries(maquinas)) {
+    for (const [maquina, ops] of Object.entries(maquinasPrenda)) {
       for (const costura of ops) {
         plantillasCosturas[Number(prendaId)].push({ costura, maquina });
       }
@@ -1757,31 +1757,33 @@ app.post("/api/registros", (req, res) => {
         // Validar que no se exceda la cantidad del pedido
         const tallaNorm = (talla !== undefined && talla !== null) ? String(talla).trim() : null;
 
-        // Sumar piezas ya hechas para esta operación (y talla si aplica)
-        // Solo contar registros de la MISMA fuente (operaria vs encargada son bases independientes)
+        // Solo validar límite para registros de operaria
+        // Encargada registra libremente (su base no afecta el conteo)
         const fuenteActual = fuente || "operaria";
-        const piezasYaHechas = registros
-          .filter(r =>
-            r.pedidoId === Number(pedidoId) &&
-            r.operacionId === opIdFinal &&
-            (r.fuente || 'operaria') === fuenteActual &&
-            (tallaNorm ? (String(r.talla || '').trim() === tallaNorm) : true)
-          )
-          .reduce((sum, r) => sum + r.cantidad, 0);
+        if (fuenteActual === "operaria") {
+          const piezasYaHechas = registros
+            .filter(r =>
+              r.pedidoId === Number(pedidoId) &&
+              r.operacionId === opIdFinal &&
+              (r.fuente || 'operaria') === 'operaria' &&
+              (tallaNorm ? (String(r.talla || '').trim() === tallaNorm) : true)
+            )
+            .reduce((sum, r) => sum + r.cantidad, 0);
 
-        // Límite: por talla si el pedido lo trae, si no, por cantidad total del item
-        let limite = Number(itemEncontrado.cantidad) || 0;
-        if (tallaNorm && Array.isArray(itemEncontrado.tallas) && itemEncontrado.tallas.length > 0) {
-          const tObj = itemEncontrado.tallas.find(t => String(t.talla || '').trim() === tallaNorm);
-          if (tObj) limite = Number(tObj.cantidad) || 0;
-        }
+          // Límite: por talla si el pedido lo trae, si no, por cantidad total del item
+          let limite = Number(itemEncontrado.cantidad) || 0;
+          if (tallaNorm && Array.isArray(itemEncontrado.tallas) && itemEncontrado.tallas.length > 0) {
+            const tObj = itemEncontrado.tallas.find(t => String(t.talla || '').trim() === tallaNorm);
+            if (tObj) limite = Number(tObj.cantidad) || 0;
+          }
 
-        const cantidadDisponible = Math.max(0, limite - piezasYaHechas);
+          const cantidadDisponible = Math.max(0, limite - piezasYaHechas);
 
-        if (cant > cantidadDisponible) {
-          return res.status(400).json({
-            error: `Solo faltan ${cantidadDisponible} piezas por hacer en esta operación (ya se hicieron ${piezasYaHechas} de ${itemEncontrado.cantidad}).`
-          });
+          if (cant > cantidadDisponible) {
+            return res.status(400).json({
+              error: `Solo faltan ${cantidadDisponible} piezas por hacer en esta operación (ya se hicieron ${piezasYaHechas} de ${itemEncontrado.cantidad}).`
+            });
+          }
         }
       }
     }
@@ -1870,29 +1872,31 @@ app.post("/api/registros/lote", (req, res) => {
           descFinal = opEncontrada.costura || opEncontrada.descripcion || descFinal;
           pagoFinal = opEncontrada.precio || pagoFinal;
 
-          // Validar exceso
+          // Validar exceso — solo para fuente operaria
           const tallaNorm = (talla !== undefined && talla !== null) ? String(talla).trim() : null;
           const fuenteActual = fuente || "operaria";
-          const piezasYaHechas = registros
-            .concat(creados) // Incluir los que ya creamos en este lote
-            .filter(r =>
-              r.pedidoId === Number(pedidoId) &&
-              r.operacionId === opIdFinal &&
-              (r.fuente || 'operaria') === fuenteActual &&
-              (tallaNorm ? (String(r.talla || '').trim() === tallaNorm) : true)
-            )
-            .reduce((sum, r) => sum + r.cantidad, 0);
+          if (fuenteActual === "operaria") {
+            const piezasYaHechas = registros
+              .concat(creados) // Incluir los que ya creamos en este lote
+              .filter(r =>
+                r.pedidoId === Number(pedidoId) &&
+                r.operacionId === opIdFinal &&
+                (r.fuente || 'operaria') === 'operaria' &&
+                (tallaNorm ? (String(r.talla || '').trim() === tallaNorm) : true)
+              )
+              .reduce((sum, r) => sum + r.cantidad, 0);
 
-          let limite = Number(it.cantidad) || 0;
-          if (tallaNorm && Array.isArray(it.tallas) && it.tallas.length > 0) {
-            const tObj = it.tallas.find(t => String(t.talla || '').trim() === tallaNorm);
-            if (tObj) limite = Number(tObj.cantidad) || 0;
-          }
+            let limite = Number(it.cantidad) || 0;
+            if (tallaNorm && Array.isArray(it.tallas) && it.tallas.length > 0) {
+              const tObj = it.tallas.find(t => String(t.talla || '').trim() === tallaNorm);
+              if (tObj) limite = Number(tObj.cantidad) || 0;
+            }
 
-          const cantidadDisponible = Math.max(0, limite - piezasYaHechas);
-          if (cant > cantidadDisponible) {
-            errores.push({ index: i, error: `${descFinal} talla ${tallaNorm || 'N/A'}: solo faltan ${cantidadDisponible} piezas` });
-            continue;
+            const cantidadDisponible = Math.max(0, limite - piezasYaHechas);
+            if (cant > cantidadDisponible) {
+              errores.push({ index: i, error: `${descFinal} talla ${tallaNorm || 'N/A'}: solo faltan ${cantidadDisponible} piezas` });
+              continue;
+            }
           }
           break;
         }
@@ -2012,6 +2016,15 @@ app.delete("/api/registros/:id", (req, res) => {
   }
 
   registros = registros.filter(r => r.id !== id);
+  
+  // Eliminar de Supabase si está habilitado
+  if (SUPABASE_ENABLED && supabase) {
+    supabase.from("registros").delete().eq("id", id)
+      .then(({ error }) => {
+        if (error) console.warn("⚠️ Error eliminando registro de Supabase:", error.message);
+      });
+  }
+  
   guardarDatos();
   
   res.json({ 
@@ -2671,7 +2684,11 @@ app.get("/api/pedidos/:id/operaciones", (req, res) => {
   const tallaFiltro = (req.query.talla !== undefined && req.query.talla !== null && String(req.query.talla).trim() !== '') ? String(req.query.talla).trim() : null;
   const fuenteFiltro = req.query.fuente || null; // "operaria" | "encargada" | null (todas)
   const soloConPrecio = req.query.soloConPrecio === "true"; // Solo operaciones con precio asignado
-  const regsPedido = registros.filter(r => r.pedidoId === id && (fuenteFiltro ? (r.fuente || 'operaria') === fuenteFiltro : true));
+  const regsPedido = registros.filter(r => r.pedidoId === id);
+  // Registros solo de operarias para calcular faltante (encargada no afecta el conteo)
+  const regsPedidoOperaria = regsPedido.filter(r => (r.fuente || 'operaria') === 'operaria');
+  // Registros de la fuente solicitada (para mostrar piezasHechas)
+  const regsPedidoFuente = fuenteFiltro ? regsPedido.filter(r => (r.fuente || 'operaria') === fuenteFiltro) : regsPedido;
 
   const resultado = [];
   pedido.items.forEach(item => {
@@ -2682,7 +2699,16 @@ app.get("/api/pedidos/:id/operaciones", (req, res) => {
       // Filtrar: solo mostrar operaciones con precio > 0 si se pide
       if (soloConPrecio && (!op.precio || Number(op.precio) <= 0)) return;
 
-      const piezasHechas = regsPedido
+      // Piezas hechas por la fuente solicitada (para mostrar)
+      const piezasHechas = regsPedidoFuente
+        .filter(r =>
+          r.operacionId === op.opId &&
+          (tallaFiltro ? (String(r.talla || '').trim() === tallaFiltro) : true)
+        )
+        .reduce((sum, r) => sum + r.cantidad, 0);
+
+      // Faltante basado SOLO en registros de operarias (encargada no cuenta)
+      const piezasOperaria = regsPedidoOperaria
         .filter(r =>
           r.operacionId === op.opId &&
           (tallaFiltro ? (String(r.talla || '').trim() === tallaFiltro) : true)
@@ -2696,7 +2722,7 @@ app.get("/api/pedidos/:id/operaciones", (req, res) => {
         if (tObj) limite = Number(tObj.cantidad) || 0;
       }
 
-      const cantidadFaltante = Math.max(0, limite - piezasHechas);
+      const cantidadFaltante = Math.max(0, limite - piezasOperaria);
 
       resultado.push({
         prendaId: item.prendaId,
@@ -2806,7 +2832,7 @@ function obtenerNumeroSemana(date) {
 /**
  * Obtiene todas las semanas con registros
  */
-function obtenerSemanasConRegistros(estadoPago = 'pendiente') {
+function obtenerSemanasConRegistros(estadoPago = 'pendiente', fuente = null) {
   const semanas = {};
   
   let registrosFiltrados = registros;
@@ -2814,8 +2840,12 @@ function obtenerSemanasConRegistros(estadoPago = 'pendiente') {
     registrosFiltrados = registros.filter(r => (r.estadoPago || 'pendiente') === estadoPago);
   }
   
-  // FILTRAR: Solo registros de operarias (excluir encargada del total)
-  registrosFiltrados = registrosFiltrados.filter(r => (r.fuente || 'operaria') !== 'encargada');
+  // Filtrar por fuente: si se especifica, filtrar; si no, excluir encargada (default)
+  if (fuente) {
+    registrosFiltrados = registrosFiltrados.filter(r => (r.fuente || 'operaria') === fuente);
+  } else {
+    registrosFiltrados = registrosFiltrados.filter(r => (r.fuente || 'operaria') !== 'encargada');
+  }
   
   registrosFiltrados.forEach(reg => {
     const semana = obtenerSemanaLaboral(reg.fecha);
@@ -2846,8 +2876,8 @@ function obtenerSemanasConRegistros(estadoPago = 'pendiente') {
  * Obtiene las semanas con registros
  */
 app.get("/api/semanas", (req, res) => {
-  const { estado } = req.query;
-  const semanas = obtenerSemanasConRegistros(estado || 'pendiente');
+  const { estado, fuente } = req.query;
+  const semanas = obtenerSemanasConRegistros(estado || 'pendiente', fuente || null);
   res.json(semanas);
 });
 
@@ -2892,8 +2922,13 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
     
     const estadoMatch = estadoPago ? (r.estadoPago || 'pendiente') === estadoPago : true;
     
-    // SIEMPRE excluir registros de encargada (solo mostrar operaria)
-    const fuenteMatch = (r.fuente || 'operaria') !== 'encargada';
+    // Si se especifica fuente, filtrar por ella; si no, excluir encargada (default)
+    let fuenteMatch;
+    if (fuente) {
+      fuenteMatch = (r.fuente || 'operaria') === fuente;
+    } else {
+      fuenteMatch = (r.fuente || 'operaria') !== 'encargada';
+    }
 
     return r.operariaId === opId &&
            f >= semanaInfo.inicio &&

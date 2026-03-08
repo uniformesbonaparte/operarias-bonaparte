@@ -23,6 +23,12 @@
       --success: #10b981;
       --danger: #ef4444;
       --warning: #f59e0b;
+      --card-bg: rgba(15, 20, 50, 0.95);
+      --border-color: rgba(255, 255, 255, 0.15);
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
+      --primary-color: #3b82f6;
+      --bg-color: rgba(0, 0, 0, 0.3);
     }
 
     * {
@@ -271,6 +277,22 @@
 
     .btn-success:hover {
       background: rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-warning {
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: rgba(245, 158, 11, 0.2);
+      color: #fcd34d;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-warning:hover {
+      background: rgba(245, 158, 11, 0.3);
     }
 
     .operaria-item {
@@ -721,6 +743,8 @@
       } else if (esEncargada) {
         filtroOperariaContainer.classList.add("oculto");
         filtroFuenteContainer.classList.add("oculto");
+        filtroEstadoContainer.classList.add("oculto");
+        // Encargada siempre consulta pendientes de su propia base de datos
       } else if (esAdmin) {
         // Admin ve todos los filtros
         cargarOperariasParaFiltro();
@@ -745,8 +769,10 @@
       // Cargar semanas disponibles
       async function cargarSemanas() {
         try {
-          const estado = selectEstadoPago.value;
-          const res = await fetch(`/api/semanas?estado=${estado}`);
+          const estado = esEncargada ? 'todos' : selectEstadoPago.value;
+          let url = `/api/semanas?estado=${estado}`;
+          if (esEncargada) url += '&fuente=encargada';
+          const res = await fetch(url);
           if (!res.ok) throw new Error("Error al cargar semanas");
           
           const semanas = await res.json();
@@ -756,7 +782,12 @@
           semanas.forEach(s => {
             const opt = document.createElement("option");
             opt.value = s.codigo;
-            opt.textContent = `${s.codigo} (${formatearFecha(s.inicio)} - ${formatearFecha(s.fin)}) - $${s.totalPagar.toFixed(2)}`;
+            if (esEncargada) {
+              // Sin precios para encargada
+              opt.textContent = `${s.codigo} (${formatearFecha(s.inicio)} - ${formatearFecha(s.fin)}) - ${s.registros} registros`;
+            } else {
+              opt.textContent = `${s.codigo} (${formatearFecha(s.inicio)} - ${formatearFecha(s.fin)}) - $${s.totalPagar.toFixed(2)}`;
+            }
             selectSemana.appendChild(opt);
           });
 
@@ -812,6 +843,8 @@
           
           if (esOperaria) {
             url += `&operariaId=${usuarioActual.id}`;
+          } else if (esEncargada) {
+            url += `&fuente=encargada`;
           } else if (esAdmin) {
             // Filtro de operaria
             const operariaId = selectOperariaFiltro.value;
@@ -847,8 +880,13 @@
         }
 
         try {
-          const estado = selectEstadoPago.value;
+          const estado = esEncargada ? 'todos' : selectEstadoPago.value;
           let url = `/api/reporte-semanal?semana=${semanaCodigo}&estado=${estado}`;
+          
+          // Encargada: siempre filtrar por fuente=encargada
+          if (esEncargada) {
+            url += '&fuente=encargada';
+          }
           
           // Agregar filtros de admin
           if (esAdmin) {
@@ -873,6 +911,8 @@
             // Filtrar solo la operaria actual
             const misDatos = data.find(d => d.operariaId === usuarioActual.id);
             mostrarResultadoOperaria(misDatos, semanaCodigo);
+          } else if (esEncargada) {
+            mostrarResultadosEncargada(data, semanaCodigo);
           } else {
             mostrarResultadosAdmin(data, semanaCodigo, estado);
           }
@@ -908,12 +948,40 @@
                 ${registros.map(r => `
                   <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 8px; font-size: 13px;">
                     <strong>${r.escuela}</strong>${r.talla ? ` · T-${r.talla}` : ''}<br>
-                    ${r.descripcion} | ${r.cantidad} pzs × $${r.pagoPorPieza.toFixed(2)} = $${r.totalGanado.toFixed(2)}
+                    ${r.descripcion} | ${r.cantidad} pzs × $${(r.pagoPorPieza || 0).toFixed(2)} = $${(r.totalGanado || 0).toFixed(2)}
                   </div>
                 `).join('')}
               </div>
             </div>
           `;
+        } else if (esEncargada) {
+          // Encargada: agrupar por operaria SIN precios
+          const porOperaria = {};
+          registros.forEach(r => {
+            if (!porOperaria[r.operariaId]) {
+              porOperaria[r.operariaId] = { nombre: r.operariaNombre, piezas: 0, regs: [] };
+            }
+            porOperaria[r.operariaId].piezas += r.cantidad;
+            porOperaria[r.operariaId].regs.push(r);
+          });
+
+          listaResultados.innerHTML = Object.values(porOperaria).map(op => `
+            <div class="operaria-item">
+              <div class="operaria-nombre">👤 ${op.nombre}</div>
+              <div class="operaria-stats">
+                <div>📦 Piezas: <strong>${op.piezas}</strong></div>
+                <div>📋 Registros: <strong>${op.regs.length}</strong></div>
+              </div>
+              <div style="margin-top: 12px;">
+                ${op.regs.map(r => `
+                  <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 8px; font-size: 13px;">
+                    <strong>${r.escuela}</strong>${r.talla ? ` · T-${r.talla}` : ''}<br>
+                    ${r.descripcion} | ${r.cantidad} pzs | 🔧 ${r.maquina}
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('');
         } else {
           // Admin/Encargada: agrupar por operaria
           const porOperaria = {};
@@ -977,6 +1045,42 @@
             </div>
           </div>
         `;
+      }
+
+      // Mostrar resultados encargada (semana) - SIN PRECIOS
+      function mostrarResultadosEncargada(datos, semanaCodigo) {
+        subtextResultados.textContent = `Semana ${semanaCodigo} - Mis registros`;
+        accionesGlobales.classList.add("oculto");
+        totalGeneralContainer.classList.add("oculto");
+
+        if (datos.length === 0) {
+          listaResultados.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px;">No hay registros en esta semana</p>';
+          return;
+        }
+
+        const totalPiezas = datos.reduce((sum, op) => sum + op.piezas, 0);
+        const totalRegistros = datos.reduce((sum, op) => sum + op.registros, 0);
+
+        listaResultados.innerHTML = `
+          <div class="total-general" style="margin-bottom: 16px;">
+            <div class="total-general-label">Total Piezas Registradas</div>
+            <div class="total-general-valor" style="color: #93c5fd;">${totalPiezas} pzs</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">${totalRegistros} registros</div>
+          </div>
+        ` + datos.map(op => `
+          <div class="operaria-item">
+            <div class="operaria-nombre">👤 ${op.nombre}</div>
+            <div class="operaria-stats">
+              <div>📦 Piezas: <strong>${op.piezas}</strong></div>
+              <div>📋 Registros: <strong>${op.registros}</strong></div>
+            </div>
+            <div class="operaria-acciones">
+              <button class="btn-secondary" onclick="verDetalleEncargada(${op.operariaId}, '${op.nombre}', '${semanaCodigo}')">
+                📋 Ver Detalle
+              </button>
+            </div>
+          </div>
+        `).join('');
       }
 
       // Mostrar resultados admin (semana)
@@ -1216,6 +1320,75 @@
         }
       };
 
+      // Ver detalle de registros para encargada (SIN PRECIOS)
+      window.verDetalleEncargada = async function(operariaId, operariaNombre, semanaCodigo) {
+        try {
+          if (!semanaCodigo || !operariaId) {
+            mostrarError("❌ Error: Datos incompletos");
+            return;
+          }
+          
+          const url = `/api/reporte-semanal/detalle?semana=${encodeURIComponent(semanaCodigo)}&operariaId=${operariaId}&fuente=encargada`;
+          const res = await fetch(url);
+          
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ error: 'Error desconocido' }));
+            throw new Error(errorData.error || `Error ${res.status}`);
+          }
+          
+          const data = await res.json();
+          
+          document.getElementById('modal-detalle-titulo').textContent = `📋 Registros Encargada - ${operariaNombre}`;
+          document.getElementById('modal-detalle-subtitulo').textContent = `${data.semana.label} | ${data.resumen.totalPiezas} piezas | ${data.resumen.totalRegistros} registros`;
+          
+          let html = '';
+          
+          if (data.registrosPorDia.length === 0) {
+            html = '<p style="text-align: center; color: var(--text-muted); padding: 40px;">No hay registros para mostrar</p>';
+          } else {
+            data.registrosPorDia.forEach(dia => {
+              html += `
+                <div class="detalle-dia">
+                  <div class="detalle-dia-titulo">${dia.dia} ${formatearFechaDetalle(dia.fecha)}</div>
+                  ${dia.registros.map(reg => `
+                    <div class="detalle-registro">
+                      <div class="detalle-registro-header">
+                        <div>
+                          <div class="detalle-escuela">${reg.escuela} - ${reg.prenda}${reg.talla ? ` (T-${reg.talla})` : ''}</div>
+                          <div class="detalle-descripcion">"${reg.descripcion}"</div>
+                        </div>
+                      </div>
+                      <div class="detalle-calculo">
+                        <span class="detalle-cantidad">${reg.cantidad} piezas</span>
+                        <span style="color: var(--text-muted); font-size: 12px;">🔧 ${reg.maquina || 'N/A'}</span>
+                      </div>
+                    </div>
+                  `).join('')}
+                  <div class="detalle-subtotal">Piezas del día: ${dia.registros.reduce((s,r) => s + r.cantidad, 0)}</div>
+                </div>
+              `;
+            });
+            
+            html += `
+              <div class="detalle-total-general">
+                <div class="detalle-total-general-label">TOTAL SEMANA</div>
+                <div class="detalle-total-general-valor" style="color: #93c5fd;">${data.resumen.totalPiezas} piezas</div>
+                <div style="margin-top: 12px; color: var(--text-muted); font-size: 14px;">
+                  ${data.resumen.totalRegistros} registros | ${data.resumen.diasTrabajados} días
+                </div>
+              </div>
+            `;
+          }
+          
+          document.getElementById('modal-detalle-body').innerHTML = html;
+          document.getElementById('modal-detalle').classList.add('show');
+          window.detalleActual = null; // No imprimir con precios
+          
+        } catch (err) {
+          mostrarError("Error al cargar detalle: " + err.message);
+        }
+      };
+
       // Cerrar modal de detalle
       window.cerrarModalDetalle = function() {
         document.getElementById('modal-detalle').classList.remove('show');
@@ -1397,7 +1570,6 @@
     padding-top: 6px !important;
   }
 }
-px;
                 }
                 .registros-container {
                   column-count: ${columnasImpresion};
@@ -1681,7 +1853,7 @@ px;
                   ${dia.registros.map(r => `
                     <div class="registro-item">
                       ${r.escuela} - ${r.prenda}${r.talla ? ` (T-${r.talla})` : ''}<br>
-                      ${r.descripcion} | ${r.cantidad} pzs × $${r.precio.toFixed(2)} = $${r.total.toFixed(2)}
+                      ${r.descripcion} | ${r.cantidad} pzs × $${(r.pagoPorPieza || 0).toFixed(2)} = $${(r.totalGanado || 0).toFixed(2)}
                     </div>
                   `).join('')}
                   <div class="subtotal-dia">Subtotal: $${dia.subtotal.toFixed(2)}</div>
