@@ -38,6 +38,13 @@ const PORT = process.env.PORT || 8080;
 
 app.use(express.json());
 
+// Evitar que el navegador cachee respuestas de la API
+app.use("/api", (req, res, next) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.set("Pragma", "no-cache");
+  next();
+});
+
 // Servir archivos estáticos si existe la carpeta public
 const publicPath = path.join(__dirname, "public");
 app.use(express.static(publicPath));

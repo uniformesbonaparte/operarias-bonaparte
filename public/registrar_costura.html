@@ -864,6 +864,20 @@
 
         async function cargarCosturasYTallasOp(pedidoId, prendaId) {
           try {
+            // Re-pedir pedido fresco (por si admin actualizó cantidades)
+            const resPed = await fetch(`/api/pedidos/${pedidoId}`);
+            const pedidoFresco = await resPed.json();
+            pedidoCache = pedidoFresco;
+            window._pedidoActual = pedidoFresco;
+
+            // Actualizar texto del dropdown de prenda con cantidad actualizada
+            const selectPrenda = document.getElementById("select-prenda");
+            const itemActual = pedidoFresco.items ? pedidoFresco.items.find(i => Number(i.prendaId) === Number(prendaId)) : null;
+            if (itemActual && selectPrenda.selectedOptions[0]) {
+              const nombrePrenda = itemActual.prenda || "Prenda";
+              selectPrenda.selectedOptions[0].textContent = `${nombrePrenda} (${itemActual.cantidad} pzas)`;
+            }
+
             // Fetch operaciones con precio > 0
             const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}&soloConPrecio=true&fuente=operaria`);
             const ops = await res.json();
@@ -1173,6 +1187,20 @@
 
         async function cargarCosturasYTallasEnc(pedidoId, prendaId) {
           try {
+            // Re-pedir pedido fresco (por si admin actualizó cantidades)
+            const resPed = await fetch(`/api/pedidos/${pedidoId}`);
+            const pedidoFresco = await resPed.json();
+            pedidoCacheEnc = pedidoFresco;
+            window._pedidoActualEnc = pedidoFresco;
+
+            // Actualizar texto del dropdown de prenda con cantidad actualizada
+            const selectPrenda = document.getElementById("select-prenda-enc");
+            const itemActual = pedidoFresco.items ? pedidoFresco.items.find(i => Number(i.prendaId) === Number(prendaId)) : null;
+            if (itemActual && selectPrenda.selectedOptions[0]) {
+              const nombrePrenda = itemActual.prenda || "Prenda";
+              selectPrenda.selectedOptions[0].textContent = `${nombrePrenda} (${itemActual.cantidad} pzas)`;
+            }
+
             const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}&soloConPrecio=true&fuente=encargada`);
             const ops = await res.json();
 
