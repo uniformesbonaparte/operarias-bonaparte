@@ -293,15 +293,40 @@ function inicializarPlantillasCosturas() {
 async function cargarDatosDesdeSupabase() {
   if (!SUPABASE_ENABLED) return false;
 
+  // Helper: cargar TODAS las filas de una tabla (Supabase limita a 1000 por query)
+  async function selectAll(tabla, orderCol = "id") {
+    const PAGE_SIZE = 1000;
+    let allData = [];
+    let offset = 0;
+    let keepGoing = true;
+
+    while (keepGoing) {
+      const { data, error } = await supabase
+        .from(tabla)
+        .select("*")
+        .order(orderCol, { ascending: true })
+        .range(offset, offset + PAGE_SIZE - 1);
+
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+
+      allData = allData.concat(data);
+      offset += PAGE_SIZE;
+      keepGoing = data.length === PAGE_SIZE; // si trajo menos, ya no hay más
+    }
+
+    return { data: allData, error: null };
+  }
+
   const [ops, maq, peds, regs, prnds, usrs, costs, plts] = await Promise.all([
-    supabase.from("operarias").select("*").order("id", { ascending: true }),
-    supabase.from("maquinas").select("*").order("nombre", { ascending: true }),
-    supabase.from("pedidos").select("*").order("id", { ascending: true }),
-    supabase.from("registros").select("*").order("id", { ascending: true }),
-    supabase.from("prendas").select("*").order("id", { ascending: true }),
-    supabase.from("usuarios").select("*").order("id", { ascending: true }),
-    supabase.from("costuras").select("*").order("id", { ascending: true }).then(r => r).catch(() => ({ data: [], error: null })),
-    supabase.from("plantillas_costuras").select("*").order("id", { ascending: true }).then(r => r).catch(() => ({ data: [], error: null }))
+    selectAll("operarias"),
+    selectAll("maquinas", "nombre"),
+    selectAll("pedidos"),
+    selectAll("registros"),
+    selectAll("prendas"),
+    selectAll("usuarios"),
+    selectAll("costuras").catch(() => ({ data: [], error: null })),
+    selectAll("plantillas_costuras").catch(() => ({ data: [], error: null }))
   ]);
 
   if (ops.error) throw ops.error;
@@ -348,6 +373,7 @@ async function cargarDatosDesdeSupabase() {
     pedidoId: Number(r.pedidoid),
     prendaId: (r.prendaid === null || r.prendaid === undefined) ? null : Number(r.prendaid),
     operacionId: r.operacionid ? Number(r.operacionid) : null,
+    talla: r.talla || null,
     maquina: r.maquina,
     descripcion: r.descripcion,
     cantidad: Number(r.cantidad),
@@ -451,6 +477,7 @@ async function guardarTodoASupabase() {
     pedidoid: r.pedidoId,
     prendaid: r.prendaId,
     operacionid: r.operacionId || null,
+    talla: r.talla || null,
     maquina: r.maquina,
     descripcion: r.descripcion,
     cantidad: Number(r.cantidad),
@@ -478,6 +505,41 @@ async function guardarTodoASupabase() {
   await upsertChunked("usuarios", usrs, "id");
   await upsertChunked("pedidos", peds, "id");
   await upsertChunked("registros", regs, "id", 300);
+
+  // Limpiar filas huérfanas en Supabase (borradas en memoria pero que siguen en DB)
+  try {
+    const limpiarHuerfanos = async (tabla, idsActuales, columnaId = "id") => {
+      if (idsActuales.length === 0) return;
+      // Paginar para obtener TODOS los IDs de Supabase
+      let allIds = [];
+      let offset = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data } = await supabase.from(tabla).select(columnaId).range(offset, offset + PAGE - 1);
+        if (!data || data.length === 0) break;
+        allIds = allIds.concat(data.map(f => f[columnaId]));
+        if (data.length < PAGE) break;
+        offset += PAGE;
+      }
+      if (allIds.length === 0) return;
+      const idsSet = new Set(idsActuales.map(id => typeof id === 'number' ? id : String(id)));
+      const huerfanos = allIds.filter(id => !idsSet.has(typeof id === 'number' ? id : String(id)));
+      if (huerfanos.length > 0) {
+        for (let i = 0; i < huerfanos.length; i += 100) {
+          const bloque = huerfanos.slice(i, i + 100);
+          await supabase.from(tabla).delete().in(columnaId, bloque);
+        }
+        console.log(`🧹 ${tabla}: eliminados ${huerfanos.length} registros huérfanos de Supabase`);
+      }
+    };
+
+    await limpiarHuerfanos("registros", regs.map(r => r.id));
+    await limpiarHuerfanos("pedidos", peds.map(p => p.id));
+    await limpiarHuerfanos("operarias", ops.map(o => o.id));
+    await limpiarHuerfanos("prendas", prnds.map(p => p.id));
+  } catch(e) {
+    console.warn("⚠️ Error limpiando huérfanos:", e.message);
+  }
 
   // Guardar costuras
   const costsRows = costuras.map(c => ({ id: c.id, nombre: c.nombre }));
@@ -1081,6 +1143,15 @@ app.delete("/api/operarias/:id", (req, res) => {
   }
 
   operarias = operarias.filter(o => o.id !== id);
+  
+  // Eliminar de Supabase si está habilitado
+  if (SUPABASE_ENABLED && supabase) {
+    supabase.from("operarias").delete().eq("id", id)
+      .then(({ error }) => {
+        if (error) console.warn("⚠️ Error eliminando operaria de Supabase:", error.message);
+      });
+  }
+  
   guardarDatos();
   
   res.json({ 
@@ -1649,6 +1720,15 @@ app.delete("/api/pedidos/:id", (req, res) => {
   }
 
   pedidos = pedidos.filter(p => p.id !== id);
+  
+  // Eliminar de Supabase si está habilitado
+  if (SUPABASE_ENABLED && supabase) {
+    supabase.from("pedidos").delete().eq("id", id)
+      .then(({ error }) => {
+        if (error) console.warn("⚠️ Error eliminando pedido de Supabase:", error.message);
+      });
+  }
+  
   guardarDatos();
   
   res.json({ 
@@ -2445,6 +2525,14 @@ app.delete("/api/prendas/:id", (req, res) => {
   }
 
   prendas.splice(index, 1);
+  
+  if (SUPABASE_ENABLED && supabase) {
+    supabase.from("prendas").delete().eq("id", id)
+      .then(({ error }) => {
+        if (error) console.warn("⚠️ Error eliminando prenda de Supabase:", error.message);
+      });
+  }
+  
   guardarDatos();
 
   res.json({ ok: true, mensaje: "Prenda eliminada" });
@@ -2508,6 +2596,14 @@ app.delete("/api/costuras/:id", (req, res) => {
   const index = costuras.findIndex(c => c.id === id);
   if (index === -1) return res.status(404).json({ error: "Costura no encontrada." });
   costuras.splice(index, 1);
+  
+  if (SUPABASE_ENABLED && supabase) {
+    supabase.from("costuras").delete().eq("id", id)
+      .then(({ error }) => {
+        if (error) console.warn("⚠️ Error eliminando costura de Supabase:", error.message);
+      });
+  }
+  
   guardarDatos();
   res.json({ ok: true, mensaje: "Costura eliminada del catálogo." });
 });
