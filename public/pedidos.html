@@ -89,6 +89,23 @@
     .ops-table .btn-remove-op { background: none; border: none; color: #fca5a5; cursor: pointer; font-size: 14px; padding: 2px 6px; }
     .btn-add-op { background: rgba(59,130,246,0.15); color: #93c5fd; border: 1px dashed rgba(59,130,246,0.3); font-size: 11px; padding: 6px 12px; margin-top: 6px; border-radius: 8px; }
     .btn-add-item { background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px dashed rgba(16,185,129,0.3); width: 100%; padding: 12px; margin-bottom: 14px; font-size: 13px; }
+    
+    /* Acordeón de prendas */
+    .item-card { padding: 0; overflow: hidden; }
+    .item-accordion-header { display: flex; justify-content: space-between; align-items: center; padding: 14px; cursor: pointer; transition: background 0.2s; }
+    .item-accordion-header:hover { background: rgba(255,255,255,0.03); }
+    .item-accordion-toggle { font-size: 14px; margin-right: 10px; transition: transform 0.2s; }
+    .item-card.expanded .item-accordion-toggle { transform: rotate(90deg); }
+    .item-accordion-info { flex: 1; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .item-accordion-info .prenda-nombre { font-weight: 600; font-size: 14px; color: var(--text-main); }
+    .item-accordion-info .item-stats { display: flex; gap: 8px; font-size: 12px; color: var(--text-muted); }
+    .item-accordion-info .item-stats span { background: rgba(255,255,255,0.06); padding: 3px 8px; border-radius: 6px; }
+    .item-accordion-info .item-warning { color: #fbbf24; font-size: 12px; }
+    .item-accordion-body { display: none; padding: 0 14px 14px 14px; border-top: 1px solid rgba(255,255,255,0.06); }
+    .item-card.expanded .item-accordion-body { display: block; }
+    .item-section-title { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin: 12px 0 8px 0; display: flex; align-items: center; gap: 8px; }
+    .item-section-title button { margin-left: auto; }
+
     .progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin-top: 6px; overflow: hidden; }
     .progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--success)); transition: width 0.3s; }
     .items-resumen { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); }
@@ -244,24 +261,49 @@
       if (usuarioActual.tipo === "operaria") filtroActual = "activo";
 
       // ========== ITEMS SYSTEM ==========
-      function crearItemHTML(containerId, itemData) {
+      function crearItemHTML(containerId, itemData, expanded = true) {
         const container = document.getElementById(containerId);
         const div = document.createElement("div");
-        div.className = "item-card";
+        div.className = "item-card" + (expanded ? " expanded" : "");
         const opts = prendasCache.map(p =>
           `<option value="${p.id}" ${itemData && itemData.prendaId === p.id ? 'selected' : ''}>${p.nombre}</option>`
         ).join("");
+        const prendaNombre = itemData && itemData.prendaId ? (prendasCache.find(p => p.id === itemData.prendaId)?.nombre || 'Prenda') : 'Nueva prenda';
+        const cantidadTotal = itemData ? (itemData.cantidad || 0) : 0;
+        const numOps = itemData && itemData.operaciones ? itemData.operaciones.length : 0;
+        
         div.innerHTML = `
-          <div class="item-header">
-            <div class="item-header-left">
-              <select class="sel-prenda" onchange="window._cargarPlantilla(this)">\n                <option value="">-- Prenda --</option>${opts}
-              </select>
-              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><div class="badge" style="padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);font-size:12px;">Total: <span class="lbl-total-cantidad">${itemData ? (itemData.cantidad || 0) : 0}</span> pzs</div><button type="button" class="btn-secondary" style="padding:6px 10px;font-size:12px;" onclick="window._addTalla(this)">+ Talla</button></div>
+          <div class="item-accordion-header" onclick="window._toggleAccordion(this)">
+            <span class="item-accordion-toggle">▶</span>
+            <div class="item-accordion-info">
+              <span class="prenda-nombre">${prendaNombre}</span>
+              <div class="item-stats">
+                <span class="lbl-total-pzs">${cantidadTotal} pzs</span>
+                <span class="lbl-total-ops">${numOps} ops</span>
+              </div>
+              <span class="item-warning" style="display:${cantidadTotal === 0 ? 'inline' : 'none'}">⚠️ Sin tallas</span>
             </div>
-            <button class="btn-remove-item" onclick="this.closest('.item-card').remove()">✕</button>
+            <button class="btn-remove-item" onclick="event.stopPropagation(); this.closest('.item-card').remove()">✕</button>
           </div>
-          <div class="tallas-container" style="margin-top:10px;"></div>
-          <div class="ops-container" style="margin-top:10px;"></div>`;
+          <div class="item-accordion-body">
+            <div class="item-section-title" style="margin-top:14px;">
+              <span>📦 Prenda</span>
+            </div>
+            <select class="sel-prenda" onchange="window._cargarPlantilla(this); window._updateAccordionHeader(this);">
+              <option value="">-- Seleccionar --</option>${opts}
+            </select>
+            
+            <div class="item-section-title">
+              <span>📐 Tallas</span>
+              <button type="button" class="btn-add-op" onclick="window._addTalla(this)">+ Talla</button>
+            </div>
+            <div class="tallas-container"></div>
+            
+            <div class="item-section-title">
+              <span>✂️ Operaciones</span>
+            </div>
+            <div class="ops-container"></div>
+          </div>`;
         container.appendChild(div);
         // Render tallas
         renderTallas(div, (itemData && itemData.tallas) ? itemData.tallas : []);
@@ -271,6 +313,17 @@
           cargarPlantilla(div, itemData.prendaId);
         }
       }
+
+      window._toggleAccordion = function(header) {
+        const card = header.closest('.item-card');
+        card.classList.toggle('expanded');
+      };
+
+      window._updateAccordionHeader = function(sel) {
+        const card = sel.closest('.item-card');
+        const nombre = sel.options[sel.selectedIndex]?.text || 'Nueva prenda';
+        card.querySelector('.prenda-nombre').textContent = nombre;
+      };
 
       window._cargarPlantilla = function(sel) {
         const card = sel.closest(".item-card");
@@ -305,8 +358,11 @@
           const cant = Number(tr.querySelector(".talla-cantidad").value) || 0;
           total += cant;
         });
-        const lbl = card.querySelector(".lbl-total-cantidad");
-        if (lbl) lbl.textContent = total;
+        // Actualizar header del acordeón
+        const lblPzs = card.querySelector(".lbl-total-pzs");
+        if (lblPzs) lblPzs.textContent = total + " pzs";
+        const warning = card.querySelector(".item-warning");
+        if (warning) warning.style.display = total === 0 ? 'inline' : 'none';
       }
 
       window._recalcularTotal = function(el) {
@@ -352,6 +408,9 @@ async function cargarPlantilla(card, prendaId) {
         });
         h += `</tbody></table><div style="margin-top:6px;color:rgba(255,255,255,0.55);font-size:12px;">Operaciones cargadas del catálogo (no se pueden editar).</div>`;
         c.innerHTML = h;
+        // Actualizar conteo de ops en header
+        const lblOps = card.querySelector(".lbl-total-ops");
+        if (lblOps) lblOps.textContent = ops.length + " ops";
       }
 
       /* Operaciones vienen del catálogo: ya no se permite agregar/eliminar desde aquí */
@@ -383,12 +442,37 @@ async function cargarPlantilla(card, prendaId) {
       document.getElementById("btn-agregar-item").addEventListener("click", () => crearItemHTML("items-nuevo-pedido"));
       document.getElementById("btn-agregar-item-edit").addEventListener("click", () => crearItemHTML("items-edit-pedido"));
 
+      // ========== VALIDACIÓN ==========
+      function validarPrendas(containerId) {
+        const cards = document.getElementById(containerId).querySelectorAll(".item-card");
+        if (cards.length === 0) return { ok: false, error: "❌ Agrega al menos una prenda" };
+        for (const card of cards) {
+          const prendaId = card.querySelector(".sel-prenda").value;
+          if (!prendaId) return { ok: false, error: "❌ Selecciona una prenda en cada item" };
+          let totalTallas = 0;
+          card.querySelectorAll(".tallas-container tbody tr").forEach(tr => {
+            const talla = tr.querySelector(".talla-input").value.trim();
+            const cant = Number(tr.querySelector(".talla-cantidad").value) || 0;
+            if (talla && cant > 0) totalTallas += cant;
+          });
+          if (totalTallas === 0) {
+            const nombre = card.querySelector(".prenda-nombre").textContent;
+            return { ok: false, error: `❌ La prenda "${nombre}" necesita al menos una talla con cantidad` };
+          }
+        }
+        return { ok: true };
+      }
+
       // ========== GUARDAR NUEVO ==========
       document.getElementById("btn-guardar-pedido").addEventListener("click", async () => {
         const escuela = document.getElementById("input-escuela").value.trim();
         const folio = document.getElementById("input-folio").value.trim();
-        const items = extraerItems("items-nuevo-pedido");
         if (!escuela || !folio) { mostrarError("❌ Completa escuela y folio"); return; }
+        
+        const validacion = validarPrendas("items-nuevo-pedido");
+        if (!validacion.ok) { mostrarError(validacion.error); return; }
+        
+        const items = extraerItems("items-nuevo-pedido");
         if (items.length === 0) { mostrarError("❌ Agrega al menos una prenda con cantidad"); return; }
 
         const btn = document.getElementById("btn-guardar-pedido");
@@ -492,10 +576,15 @@ async function cargarPlantilla(card, prendaId) {
           document.getElementById("edit-folio").value = pedidoEditando.folio;
           document.getElementById("items-edit-pedido").innerHTML = "";
           if (pedidoEditando.items && pedidoEditando.items.length > 0) {
-            pedidoEditando.items.forEach(it => crearItemHTML("items-edit-pedido", it));
+            const total = pedidoEditando.items.length;
+            pedidoEditando.items.forEach((it, idx) => {
+              // Solo expandir la última prenda, las demás colapsadas
+              const expanded = (total === 1) || (idx === total - 1);
+              crearItemHTML("items-edit-pedido", it, expanded);
+            });
           } else if (pedidoEditando.prendas) {
             const pids = Array.isArray(pedidoEditando.prendas) ? pedidoEditando.prendas : [];
-            pids.forEach(pid => crearItemHTML("items-edit-pedido", {prendaId:Number(pid), cantidad:0, operaciones:[]}));
+            pids.forEach(pid => crearItemHTML("items-edit-pedido", {prendaId:Number(pid), cantidad:0, operaciones:[]}, true));
           }
           modalEditar.classList.add("active");
         } catch(e) { mostrarError("❌ Error cargando pedido"); }
@@ -510,8 +599,12 @@ async function cargarPlantilla(card, prendaId) {
         if (!pedidoEditando) return;
         const escuela = document.getElementById("edit-escuela").value.trim();
         const folio = document.getElementById("edit-folio").value.trim();
-        const items = extraerItems("items-edit-pedido");
         if (!escuela || !folio) { mostrarError("❌ Completa los campos"); return; }
+        
+        const validacion = validarPrendas("items-edit-pedido");
+        if (!validacion.ok) { mostrarError(validacion.error); return; }
+        
+        const items = extraerItems("items-edit-pedido");
 
         const btn = document.getElementById("btn-guardar-editar");
         btn.disabled = true; btn.textContent = "⏳ Guardando...";
