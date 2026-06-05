@@ -350,6 +350,69 @@
       color: var(--success);
     }
 
+    /* ===== Desglose por Pedido (MEJORA AGREGADA) ===== */
+    .desglose-pedido-titulo {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 4px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 4px 0 10px;
+    }
+
+    .desglose-pedido-subtitulo {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .pedido-item {
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .pedido-item-info {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .pedido-item-escuela {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      word-break: break-word;
+    }
+
+    .pedido-item-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    .pedido-item-monto {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--success);
+      white-space: nowrap;
+    }
+
+    .pedido-item-pct {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: right;
+      margin-top: 2px;
+    }
+
     .mensaje-error, .mensaje-exito {
       padding: 12px 16px;
       border-radius: 14px;
@@ -679,6 +742,15 @@
           </div>
         </div>
 
+        <!-- Desglose por pedido (solo admin) - MEJORA AGREGADA -->
+        <div id="desglose-pedido-container" class="oculto">
+          <div class="desglose-pedido-titulo">
+            <span>🧾 Desglose por Pedido</span>
+            <span class="desglose-pedido-subtitulo" id="desglose-pedido-subtitulo"></span>
+          </div>
+          <div id="lista-desglose-pedido"></div>
+        </div>
+
         <div id="lista-resultados"></div>
       </section>
     </main>
@@ -722,6 +794,9 @@
       const totalGeneralContainer = document.getElementById("total-general-container");
       const totalGeneralValor = document.getElementById("total-general");
       const accionesGlobales = document.getElementById("acciones-globales");
+      const desglosePedidoContainer = document.getElementById("desglose-pedido-container");
+      const listaDesglosePedido = document.getElementById("lista-desglose-pedido");
+      const desglosePedidoSubtitulo = document.getElementById("desglose-pedido-subtitulo");
       const filtroEstadoContainer = document.getElementById("filtro-estado-container");
       const filtroOperariaContainer = document.getElementById("filtro-operaria-container");
       const filtroFuenteContainer = document.getElementById("filtro-fuente-container");
@@ -927,6 +1002,7 @@
         subtextResultados.textContent = `Resultados del ${formatearFecha(fecha)}`;
         accionesGlobales.classList.add("oculto");
         totalGeneralContainer.classList.add("oculto");
+        if (desglosePedidoContainer) desglosePedidoContainer.classList.add("oculto");
 
         if (registros.length === 0) {
           listaResultados.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px;">No hay registros en esta fecha</p>';
@@ -1024,6 +1100,7 @@
         subtextResultados.textContent = `Semana ${semanaCodigo} - ${estadoTexto}`;
         accionesGlobales.classList.add("oculto");
         totalGeneralContainer.classList.add("oculto");
+        if (desglosePedidoContainer) desglosePedidoContainer.classList.add("oculto");
 
         if (!datos || datos.piezas === 0) {
           listaResultados.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px;">No tienes registros en esta semana</p>';
@@ -1052,6 +1129,7 @@
         subtextResultados.textContent = `Semana ${semanaCodigo} - Mis registros`;
         accionesGlobales.classList.add("oculto");
         totalGeneralContainer.classList.add("oculto");
+        if (desglosePedidoContainer) desglosePedidoContainer.classList.add("oculto");
 
         if (datos.length === 0) {
           listaResultados.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px;">No hay registros en esta semana</p>';
@@ -1091,6 +1169,7 @@
           listaResultados.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px;">No hay registros</p>';
           accionesGlobales.classList.add("oculto");
           totalGeneralContainer.classList.add("oculto");
+          if (desglosePedidoContainer) desglosePedidoContainer.classList.add("oculto");
           return;
         }
 
@@ -1133,6 +1212,64 @@
 
         // Guardar en variable global para usar en marcar pagado
         window.semanaActual = semanaCodigo;
+
+        // MEJORA AGREGADA: mostrar el desglose del total por cada pedido de la semana
+        mostrarDesglosePorPedido(semanaCodigo, estado, totalGeneral);
+      }
+
+      // MEJORA AGREGADA: Desglose del pago semanal por pedido (folio/escuela)
+      async function mostrarDesglosePorPedido(semanaCodigo, estado, totalGeneral) {
+        if (!desglosePedidoContainer) return;
+        try {
+          let url = `/api/reporte-semanal/por-pedido?semana=${encodeURIComponent(semanaCodigo)}&estado=${estado}`;
+
+          // Respetar el mismo filtro de fuente que usa el admin para que los montos coincidan
+          const fuente = selectFuente ? selectFuente.value : 'operaria';
+          if (fuente && fuente !== 'todos') {
+            url += `&fuente=${fuente}`;
+          }
+
+          const res = await fetch(url);
+          if (!res.ok) throw new Error("Error al consultar desglose por pedido");
+          const pedidos = await res.json();
+
+          if (!Array.isArray(pedidos) || pedidos.length === 0) {
+            desglosePedidoContainer.classList.add("oculto");
+            return;
+          }
+
+          const total = (typeof totalGeneral === 'number' && totalGeneral > 0)
+            ? totalGeneral
+            : pedidos.reduce((s, p) => s + (p.ganado || 0), 0);
+
+          if (desglosePedidoSubtitulo) {
+            desglosePedidoSubtitulo.textContent = `${pedidos.length} ${pedidos.length === 1 ? 'pedido' : 'pedidos'}`;
+          }
+
+          listaDesglosePedido.innerHTML = pedidos.map(p => {
+            const escuela = p.escuela || 'Sin pedido';
+            const folio = p.folio ? `Folio ${p.folio}` : 'Sin folio';
+            const pct = total > 0 ? ((p.ganado / total) * 100) : 0;
+            return `
+              <div class="pedido-item">
+                <div class="pedido-item-info">
+                  <div class="pedido-item-escuela">🏫 ${escuela}</div>
+                  <div class="pedido-item-meta">${folio} · 📦 ${p.piezas} pzs · ${p.operarias} ${p.operarias === 1 ? 'operaria' : 'operarias'}</div>
+                </div>
+                <div>
+                  <div class="pedido-item-monto">$${(p.ganado || 0).toFixed(2)}</div>
+                  <div class="pedido-item-pct">${pct.toFixed(1)}%</div>
+                </div>
+              </div>
+            `;
+          }).join('');
+
+          desglosePedidoContainer.classList.remove("oculto");
+        } catch (err) {
+          // Si algo falla, simplemente no mostramos el desglose; no afecta el resto del reporte
+          console.error('Error al cargar desglose por pedido:', err);
+          desglosePedidoContainer.classList.add("oculto");
+        }
       }
 
       // Marcar semana como pagada
