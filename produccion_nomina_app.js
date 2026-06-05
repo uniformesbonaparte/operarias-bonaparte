@@ -2264,6 +2264,98 @@ if (semana) {
 });
 
 /**
+ * GET /api/reporte-semanal/por-pedido
+ * Genera el desglose del pago semanal AGRUPADO POR PEDIDO (folio/escuela)
+ * Usa exactamente la misma lógica de semana y filtros que /api/reporte-semanal,
+ * por lo que la suma de todos los pedidos coincide con el Total a Pagar de la semana.
+ * Query params:
+ * - semana: "YYYY-WNN" (preferido, viene del frontend)
+ * - fecha: "YYYY-MM-DD" (alternativa)
+ * - fuente: "operaria" | "encargada" | "todos"
+ * - estadoPago / estado: "pendiente" | "pagado" | "todos"
+ *
+ * RESPUESTA: Array<{pedidoId,escuela,folio,piezas,ganado,registros,operarias}>
+ * ordenado de mayor a menor monto.
+ */
+app.get("/api/reporte-semanal/por-pedido", (req, res) => {
+  let { fecha, semana, fuente, estadoPago, estado } = req.query;
+
+  if (!estadoPago && estado) estadoPago = estado;
+  const estadoFiltro = estadoPago || "pendiente";
+  const fuenteFiltro = fuente || "operaria"; // operaria | encargada | todos
+
+  // Resolver inicio/fin de semana (SÁBADO -> VIERNES), igual que /api/reporte-semanal
+  let inicioStr, finStr;
+  try {
+    if (semana) {
+      const info = resolverSemanaPorCodigo(String(semana));
+      if (!info) return res.status(400).json({ error: "Semana inválida" });
+      inicioStr = info.inicio;
+      finStr = info.fin;
+    } else if (fecha) {
+      const info = obtenerSemanaLaboral(fecha);
+      inicioStr = info.inicio;
+      finStr = info.fin;
+    } else {
+      return res.status(400).json({ error: "Semana o fecha requerida" });
+    }
+  } catch (e) {
+    return res.status(400).json({ error: "Semana o fecha inválida" });
+  }
+
+  const resumen = {};
+
+  registros.forEach(r => {
+    const f = toMexicoYMD(new Date(r.fecha));
+    if (f < inicioStr || f > finStr) return;
+
+    const rEstado = (r.estadoPago || "pendiente");
+    if (estadoFiltro !== "todos" && rEstado !== estadoFiltro) return;
+
+    const rFuente = (r.fuente || "operaria");
+    if (fuenteFiltro !== "todos" && rFuente !== fuenteFiltro) return;
+
+    // Agrupar por pedido. Si un registro no tiene pedido asociado, se agrupa en "sin-pedido".
+    const clave = (r.pedidoId !== undefined && r.pedidoId !== null) ? r.pedidoId : "sin-pedido";
+
+    if (!resumen[clave]) {
+      const pedido = (clave !== "sin-pedido") ? pedidos.find(p => p.id === r.pedidoId) : null;
+      resumen[clave] = {
+        pedidoId: (clave === "sin-pedido") ? null : r.pedidoId,
+        escuela: pedido ? pedido.escuela : (r.escuela || "Sin pedido"),
+        folio: pedido ? (pedido.folio || "") : "",
+        piezas: 0,
+        ganado: 0,
+        registros: 0,
+        _operarias: new Set()
+      };
+    }
+
+    resumen[clave].piezas += Number(r.cantidad || 0);
+    resumen[clave].ganado += Number(r.totalGanado || 0);
+    resumen[clave].registros += 1;
+    if (r.operariaId !== undefined && r.operariaId !== null) {
+      resumen[clave]._operarias.add(r.operariaId);
+    }
+  });
+
+  const lista = Object.values(resumen).map(p => ({
+    pedidoId: p.pedidoId,
+    escuela: p.escuela,
+    folio: p.folio,
+    piezas: p.piezas,
+    ganado: p.ganado,
+    registros: p.registros,
+    operarias: p._operarias.size
+  }));
+
+  // Ordenar de mayor a menor monto
+  lista.sort((a, b) => b.ganado - a.ganado);
+
+  return res.json(lista); // SIEMPRE ARRAY
+});
+
+/**
  * GET /api/estadisticas/general
  * Estadísticas generales del sistema
  */
