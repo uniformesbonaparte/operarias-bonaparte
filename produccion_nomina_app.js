@@ -134,6 +134,10 @@ app.get("/reporte_semanal.html", servirPagina("reporte_semanal.html"));
 app.get("/configuracion", servirPagina("configuracion.html"));
 app.get("/configuracion.html", servirPagina("configuracion.html"));
 
+// MEJORA AGREGADA: pantalla independiente para rastrear quién trabajó un pedido/prenda
+app.get("/buscar_trabajo", servirPagina("buscar_trabajo.html"));
+app.get("/buscar_trabajo.html", servirPagina("buscar_trabajo.html"));
+
 const DATA_FILE = path.join(__dirname, "datos_taller.json");
 
 // =========================
@@ -2353,6 +2357,120 @@ app.get("/api/reporte-semanal/por-pedido", (req, res) => {
   lista.sort((a, b) => b.ganado - a.ganado);
 
   return res.json(lista); // SIEMPRE ARRAY
+});
+
+/**
+ * GET /api/buscar-trabajo
+ * BUSCADOR DE RASTREO (MEJORA AGREGADA - pantalla independiente buscar_trabajo.html)
+ * Permite localizar quién trabajó un pedido o una prenda, para rastrear prendas defectuosas.
+ * No modifica nada: solo lee y une la información que ya existe en los registros.
+ *
+ * Query params (todos opcionales, pero se requiere al menos pedidoId o prendaId):
+ * - pedidoId: id del pedido a investigar
+ * - prendaId: id de la prenda a investigar
+ * - incluirActivos: "1" para incluir pedidos activos además de finalizados (por defecto incluye ambos)
+ *
+ * RESPUESTA: {
+ *   total: { piezas, registros, operarias, montoTotal },
+ *   operarias: Array<{ operariaId, nombre, piezas, monto, trabajos: Array<detalle> }>
+ * }
+ * Cada "detalle" trae: pedidoId, escuela, folio, pedidoEstado, prenda, operacion,
+ *   maquina, talla, cantidad, pagoPorPieza, totalGanado, fecha, semana, fuente.
+ */
+app.get("/api/buscar-trabajo", (req, res) => {
+  const { pedidoId, prendaId, incluirActivos } = req.query;
+
+  if (!pedidoId && !prendaId) {
+    return res.status(400).json({ error: "Indica un pedido o una prenda para buscar." });
+  }
+
+  // Por defecto se incluyen finalizados Y activos; si incluirActivos="0" -> solo finalizados
+  const soloFinalizados = (incluirActivos === "0");
+
+  let data = registros.slice();
+
+  if (pedidoId) {
+    data = data.filter(r => r.pedidoId === Number(pedidoId));
+  }
+  if (prendaId) {
+    data = data.filter(r => r.prendaId === Number(prendaId));
+  }
+
+  // Agrupar por operaria
+  const porOperaria = {};
+  let totPiezas = 0, totMonto = 0, totRegistros = 0;
+
+  data.forEach(r => {
+    const ped = pedidos.find(p => p.id === r.pedidoId);
+    const estadoPedido = ped ? (ped.estado || "activo") : "N/A";
+
+    // Filtro de estado del pedido (finalizado/terminado vs activo)
+    if (soloFinalizados) {
+      const esFinalizado = (estadoPedido === "finalizado" || estadoPedido === "terminado");
+      if (!esFinalizado) return;
+    }
+
+    const op = operarias.find(o => o.id === r.operariaId);
+    const prenda = prendas.find(p => p.id === r.prendaId);
+
+    let semanaCodigo = "N/A";
+    try { semanaCodigo = obtenerSemanaLaboral(new Date(r.fecha)).codigo; } catch (e) {}
+
+    const detalle = {
+      registroId: r.id,
+      pedidoId: r.pedidoId,
+      escuela: ped ? ped.escuela : "N/A",
+      folio: ped ? (ped.folio || "") : "",
+      pedidoEstado: estadoPedido,
+      prenda: prenda ? prenda.nombre : "N/A",
+      operacion: r.descripcion || "N/A",
+      maquina: r.maquina || "N/A",
+      talla: r.talla || "",
+      cantidad: Number(r.cantidad || 0),
+      pagoPorPieza: Number(r.pagoPorPieza || 0),
+      totalGanado: Number(r.totalGanado || 0),
+      fecha: r.fecha,
+      semana: semanaCodigo,
+      fuente: r.fuente || "operaria",
+      estadoPago: r.estadoPago || "pendiente"
+    };
+
+    const clave = r.operariaId;
+    if (!porOperaria[clave]) {
+      porOperaria[clave] = {
+        operariaId: r.operariaId,
+        nombre: op ? op.nombre : "N/A",
+        piezas: 0,
+        monto: 0,
+        trabajos: []
+      };
+    }
+    porOperaria[clave].piezas += detalle.cantidad;
+    porOperaria[clave].monto += detalle.totalGanado;
+    porOperaria[clave].trabajos.push(detalle);
+
+    totPiezas += detalle.cantidad;
+    totMonto += detalle.totalGanado;
+    totRegistros += 1;
+  });
+
+  // Ordenar trabajos de cada operaria por fecha (más reciente primero)
+  const listaOperarias = Object.values(porOperaria).map(o => {
+    o.trabajos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    return o;
+  });
+  // Ordenar operarias por monto (mayor primero)
+  listaOperarias.sort((a, b) => b.monto - a.monto);
+
+  return res.json({
+    total: {
+      piezas: totPiezas,
+      registros: totRegistros,
+      operarias: listaOperarias.length,
+      montoTotal: totMonto
+    },
+    operarias: listaOperarias
+  });
 });
 
 /**
