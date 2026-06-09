@@ -298,6 +298,13 @@
         <div class="menu-desc">Ver reportes</div>
       </div>
 
+      <!-- BUSCAR TRABAJO - Admin y Encargada (MEJORA AGREGADA) -->
+      <div class="menu-btn" id="btn-buscar-trabajo" data-roles="admin,encargada">
+        <div class="menu-icon">🔍</div>
+        <div class="menu-title">Buscar Trabajo</div>
+        <div class="menu-desc">Quién hizo cada prenda</div>
+      </div>
+
       <!-- CONFIGURACIÓN - Solo Admin -->
       <div class="menu-btn" id="btn-configuracion" data-roles="admin">
         <div class="menu-icon">⚙️</div>
@@ -362,6 +369,11 @@
 
       document.getElementById("btn-reporte")?.addEventListener("click", () => {
         window.location.href = "/reporte_semanal";
+      });
+
+      // MEJORA AGREGADA: acceso a la pantalla de rastreo de trabajo
+      document.getElementById("btn-buscar-trabajo")?.addEventListener("click", () => {
+        window.location.href = "/buscar_trabajo";
       });
 
       document.getElementById("btn-configuracion")?.addEventListener("click", () => {

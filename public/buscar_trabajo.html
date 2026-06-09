@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buscar Trabajo / Rastreo de Prendas</title>
+  <style>
+    :root {
+      --bg-dark: #0a0e27;
+      --bg-darker: #050811;
+      --glass: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.2);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --card-bg: rgba(15, 20, 50, 0.95);
+      --border-color: rgba(255, 255, 255, 0.15);
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-darker) 100%);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 16px;
+      padding-bottom: 60px;
+    }
+
+    .container { max-width: 600px; margin: 0 auto; }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn-volver {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      color: var(--text-main);
+      width: 42px; height: 42px;
+      border-radius: 12px;
+      font-size: 18px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .btn-volver:active { transform: scale(0.95); }
+    .header-titulo { font-size: 18px; font-weight: 700; color: var(--accent); }
+    .header-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    .seccion-titulo {
+      font-size: 14px; font-weight: 600; color: var(--text-main);
+      margin-bottom: 4px;
+    }
+    .seccion-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; }
+
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 12px 0 6px;
+    }
+
+    select, input {
+      width: 100%;
+      padding: 12px 14px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      color: var(--text-main);
+      font-size: 15px;
+      outline: none;
+    }
+    select:focus, input:focus { border-color: var(--accent); }
+
+    .checkbox-row {
+      display: flex; align-items: center; gap: 10px;
+      margin-top: 14px;
+      font-size: 13px; color: var(--text-secondary);
+    }
+    .checkbox-row input { width: auto; }
+
+    .btn-primary {
+      width: 100%;
+      margin-top: 16px;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--accent), #2563eb);
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-primary:active { transform: scale(0.99); }
+    .btn-secundario {
+      width: 100%;
+      margin-top: 10px;
+      padding: 12px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      color: var(--text-main);
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .oculto { display: none !important; }
+
+    /* Resumen */
+    .resumen-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .resumen-box {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+    }
+    .resumen-num { font-size: 20px; font-weight: 700; color: var(--accent); }
+    .resumen-num.verde { color: var(--success); }
+    .resumen-lbl { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    /* Operaria card */
+    .operaria-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .operaria-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 14px 16px;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .operaria-head:active { background: rgba(255, 255, 255, 0.06); }
+    .operaria-nombre { font-size: 16px; font-weight: 700; }
+    .operaria-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+    .operaria-monto { font-size: 16px; font-weight: 700; color: var(--success); white-space: nowrap; }
+    .flecha { font-size: 12px; color: var(--text-muted); margin-left: 6px; transition: transform 0.2s; }
+    .flecha.abierta { transform: rotate(90deg); }
+
+    .trabajos { padding: 0 12px 12px; }
+    .trabajo-item {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 11px 13px;
+      margin-top: 10px;
+    }
+    .trabajo-top {
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;
+    }
+    .trabajo-operacion { font-size: 14px; font-weight: 600; color: var(--text-main); }
+    .trabajo-monto { font-size: 14px; font-weight: 700; color: var(--success); white-space: nowrap; }
+    .trabajo-tags {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
+    }
+    .tag {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+    }
+    .tag.maquina { background: rgba(245, 158, 11, 0.12); border-color: rgba(245,158,11,0.3); color: #fcd34d; }
+    .tag.prenda { background: rgba(59, 130, 246, 0.12); border-color: rgba(59,130,246,0.3); color: #93c5fd; }
+    .tag.encargada { background: rgba(139, 92, 246, 0.12); border-color: rgba(139,92,246,0.3); color: #c4b5fd; }
+
+    .mensaje {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 26px 16px;
+      font-size: 14px;
+    }
+    .mensaje-error {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+    .pista {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- Header -->
+    <div class="card">
+      <div class="header">
+        <button class="btn-volver" onclick="window.location.href='/dashboard'">←</button>
+        <div>
+          <div class="header-titulo">🔍 Buscar Trabajo</div>
+          <div class="header-sub">Rastrea quién trabajó un pedido o prenda</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filtros de búsqueda -->
+    <div class="card">
+      <div class="seccion-titulo">¿Qué quieres investigar?</div>
+      <div class="seccion-desc">Busca por pedido o por prenda. Te mostraré qué operarias trabajaron, en qué operación, máquina, talla, fecha y cuánto se les pagó.</div>
+
+      <label for="select-pedido">Pedido (escuela / folio)</label>
+      <select id="select-pedido">
+        <option value="">-- Todos los pedidos --</option>
+      </select>
+
+      <label for="select-prenda">Prenda</label>
+      <select id="select-prenda">
+        <option value="">-- Todas las prendas --</option>
+      </select>
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="chk-solo-finalizados" />
+        <label for="chk-solo-finalizados" style="margin:0; text-transform:none; letter-spacing:0; font-size:13px; color:var(--text-secondary); font-weight:500;">Mostrar solo pedidos finalizados</label>
+      </div>
+      <div class="pista">Por defecto se muestran pedidos finalizados y activos.</div>
+
+      <button class="btn-primary" id="btn-buscar">🔍 Buscar</button>
+      <div id="error-busqueda" class="mensaje-error oculto"></div>
+    </div>
+
+    <!-- Resumen -->
+    <div class="card oculto" id="card-resumen">
+      <div class="seccion-titulo" id="resumen-titulo">Resultados</div>
+      <div class="seccion-desc" id="resumen-sub"></div>
+      <div class="resumen-grid">
+        <div class="resumen-box"><div class="resumen-num" id="r-operarias">0</div><div class="resumen-lbl">Operarias</div></div>
+        <div class="resumen-box"><div class="resumen-num" id="r-piezas">0</div><div class="resumen-lbl">Piezas</div></div>
+        <div class="resumen-box"><div class="resumen-num" id="r-registros">0</div><div class="resumen-lbl">Registros</div></div>
+        <div class="resumen-box"><div class="resumen-num verde" id="r-monto">$0</div><div class="resumen-lbl">Monto total</div></div>
+      </div>
+    </div>
+
+    <!-- Resultados -->
+    <div id="resultados"></div>
+
+  </div>
+
+  <script>
+    // ===== Verificación de sesión (igual patrón que las demás pantallas) =====
+    let usuarioActual;
+    try {
+      const dataUsuario = localStorage.getItem("usuarioActual");
+      if (!dataUsuario) throw new Error("Sin sesión");
+      usuarioActual = JSON.parse(dataUsuario);
+      if (!usuarioActual.tipo || !usuarioActual.nombre) throw new Error("Sesión inválida");
+    } catch (e) {
+      localStorage.removeItem("usuarioActual");
+      window.location.href = "/login.html";
+    }
+
+    // Esta pantalla es de control: solo admin y encargada
+    const puedeVer = usuarioActual && (usuarioActual.tipo === "admin" || usuarioActual.tipo === "encargada");
+    if (!puedeVer) {
+      window.location.href = "/dashboard";
+    }
+
+    const selectPedido = document.getElementById("select-pedido");
+    const selectPrenda = document.getElementById("select-prenda");
+    const chkSoloFinalizados = document.getElementById("chk-solo-finalizados");
+    const btnBuscar = document.getElementById("btn-buscar");
+    const errorBusqueda = document.getElementById("error-busqueda");
+    const cardResumen = document.getElementById("card-resumen");
+    const resultados = document.getElementById("resultados");
+
+    function fmtDinero(n) {
+      return "$" + (Number(n) || 0).toFixed(2);
+    }
+
+    function fmtFecha(iso) {
+      try {
+        const d = new Date(iso);
+        return d.toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Mexico_City" });
+      } catch (e) { return "N/A"; }
+    }
+
+    // ===== Cargar pedidos y prendas en los selectores =====
+    async function cargarOpciones() {
+      try {
+        const [resPed, resPren] = await Promise.all([
+          fetch("/api/pedidos"),
+          fetch("/api/prendas")
+        ]);
+        const pedidos = await resPed.json();
+        const prendas = await resPren.json();
+
+        // Ordenar pedidos: finalizados/terminados primero, luego por escuela
+        const ordenados = (Array.isArray(pedidos) ? pedidos : []).slice().sort((a, b) => {
+          return (a.escuela || "").localeCompare(b.escuela || "");
+        });
+
+        ordenados.forEach(p => {
+          const opt = document.createElement("option");
+          opt.value = p.id;
+          const estado = (p.estado === "finalizado" || p.estado === "terminado") ? " ✅" : "";
+          const folio = p.folio ? " (" + p.folio + ")" : "";
+          opt.textContent = (p.escuela || "Sin nombre") + folio + estado;
+          selectPedido.appendChild(opt);
+        });
+
+        (Array.isArray(prendas) ? prendas : []).forEach(pr => {
+          const opt = document.createElement("option");
+          opt.value = pr.id;
+          opt.textContent = pr.nombre || "Prenda";
+          selectPrenda.appendChild(opt);
+        });
+      } catch (e) {
+        console.error("Error al cargar opciones:", e);
+      }
+    }
+
+    // ===== Buscar =====
+    async function buscar() {
+      errorBusqueda.classList.add("oculto");
+      const pedidoId = selectPedido.value;
+      const prendaId = selectPrenda.value;
+
+      if (!pedidoId && !prendaId) {
+        errorBusqueda.textContent = "Selecciona al menos un pedido o una prenda para buscar.";
+        errorBusqueda.classList.remove("oculto");
+        return;
+      }
+
+      btnBuscar.textContent = "Buscando...";
+      btnBuscar.disabled = true;
+
+      try {
+        let url = "/api/buscar-trabajo?";
+        const params = [];
+        if (pedidoId) params.push("pedidoId=" + encodeURIComponent(pedidoId));
+        if (prendaId) params.push("prendaId=" + encodeURIComponent(prendaId));
+        // incluirActivos: por defecto sí (no enviar); si marca "solo finalizados" -> incluirActivos=0
+        if (chkSoloFinalizados.checked) params.push("incluirActivos=0");
+        url += params.join("&");
+
+        const res = await fetch(url);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Error al buscar");
+        }
+        const data = await res.json();
+        mostrarResultados(data, pedidoId, prendaId);
+      } catch (e) {
+        errorBusqueda.textContent = e.message || "Ocurrió un error al buscar.";
+        errorBusqueda.classList.remove("oculto");
+        cardResumen.classList.add("oculto");
+        resultados.innerHTML = "";
+      } finally {
+        btnBuscar.textContent = "🔍 Buscar";
+        btnBuscar.disabled = false;
+      }
+    }
+
+    function mostrarResultados(data, pedidoId, prendaId) {
+      const total = data.total || { piezas: 0, registros: 0, operarias: 0, montoTotal: 0 };
+      const operarias = data.operarias || [];
+
+      // Texto del subtítulo según lo buscado
+      let partes = [];
+      if (pedidoId) {
+        const txt = selectPedido.options[selectPedido.selectedIndex].textContent;
+        partes.push("Pedido: " + txt);
+      }
+      if (prendaId) {
+        const txt = selectPrenda.options[selectPrenda.selectedIndex].textContent;
+        partes.push("Prenda: " + txt);
+      }
+      document.getElementById("resumen-sub").textContent = partes.join("  ·  ");
+
+      document.getElementById("r-operarias").textContent = total.operarias;
+      document.getElementById("r-piezas").textContent = total.piezas;
+      document.getElementById("r-registros").textContent = total.registros;
+      document.getElementById("r-monto").textContent = fmtDinero(total.montoTotal);
+      cardResumen.classList.remove("oculto");
+
+      if (operarias.length === 0) {
+        resultados.innerHTML = '<div class="card"><div class="mensaje">No se encontraron registros para esta búsqueda.<br>Prueba quitando el filtro de "solo finalizados" o cambiando el pedido/prenda.</div></div>';
+        return;
+      }
+
+      resultados.innerHTML = operarias.map((op, idx) => {
+        const trabajosHTML = op.trabajos.map(t => {
+          const tallaTag = t.talla ? '<span class="tag">📏 Talla ' + t.talla + '</span>' : '';
+          const fuenteTag = (t.fuente === "encargada") ? '<span class="tag encargada">👤 Encargada</span>' : '';
+          return `
+            <div class="trabajo-item">
+              <div class="trabajo-top">
+                <div class="trabajo-operacion">🪡 ${t.operacion}</div>
+                <div class="trabajo-monto">${fmtDinero(t.totalGanado)}</div>
+              </div>
+              <div class="trabajo-tags">
+                <span class="tag prenda">${t.prenda}</span>
+                <span class="tag maquina">⚙️ ${t.maquina}</span>
+                ${tallaTag}
+                <span class="tag">📦 ${t.cantidad} pzs</span>
+                <span class="tag">📅 ${fmtFecha(t.fecha)}</span>
+                <span class="tag">🗓️ ${t.semana}</span>
+                <span class="tag">🏫 ${t.escuela}${t.folio ? " · " + t.folio : ""}</span>
+                ${fuenteTag}
+              </div>
+            </div>
+          `;
+        }).join("");
+
+        return `
+          <div class="operaria-card">
+            <div class="operaria-head" onclick="toggleOperaria(${idx})">
+              <div>
+                <div class="operaria-nombre">👤 ${op.nombre}</div>
+                <div class="operaria-meta">${op.trabajos.length} ${op.trabajos.length === 1 ? "trabajo" : "trabajos"} · ${op.piezas} piezas</div>
+              </div>
+              <div style="display:flex; align-items:center;">
+                <span class="operaria-monto">${fmtDinero(op.monto)}</span>
+                <span class="flecha abierta" id="flecha-${idx}">▶</span>
+              </div>
+            </div>
+            <div class="trabajos" id="trabajos-${idx}">
+              ${trabajosHTML}
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function toggleOperaria(idx) {
+      const cont = document.getElementById("trabajos-" + idx);
+      const flecha = document.getElementById("flecha-" + idx);
+      if (!cont) return;
+      if (cont.style.display === "none") {
+        cont.style.display = "block";
+        flecha.classList.add("abierta");
+      } else {
+        cont.style.display = "none";
+        flecha.classList.remove("abierta");
+      }
+    }
+
+    btnBuscar.addEventListener("click", buscar);
+    cargarOpciones();
+  </script>
+</body>
+</html>
