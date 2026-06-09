@@ -236,7 +236,7 @@
     <!-- Filtros de búsqueda -->
     <div class="card">
       <div class="seccion-titulo">¿Qué quieres investigar?</div>
-      <div class="seccion-desc">Busca por pedido o por prenda. Te mostraré qué operarias trabajaron, en qué operación, máquina, talla, fecha y cuánto se les pagó.</div>
+      <div class="seccion-desc" id="desc-investigar">Busca por pedido o por prenda. Te mostraré qué operarias trabajaron, en qué operación, máquina, talla, fecha y cuánto se les pagó.</div>
 
       <label for="select-pedido">Pedido (escuela / folio)</label>
       <select id="select-pedido">
@@ -246,6 +246,22 @@
       <label for="select-prenda">Prenda</label>
       <select id="select-prenda">
         <option value="">-- Todas las prendas --</option>
+      </select>
+
+      <!-- Operación: aparece solo cuando hay una prenda elegida (MEJORA AGREGADA) -->
+      <div id="campo-operacion" class="oculto">
+        <label for="select-operacion">Operación</label>
+        <select id="select-operacion">
+          <option value="">-- Todas las operaciones --</option>
+        </select>
+      </div>
+
+      <!-- Fuente del registro: separa quién capturó el trabajo (MEJORA AGREGADA) -->
+      <label for="select-fuente">Registrado por</label>
+      <select id="select-fuente">
+        <option value="">-- Ambas (operaria + encargada) --</option>
+        <option value="operaria">Solo registros de operaria</option>
+        <option value="encargada">Solo registros de encargada</option>
       </select>
 
       <div class="checkbox-row">
@@ -296,11 +312,35 @@
 
     const selectPedido = document.getElementById("select-pedido");
     const selectPrenda = document.getElementById("select-prenda");
+    const campoOperacion = document.getElementById("campo-operacion");
+    const selectOperacion = document.getElementById("select-operacion");
+    const selectFuente = document.getElementById("select-fuente");
     const chkSoloFinalizados = document.getElementById("chk-solo-finalizados");
     const btnBuscar = document.getElementById("btn-buscar");
     const errorBusqueda = document.getElementById("error-busqueda");
     const cardResumen = document.getElementById("card-resumen");
     const resultados = document.getElementById("resultados");
+
+    // ===== MEJORA AGREGADA: control por rol =====
+    // La encargada NO debe ver precios ni totales pagados (solo en esta pantalla).
+    const esEncargada = (usuarioActual && usuarioActual.tipo === "encargada");
+
+    // Valor por defecto del filtro de fuente según el rol:
+    // - encargada -> ve por defecto sus propios registros ("encargada")
+    // - admin     -> ve por defecto los registros de operaria
+    selectFuente.value = esEncargada ? "encargada" : "operaria";
+
+    // Si es encargada, ocultamos por completo la caja de "Monto total" del resumen
+    // y ajustamos el texto para no mencionar pagos (que no verá).
+    if (esEncargada) {
+      const cajaMonto = document.getElementById("r-monto");
+      if (cajaMonto) {
+        const boxMonto = cajaMonto.closest(".resumen-box");
+        if (boxMonto) boxMonto.classList.add("oculto");
+      }
+      const desc = document.getElementById("desc-investigar");
+      if (desc) desc.textContent = "Busca por pedido o por prenda. Te mostraré qué operarias trabajaron, en qué operación, máquina, talla y fecha.";
+    }
 
     function fmtDinero(n) {
       return "$" + (Number(n) || 0).toFixed(2);
@@ -313,6 +353,9 @@
       } catch (e) { return "N/A"; }
     }
 
+    // Guardamos todas las prendas para poder mostrarlas cuando NO hay pedido elegido
+    let todasLasPrendas = [];
+
     // ===== Cargar pedidos y prendas en los selectores =====
     async function cargarOpciones() {
       try {
@@ -322,8 +365,9 @@
         ]);
         const pedidos = await resPed.json();
         const prendas = await resPren.json();
+        todasLasPrendas = Array.isArray(prendas) ? prendas : [];
 
-        // Ordenar pedidos: finalizados/terminados primero, luego por escuela
+        // Ordenar pedidos por escuela
         const ordenados = (Array.isArray(pedidos) ? pedidos : []).slice().sort((a, b) => {
           return (a.escuela || "").localeCompare(b.escuela || "");
         });
@@ -337,16 +381,90 @@
           selectPedido.appendChild(opt);
         });
 
-        (Array.isArray(prendas) ? prendas : []).forEach(pr => {
-          const opt = document.createElement("option");
-          opt.value = pr.id;
-          opt.textContent = pr.nombre || "Prenda";
-          selectPrenda.appendChild(opt);
-        });
+        // Al inicio (sin pedido elegido) mostramos todas las prendas
+        llenarPrendas(todasLasPrendas);
       } catch (e) {
         console.error("Error al cargar opciones:", e);
       }
     }
+
+    // Llena el selector de prendas con la lista que reciba
+    function llenarPrendas(lista) {
+      selectPrenda.innerHTML = '<option value="">-- Todas las prendas --</option>';
+      (lista || []).forEach(pr => {
+        const opt = document.createElement("option");
+        opt.value = pr.id;
+        opt.textContent = pr.nombre || "Prenda";
+        selectPrenda.appendChild(opt);
+      });
+    }
+
+    // Llena el selector de operaciones
+    function llenarOperaciones(lista) {
+      selectOperacion.innerHTML = '<option value="">-- Todas las operaciones --</option>';
+      (lista || []).forEach(op => {
+        const opt = document.createElement("option");
+        opt.value = op.nombre;
+        opt.textContent = op.maquina ? (op.nombre + "  ·  " + op.maquina) : op.nombre;
+        selectOperacion.appendChild(opt);
+      });
+    }
+
+    // ===== MEJORA AGREGADA: opciones dependientes =====
+    // Cuando cambia el PEDIDO, recargamos las prendas que ese pedido realmente tuvo.
+    async function alCambiarPedido() {
+      const pedidoId = selectPedido.value;
+      // Resetear operación siempre
+      campoOperacion.classList.add("oculto");
+      llenarOperaciones([]);
+
+      if (!pedidoId) {
+        // Sin pedido: mostrar todas las prendas
+        llenarPrendas(todasLasPrendas);
+        return;
+      }
+      try {
+        const res = await fetch("/api/buscar-trabajo/opciones?pedidoId=" + encodeURIComponent(pedidoId));
+        const data = await res.json();
+        const prendas = (data.prendas && data.prendas.length) ? data.prendas : todasLasPrendas;
+        llenarPrendas(prendas);
+      } catch (e) {
+        console.error("Error al cargar prendas del pedido:", e);
+        llenarPrendas(todasLasPrendas);
+      }
+    }
+
+    // Cuando cambia la PRENDA, cargamos las operaciones de esa prenda (en el pedido si hay).
+    async function alCambiarPrenda() {
+      const pedidoId = selectPedido.value;
+      const prendaId = selectPrenda.value;
+
+      if (!prendaId) {
+        campoOperacion.classList.add("oculto");
+        llenarOperaciones([]);
+        return;
+      }
+      try {
+        let url = "/api/buscar-trabajo/opciones?prendaId=" + encodeURIComponent(prendaId);
+        if (pedidoId) url += "&pedidoId=" + encodeURIComponent(pedidoId);
+        const res = await fetch(url);
+        const data = await res.json();
+        const ops = data.operaciones || [];
+        llenarOperaciones(ops);
+        // Mostrar el selector de operación solo si hay operaciones
+        if (ops.length > 0) {
+          campoOperacion.classList.remove("oculto");
+        } else {
+          campoOperacion.classList.add("oculto");
+        }
+      } catch (e) {
+        console.error("Error al cargar operaciones:", e);
+        campoOperacion.classList.add("oculto");
+      }
+    }
+
+    selectPedido.addEventListener("change", alCambiarPedido);
+    selectPrenda.addEventListener("change", alCambiarPrenda);
 
     // ===== Buscar =====
     async function buscar() {
@@ -363,11 +481,18 @@
       btnBuscar.textContent = "Buscando...";
       btnBuscar.disabled = true;
 
+      // La operación solo cuenta si el campo está visible y hay una elegida
+      const operacion = (!campoOperacion.classList.contains("oculto")) ? selectOperacion.value : "";
+
       try {
         let url = "/api/buscar-trabajo?";
         const params = [];
         if (pedidoId) params.push("pedidoId=" + encodeURIComponent(pedidoId));
         if (prendaId) params.push("prendaId=" + encodeURIComponent(prendaId));
+        if (operacion) params.push("operacion=" + encodeURIComponent(operacion));
+        // MEJORA AGREGADA: filtro por fuente (vacío = ambas)
+        const fuente = selectFuente.value;
+        if (fuente) params.push("fuente=" + encodeURIComponent(fuente));
         // incluirActivos: por defecto sí (no enviar); si marca "solo finalizados" -> incluirActivos=0
         if (chkSoloFinalizados.checked) params.push("incluirActivos=0");
         url += params.join("&");
@@ -378,7 +503,7 @@
           throw new Error(err.error || "Error al buscar");
         }
         const data = await res.json();
-        mostrarResultados(data, pedidoId, prendaId);
+        mostrarResultados(data, pedidoId, prendaId, operacion);
       } catch (e) {
         errorBusqueda.textContent = e.message || "Ocurrió un error al buscar.";
         errorBusqueda.classList.remove("oculto");
@@ -390,7 +515,7 @@
       }
     }
 
-    function mostrarResultados(data, pedidoId, prendaId) {
+    function mostrarResultados(data, pedidoId, prendaId, operacion) {
       const total = data.total || { piezas: 0, registros: 0, operarias: 0, montoTotal: 0 };
       const operarias = data.operarias || [];
 
@@ -404,12 +529,22 @@
         const txt = selectPrenda.options[selectPrenda.selectedIndex].textContent;
         partes.push("Prenda: " + txt);
       }
+      if (operacion) {
+        partes.push("Operación: " + operacion);
+      }
+      // MEJORA AGREGADA: mostrar en el subtítulo qué fuente se filtró
+      const fuenteSel = selectFuente.value;
+      if (fuenteSel === "operaria") partes.push("Registrado por: Operaria");
+      else if (fuenteSel === "encargada") partes.push("Registrado por: Encargada");
       document.getElementById("resumen-sub").textContent = partes.join("  ·  ");
 
       document.getElementById("r-operarias").textContent = total.operarias;
       document.getElementById("r-piezas").textContent = total.piezas;
       document.getElementById("r-registros").textContent = total.registros;
-      document.getElementById("r-monto").textContent = fmtDinero(total.montoTotal);
+      // MEJORA AGREGADA: la encargada no ve montos; el admin sí.
+      if (!esEncargada) {
+        document.getElementById("r-monto").textContent = fmtDinero(total.montoTotal);
+      }
       cardResumen.classList.remove("oculto");
 
       if (operarias.length === 0) {
@@ -421,11 +556,13 @@
         const trabajosHTML = op.trabajos.map(t => {
           const tallaTag = t.talla ? '<span class="tag">📏 Talla ' + t.talla + '</span>' : '';
           const fuenteTag = (t.fuente === "encargada") ? '<span class="tag encargada">👤 Encargada</span>' : '';
+          // MEJORA AGREGADA: la encargada no ve el monto del trabajo; el admin sí.
+          const montoTrabajoHTML = esEncargada ? '' : ('<div class="trabajo-monto">' + fmtDinero(t.totalGanado) + '</div>');
           return `
             <div class="trabajo-item">
               <div class="trabajo-top">
                 <div class="trabajo-operacion">🪡 ${t.operacion}</div>
-                <div class="trabajo-monto">${fmtDinero(t.totalGanado)}</div>
+                ${montoTrabajoHTML}
               </div>
               <div class="trabajo-tags">
                 <span class="tag prenda">${t.prenda}</span>
@@ -449,7 +586,7 @@
                 <div class="operaria-meta">${op.trabajos.length} ${op.trabajos.length === 1 ? "trabajo" : "trabajos"} · ${op.piezas} piezas</div>
               </div>
               <div style="display:flex; align-items:center;">
-                <span class="operaria-monto">${fmtDinero(op.monto)}</span>
+                ${esEncargada ? '' : ('<span class="operaria-monto">' + fmtDinero(op.monto) + '</span>')}
                 <span class="flecha abierta" id="flecha-${idx}">▶</span>
               </div>
             </div>
