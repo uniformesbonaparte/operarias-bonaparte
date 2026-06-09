@@ -2378,7 +2378,7 @@ app.get("/api/reporte-semanal/por-pedido", (req, res) => {
  *   maquina, talla, cantidad, pagoPorPieza, totalGanado, fecha, semana, fuente.
  */
 app.get("/api/buscar-trabajo", (req, res) => {
-  const { pedidoId, prendaId, incluirActivos } = req.query;
+  const { pedidoId, prendaId, operacion, incluirActivos, fuente } = req.query;
 
   if (!pedidoId && !prendaId) {
     return res.status(400).json({ error: "Indica un pedido o una prenda para buscar." });
@@ -2394,6 +2394,15 @@ app.get("/api/buscar-trabajo", (req, res) => {
   }
   if (prendaId) {
     data = data.filter(r => r.prendaId === Number(prendaId));
+  }
+  // MEJORA AGREGADA: filtro opcional por operación (nombre exacto de la costura/operación)
+  if (operacion) {
+    data = data.filter(r => (r.descripcion || "") === operacion);
+  }
+  // MEJORA AGREGADA: filtro opcional por fuente del registro (operaria / encargada)
+  // Si no se indica fuente, se devuelven ambas (comportamiento anterior, no rompe nada).
+  if (fuente === "operaria" || fuente === "encargada") {
+    data = data.filter(r => (r.fuente || "operaria") === fuente);
   }
 
   // Agrupar por operaria
@@ -2470,6 +2479,60 @@ app.get("/api/buscar-trabajo", (req, res) => {
       montoTotal: totMonto
     },
     operarias: listaOperarias
+  });
+});
+
+/**
+ * GET /api/buscar-trabajo/opciones
+ * OPCIONES DEPENDIENTES (MEJORA AGREGADA - para los selectores de buscar_trabajo.html)
+ * Devuelve solo las prendas y operaciones que REALMENTE tienen registros,
+ * para que los selectores muestren únicamente lo que existe en ese pedido / prenda.
+ * No modifica nada: solo lee los registros existentes.
+ *
+ * Query params:
+ * - pedidoId: (opcional) limita a un pedido
+ * - prendaId: (opcional) limita a una prenda
+ *
+ * RESPUESTA: {
+ *   prendas: Array<{id, nombre}>,        // prendas con registros (en el pedido si se indicó)
+ *   operaciones: Array<{nombre, maquina}> // operaciones con registros (en pedido+prenda si se indicaron)
+ * }
+ */
+app.get("/api/buscar-trabajo/opciones", (req, res) => {
+  const { pedidoId, prendaId } = req.query;
+
+  let data = registros.slice();
+  if (pedidoId) data = data.filter(r => r.pedidoId === Number(pedidoId));
+
+  // Prendas distintas presentes en esos registros
+  const prendasMap = {};
+  data.forEach(r => {
+    if (r.prendaId === undefined || r.prendaId === null) return;
+    if (!prendasMap[r.prendaId]) {
+      const prenda = prendas.find(p => p.id === r.prendaId);
+      prendasMap[r.prendaId] = { id: r.prendaId, nombre: prenda ? prenda.nombre : "Prenda " + r.prendaId };
+    }
+  });
+  const listaPrendas = Object.values(prendasMap).sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+  // Operaciones distintas (filtradas por prenda si se indicó)
+  let dataOps = data;
+  if (prendaId) dataOps = dataOps.filter(r => r.prendaId === Number(prendaId));
+
+  const opsMap = {};
+  dataOps.forEach(r => {
+    const nombreOp = r.descripcion || "Sin nombre";
+    const maq = r.maquina || "";
+    const clave = nombreOp + "||" + maq;
+    if (!opsMap[clave]) {
+      opsMap[clave] = { nombre: nombreOp, maquina: maq };
+    }
+  });
+  const listaOps = Object.values(opsMap).sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+  return res.json({
+    prendas: listaPrendas,
+    operaciones: listaOps
   });
 });
 
