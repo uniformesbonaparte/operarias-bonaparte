@@ -1459,9 +1459,17 @@ app.get("/api/pedidos", (req, res) => {
       // Convertir a array con nombres
       const desglosePrendas = Object.keys(desglose).map(prendaId => {
         const prenda = prendas.find(p => p.id === parseInt(prendaId));
+        // MEJORA AGREGADA: costo unitario de mano de obra por prenda.
+        // Es la suma de los precios de TODAS las operaciones de esa prenda en el pedido
+        // (los mismos precios que ya se usan para el costo estimado). No multiplica por cantidad.
+        const itemPrenda = (pedido.items || []).find(it => it.prendaId === parseInt(prendaId));
+        const costoUnitario = itemPrenda
+          ? (itemPrenda.operaciones || []).reduce((s, op) => s + (Number(op.precio) || 0), 0)
+          : 0;
         return {
           prenda: prenda ? prenda.nombre : "Desconocida",
-          total: desglose[prendaId]
+          total: desglose[prendaId],
+          costoUnitario: costoUnitario  // MEJORA AGREGADA: mano de obra por prenda
         };
       });
 
