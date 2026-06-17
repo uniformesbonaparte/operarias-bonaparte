@@ -409,10 +409,33 @@ async function cargarPlantilla(card, prendaId) {
           </tr>`;
         });
         h += `</tbody></table><div style="margin-top:6px;color:rgba(255,255,255,0.55);font-size:12px;">Operaciones cargadas del catálogo (no se pueden editar).</div>`;
+        // MEJORA AGREGADA: suma en vivo de la mano de obra de esta prenda mientras capturas precios
+        h += `<div class="suma-mano-obra" style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:10px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.25);">
+          <span style="font-size:12px;color:#fcd34d;font-weight:600;">🧵 Mano de obra por prenda</span>
+          <span class="suma-mano-obra-valor" style="font-size:14px;color:#fbbf24;font-weight:700;">$0.00</span>
+        </div>`;
         c.innerHTML = h;
         // Actualizar conteo de ops en header
         const lblOps = card.querySelector(".lbl-total-ops");
         if (lblOps) lblOps.textContent = ops.length + " ops";
+        // MEJORA AGREGADA: enganchar el cálculo en vivo a cada input de precio
+        card.querySelectorAll(".op-precio").forEach(inp => {
+          inp.addEventListener("input", () => actualizarSumaManoObra(card));
+        });
+        actualizarSumaManoObra(card);
+      }
+
+      // MEJORA AGREGADA: suma los precios capturados de una prenda y muestra el total en vivo.
+      // Las operaciones en 0 simplemente no suman (es correcto: no aplican a ese modelo).
+      function actualizarSumaManoObra(card) {
+        try {
+          let suma = 0;
+          card.querySelectorAll(".ops-container .ops-table tbody tr .op-precio").forEach(inp => {
+            suma += Number(inp.value) || 0;
+          });
+          const lbl = card.querySelector(".suma-mano-obra-valor");
+          if (lbl) lbl.textContent = "$" + suma.toFixed(2);
+        } catch (e) { /* no romper la captura si algo falla */ }
       }
 
       /* Operaciones vienen del catálogo: ya no se permite agregar/eliminar desde aquí */
