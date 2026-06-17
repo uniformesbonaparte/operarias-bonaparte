@@ -546,7 +546,12 @@ async function cargarPlantilla(card, prendaId) {
                   const manoObra = cu > 0
                     ? `<div class="desglose-manoobra">🧵 Mano de obra: $${cu.toFixed(2)} por prenda</div>`
                     : '';
-                  return `<div class="desglose-item"><span class="desglose-prenda">${d.prenda}</span><span class="desglose-monto">$${d.total.toFixed(2)}</span></div>${manoObra}`;
+                  // MEJORA AGREGADA: si la prenda aún no tiene producción, en vez de "$0.00"
+                  // mostramos una etiqueta clara; igual se muestra su mano de obra.
+                  const montoDerecha = d.sinProduccion
+                    ? `<span class="desglose-monto" style="color:var(--text-muted);font-weight:500;font-size:12px;">Sin producción</span>`
+                    : `<span class="desglose-monto">$${d.total.toFixed(2)}</span>`;
+                  return `<div class="desglose-item"><span class="desglose-prenda">${d.prenda}</span>${montoDerecha}</div>${manoObra}`;
                 }).join('')}</div>`;
             }
 
