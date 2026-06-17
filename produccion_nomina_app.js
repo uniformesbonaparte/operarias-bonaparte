@@ -1515,14 +1515,40 @@ app.post("/api/pedidos", (req, res) => {
       const prendaId = Number(item.prendaId);
       const cantidad = Number(item.cantidad) || 0;
       
-      // Operaciones: siempre se generan desde la plantilla (por prenda) si existe,
-// y el usuario SOLO puede mandar precios (sin opId) para esa combinación costura+maquina.
-      const opsPrecioMap = new Map(
-        (Array.isArray(item.operaciones) ? item.operaciones : []).map(op => [
-          `${(op.costura || op.descripcion || '').trim()}||${(op.maquina || '').trim()}`,
-          Number(op.precio) || 0
-        ])
-      );
+      // MEJORA AGREGADA: emparejado de precios TOLERANTE.
+      // Antes el precio se perdía (quedaba en 0) si el texto no coincidía EXACTO con la
+      // plantilla (un espacio, mayúscula o acento de diferencia). Ahora normalizamos el
+      // texto (sin acentos, minúsculas, sin espacios extra) para emparejar bien, y además
+      // intentamos por costura+maquina y, si no, por costura sola. Si una operación con
+      // precio no existe en la plantilla, se conserva igual (no se descarta).
+      const normalizar = (s) => (s || "")
+        .toString()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quitar acentos
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const opsEnviadas = Array.isArray(item.operaciones) ? item.operaciones : [];
+      // Mapa por costura+maquina y mapa por costura sola (fallback)
+      const precioPorCosturaMaquina = new Map();
+      const precioPorCostura = new Map();
+      opsEnviadas.forEach(op => {
+        const costuraTxt = op.costura || op.descripcion || "";
+        const maquinaTxt = op.maquina || "";
+        const precioNum = Number(op.precio) || 0;
+        precioPorCosturaMaquina.set(normalizar(costuraTxt) + "||" + normalizar(maquinaTxt), precioNum);
+        // Para el fallback por costura sola, guardamos el último precio > 0 si existe
+        const kc = normalizar(costuraTxt);
+        if (!precioPorCostura.has(kc) || precioNum > 0) precioPorCostura.set(kc, precioNum);
+      });
+
+      const obtenerPrecio = (costuraTxt, maquinaTxt, precioBase) => {
+        const kcm = normalizar(costuraTxt) + "||" + normalizar(maquinaTxt);
+        if (precioPorCosturaMaquina.has(kcm)) return precioPorCosturaMaquina.get(kcm);
+        const kc = normalizar(costuraTxt);
+        if (precioPorCostura.has(kc)) return precioPorCostura.get(kc);
+        return Number(precioBase) || 0;
+      };
 
       let operacionesBase = [];
       if (plantillasCosturas[prendaId] && plantillasCosturas[prendaId].length > 0) {
@@ -1533,18 +1559,31 @@ app.post("/api/pedidos", (req, res) => {
         }));
       } else {
         // Fallback: si no hay plantilla, usa lo que venga en la petición
-        operacionesBase = Array.isArray(item.operaciones) ? item.operaciones.map(op => ({
+        operacionesBase = opsEnviadas.map(op => ({
           costura: op.costura || op.descripcion || "",
           maquina: op.maquina || "",
           precio: Number(op.precio) || 0
-        })) : [];
+        }));
       }
 
-      // Aplicar precios del cliente sobre la base (por costura+maquina)
+      // Aplicar precios del cliente sobre la base (tolerante a texto)
       const operaciones = operacionesBase.map(op => {
-        const k = `${(op.costura || '').trim()}||${(op.maquina || '').trim()}`;
-        const precio = opsPrecioMap.has(k) ? opsPrecioMap.get(k) : (Number(op.precio) || 0);
+        const precio = obtenerPrecio(op.costura, op.maquina, op.precio);
         return { ...op, precio };
+      });
+
+      // MEJORA AGREGADA: conservar operaciones que el usuario capturó (con o sin precio)
+      // pero que NO existen en la plantilla, para no perder esos precios.
+      const clavesBase = new Set(operaciones.map(op => normalizar(op.costura) + "||" + normalizar(op.maquina)));
+      opsEnviadas.forEach(op => {
+        const costuraTxt = op.costura || op.descripcion || "";
+        const maquinaTxt = op.maquina || "";
+        if (!costuraTxt.trim() || !maquinaTxt.trim()) return;
+        const clave = normalizar(costuraTxt) + "||" + normalizar(maquinaTxt);
+        if (!clavesBase.has(clave)) {
+          operaciones.push({ costura: costuraTxt, maquina: maquinaTxt, precio: Number(op.precio) || 0 });
+          clavesBase.add(clave);
+        }
       });
 
       // Asignar opId a cada operación (SIEMPRE desde backend)
