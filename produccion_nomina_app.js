@@ -1473,6 +1473,26 @@ app.get("/api/pedidos", (req, res) => {
         };
       });
 
+      // MEJORA AGREGADA: incluir también las prendas del pedido que AÚN NO tienen
+      // producción registrada, para que la mano de obra por prenda se vea desde que se
+      // crea el pedido. Estas entran con total 0 (no hay piezas aún) pero con su
+      // costoUnitario calculado de los precios capturados.
+      const prendasConDesglose = new Set(Object.keys(desglose).map(id => parseInt(id)));
+      (pedido.items || []).forEach(item => {
+        const pid = parseInt(item.prendaId);
+        if (prendasConDesglose.has(pid)) return; // ya tiene producción, no duplicar
+        const costoUnitario = (item.operaciones || []).reduce((s, op) => s + (Number(op.precio) || 0), 0);
+        if (costoUnitario <= 0) return; // sin precios capturados, nada que mostrar
+        const prenda = prendas.find(p => p.id === pid);
+        desglosePrendas.push({
+          prenda: prenda ? prenda.nombre : "Desconocida",
+          total: 0,                 // aún sin producción registrada
+          costoUnitario: costoUnitario,
+          sinProduccion: true       // bandera para el frontend
+        });
+        prendasConDesglose.add(pid);
+      });
+
       return {
         ...pedido,
         desglosePrendas
