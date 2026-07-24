@@ -2335,6 +2335,71 @@ if (semana) {
 });
 
 /**
+ * MEJORA AGREGADA
+ * GET /api/reporte-anual
+ * Reporte general anual: cuánto se le pagó a cada operaria en un año completo.
+ * Solo cuenta registros con estadoPago === "pagado" (la nómina real que se terminó pagando).
+ * Incluye TODAS las operarias que tuvieron registros ese año, activas o dadas de baja,
+ * para que el reporte de fin de año no pierda a nadie.
+ * Query params:
+ * - anio: "YYYY" (obligatorio)
+ * RESPUESTA: { anio, totalPagado, operarias: [{operariaId, nombre, activa, piezas, registros, totalPagado}] }
+ * ordenado de mayor a menor monto pagado.
+ */
+app.get("/api/reporte-anual", (req, res) => {
+  try {
+    const anio = String(req.query.anio || "").trim();
+    if (!anio || !/^\d{4}$/.test(anio)) {
+      return res.status(400).json({ error: "Debes indicar un año válido, ej. ?anio=2026" });
+    }
+
+    const resumen = {};
+    let totalPagado = 0;
+
+    registros.forEach(r => {
+      let f;
+      try {
+        f = toMexicoYMD(new Date(r.fecha));
+      } catch (e) {
+        return;
+      }
+      if (!f || f.slice(0, 4) !== anio) return;
+
+      const rEstado = r.estadoPago || "pendiente";
+      if (rEstado !== "pagado") return;
+
+      if (!resumen[r.operariaId]) {
+        const op = operarias.find(o => o.id === r.operariaId);
+        resumen[r.operariaId] = {
+          operariaId: r.operariaId,
+          nombre: op ? op.nombre : (r.operariaNombre || "N/A"),
+          activa: op ? (op.activa !== false) : null,
+          piezas: 0,
+          registros: 0,
+          totalPagado: 0
+        };
+      }
+
+      resumen[r.operariaId].piezas += Number(r.cantidad || 0);
+      resumen[r.operariaId].registros += 1;
+      resumen[r.operariaId].totalPagado += Number(r.totalGanado || 0);
+      totalPagado += Number(r.totalGanado || 0);
+    });
+
+    const listaOperarias = Object.values(resumen).sort((a, b) => b.totalPagado - a.totalPagado);
+
+    return res.json({
+      anio,
+      totalPagado,
+      operarias: listaOperarias
+    });
+  } catch (e) {
+    console.error("Error en /api/reporte-anual:", e);
+    return res.status(500).json({ error: "Error al generar el reporte anual." });
+  }
+});
+
+/**
  * GET /api/reporte-semanal/por-pedido
  * Genera el desglose del pago semanal AGRUPADO POR PEDIDO (folio/escuela)
  * Usa exactamente la misma lógica de semana y filtros que /api/reporte-semanal,
