@@ -667,6 +667,13 @@
         <div class="card-title">👷‍♀️ Operarias registradas</div>
         <p class="subtext">Toca una operaria para ver su resumen y editar datos</p>
 
+        <!-- MEJORA AGREGADA: por defecto solo se muestran las operarias activas.
+             Este checkbox permite ver también las dadas de baja (para reactivarlas si hace falta). -->
+        <label style="display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:12.5px; color:var(--text-muted); cursor:pointer;">
+          <input type="checkbox" id="chk-mostrar-inactivas" style="width:16px; height:16px; cursor:pointer;" />
+          Mostrar también las dadas de baja
+        </label>
+
         <div class="operaria-list" id="lista-operarias">
           <!-- Se llena por JS -->
         </div>
@@ -727,8 +734,18 @@
           ➕ Limpiar y crear nueva
         </button>
 
+        <!-- MEJORA AGREGADA: botón para reactivar una operaria que fue dada de baja -->
+        <button class="btn-secondary" id="btn-reactivar" style="display:none;">
+          ✅ Reactivar operaria
+        </button>
+
         <button class="btn-danger" id="btn-eliminar" style="display:none;">
           🗑️ Eliminar operaria
+        </button>
+
+        <!-- MEJORA AGREGADA: reactivar una operaria que había sido dada de baja -->
+        <button class="btn-secondary" id="btn-reactivar" style="display:none;">
+          ✅ Reactivar operaria
         </button>
 
         <div class="status-bar" id="status-bar"></div>
@@ -796,6 +813,7 @@
 
     document.addEventListener("DOMContentLoaded", () => {
       const listaOperarias = document.getElementById("lista-operarias");
+      const chkMostrarInactivas = document.getElementById("chk-mostrar-inactivas"); // MEJORA AGREGADA
 
       const perfilNombre = document.getElementById("perfil-nombre");
       const perfilId = document.getElementById("perfil-id");
@@ -812,6 +830,7 @@
       const btnGuardar = document.getElementById("btn-guardar");
       const btnNuevo = document.getElementById("btn-nuevo");
       const btnEliminar = document.getElementById("btn-eliminar");
+      const btnReactivar = document.getElementById("btn-reactivar"); // MEJORA AGREGADA
       const statusBar = document.getElementById("status-bar");
 
       let operarias = [];
@@ -853,6 +872,7 @@
         inputPassword.value = "";
         btnNuevo.style.display = "none";
         btnEliminar.style.display = "none";
+        if (btnReactivar) btnReactivar.style.display = "none"; // MEJORA AGREGADA
         btnGuardar.textContent = "💾 Guardar operaria";
         limpiarStatus();
 
@@ -874,6 +894,16 @@
         btnNuevo.style.display = "block";
         btnEliminar.style.display = "block";
         btnGuardar.textContent = "💾 Guardar cambios";
+
+        // MEJORA AGREGADA: si la operaria está dada de baja, mostrar botón para reactivarla
+        try {
+          if (btnReactivar) {
+            btnReactivar.style.display = (op.activa === false) ? "block" : "none";
+          }
+        } catch (eReact) {
+          console.error("Error mostrando botón reactivar:", eReact);
+        }
+
         limpiarStatus();
 
         perfilNombre.textContent = op.nombre || "Operaria";
@@ -884,7 +914,14 @@
       function renderListaOperarias() {
         listaOperarias.innerHTML = "";
 
-        if (!operarias || operarias.length === 0) {
+        // MEJORA AGREGADA: por defecto solo se muestran las operarias activas.
+        // Si se marca el checkbox "Mostrar también las dadas de baja", se ven todas.
+        const mostrarInactivas = !!(chkMostrarInactivas && chkMostrarInactivas.checked);
+        const listaFiltrada = mostrarInactivas
+          ? operarias
+          : operarias.filter(op => op.activa !== false);
+
+        if (!listaFiltrada || listaFiltrada.length === 0) {
           listaOperarias.innerHTML = `
             <div class="operaria-item" style="opacity:0.7; cursor:default;">
               <div class="op-line-main">
@@ -896,16 +933,21 @@
           return;
         }
 
-        operarias.forEach(op => {
+        listaFiltrada.forEach(op => {
           const item = document.createElement("div");
           item.className = "operaria-item";
           if (op.id === operariaSeleccionadaId) {
             item.classList.add("active");
           }
 
+          // MEJORA AGREGADA: etiqueta visual "Inactiva" cuando se está viendo la lista completa
+          const etiquetaInactiva = op.activa === false
+            ? `<span style="font-size:10.5px; color:#f87171; background:rgba(248,113,113,0.12); border-radius:6px; padding:2px 7px; margin-left:6px;">Inactiva</span>`
+            : "";
+
           item.innerHTML = `
             <div class="op-line-main">
-              <span class="op-nombre">${op.nombre}</span>
+              <span class="op-nombre">${op.nombre}${etiquetaInactiva}</span>
               <span class="op-id">ID: ${op.id}</span>
             </div>
           `;
@@ -918,6 +960,13 @@
           });
 
           listaOperarias.appendChild(item);
+        });
+      }
+
+      // MEJORA AGREGADA: al cambiar el checkbox, se vuelve a pintar la lista con el filtro correspondiente
+      if (chkMostrarInactivas) {
+        chkMostrarInactivas.addEventListener("change", () => {
+          try { renderListaOperarias(); } catch (e) { console.error("Error al filtrar lista de operarias:", e); }
         });
       }
 
@@ -1106,14 +1155,74 @@
         btnEliminar.disabled = true;
         btnEliminar.textContent = "🗑️ Eliminando...";
 
-        fetch(`/api/operarias/${operariaSeleccionadaId}`, {
+        const idAEliminar = operariaSeleccionadaId;
+
+        fetch(`/api/operarias/${idAEliminar}`, {
           method: "DELETE"
         })
           .then(res => res.json().then(body => ({ ok: res.ok, body })))
           .then(({ ok, body }) => {
             if (!ok) {
               console.error("Error al eliminar:", body);
-              mostrarStatus("error", body.mensaje || "No se pudo eliminar la operaria");
+
+              // MEJORA AGREGADA: si no se pudo eliminar porque tiene registros de costuras,
+              // se le ofrece a la usuaria "dar de baja" (marcar inactiva) en su lugar,
+              // conservando todo el historial para el reporte anual.
+              const mensajeError = body.error || body.mensaje || "No se pudo eliminar la operaria";
+              const tieneRegistros = /registros de costuras/i.test(mensajeError);
+
+              if (tieneRegistros) {
+                btnEliminar.disabled = false;
+                btnEliminar.textContent = "🗑️ Eliminar operaria";
+
+                const darDeBaja = confirm(
+                  "Esta operaria ya tiene registros de costura, así que no se puede borrar sin perder su historial.\n\n" +
+                  "¿Quieres darla de baja en su lugar? Ya no aparecerá en la lista ni podrá registrar trabajo nuevo, " +
+                  "pero todo su historial y pagos se conservan para el reporte anual."
+                );
+
+                if (!darDeBaja) {
+                  mostrarStatus("error", mensajeError);
+                  return;
+                }
+
+                try {
+                  btnEliminar.disabled = true;
+                  btnEliminar.textContent = "🗑️ Dando de baja...";
+
+                  fetch(`/api/operarias/${idAEliminar}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ activa: false })
+                  })
+                    .then(res2 => res2.json().then(body2 => ({ ok: res2.ok, body2 })))
+                    .then(({ ok: ok2, body2 }) => {
+                      if (!ok2) {
+                        console.error("Error al dar de baja:", body2);
+                        mostrarStatus("error", body2.error || body2.mensaje || "No se pudo dar de baja a la operaria");
+                      } else {
+                        mostrarStatus("ok", "Operaria dada de baja correctamente. Su historial se conservó.");
+                        limpiarFormulario();
+                        cargarOperarias();
+                      }
+                    })
+                    .catch(err2 => {
+                      console.error("Error de red al dar de baja:", err2);
+                      mostrarStatus("error", "Error de conexión al dar de baja");
+                    })
+                    .finally(() => {
+                      btnEliminar.disabled = false;
+                      btnEliminar.textContent = "🗑️ Eliminar operaria";
+                    });
+                } catch (eDarBaja) {
+                  console.error("Error inesperado al dar de baja:", eDarBaja);
+                  btnEliminar.disabled = false;
+                  btnEliminar.textContent = "🗑️ Eliminar operaria";
+                }
+                return;
+              }
+
+              mostrarStatus("error", mensajeError);
             } else {
               mostrarStatus("ok", body.mensaje || "Operaria eliminada correctamente");
               limpiarFormulario();
@@ -1129,6 +1238,47 @@
             btnEliminar.textContent = "🗑️ Eliminar operaria";
           });
       });
+
+      // MEJORA AGREGADA: Reactivar operaria dada de baja
+      if (btnReactivar) {
+        btnReactivar.addEventListener("click", () => {
+          try {
+            if (!operariaSeleccionadaId) return;
+
+            btnReactivar.disabled = true;
+            btnReactivar.textContent = "✅ Reactivando...";
+
+            fetch(`/api/operarias/${operariaSeleccionadaId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ activa: true })
+            })
+              .then(res => res.json().then(body => ({ ok: res.ok, body })))
+              .then(({ ok, body }) => {
+                if (!ok) {
+                  console.error("Error al reactivar:", body);
+                  mostrarStatus("error", body.error || body.mensaje || "No se pudo reactivar la operaria");
+                } else {
+                  mostrarStatus("ok", "Operaria reactivada correctamente.");
+                  limpiarFormulario();
+                  cargarOperarias();
+                }
+              })
+              .catch(err => {
+                console.error("Error de red al reactivar:", err);
+                mostrarStatus("error", "Error de conexión al reactivar");
+              })
+              .finally(() => {
+                btnReactivar.disabled = false;
+                btnReactivar.textContent = "✅ Reactivar operaria";
+              });
+          } catch (eReactClick) {
+            console.error("Error inesperado al reactivar:", eReactClick);
+            btnReactivar.disabled = false;
+            btnReactivar.textContent = "✅ Reactivar operaria";
+          }
+        });
+      }
 
       // Cargar inicial
       console.log("🔄 Cargando operarias..."); // DEBUG

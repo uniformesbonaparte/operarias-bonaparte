@@ -753,6 +753,29 @@
 
         <div id="lista-resultados"></div>
       </section>
+
+      <!-- MEJORA AGREGADA: Reporte Anual (solo informativo, solo admin) -->
+      <section class="card no-print oculto" id="reporte-anual-container">
+        <div class="card-title">📅 Reporte Anual</div>
+        <p class="subtext">Cuánto se le pagó a cada operaria en el año (incluye operarias dadas de baja)</p>
+
+        <div class="form-row">
+          <label for="select-anio-reporte">Año</label>
+          <select id="select-anio-reporte"></select>
+        </div>
+
+        <button class="btn-primary" id="btn-ver-reporte-anual">📊 Ver reporte anual</button>
+
+        <div id="reporte-anual-resultado" class="oculto" style="margin-top:14px;">
+          <div class="total-general">
+            <div class="total-general-label">Nómina total pagada en <span id="reporte-anual-anio-label"></span></div>
+            <div class="total-general-valor" id="reporte-anual-total">$0.00</div>
+          </div>
+          <div id="reporte-anual-lista" style="margin-top:12px;"></div>
+        </div>
+
+        <p id="reporte-anual-vacio" class="subtext oculto" style="margin-top:10px;">No hay pagos registrados para ese año.</p>
+      </section>
     </main>
   </div>
 
@@ -2067,6 +2090,102 @@
 
       // Cambiar semanas cuando cambia estado
       selectEstadoPago.addEventListener("change", cargarSemanas);
+
+      // ===================== MEJORA AGREGADA: Reporte Anual =====================
+      // Solo informativo, solo visible para admin (muestra montos totales pagados por operaria en el año)
+      try {
+        if (esAdmin) {
+          const reporteAnualContainer = document.getElementById("reporte-anual-container");
+          const selectAnioReporte = document.getElementById("select-anio-reporte");
+          const btnVerReporteAnual = document.getElementById("btn-ver-reporte-anual");
+          const reporteAnualResultado = document.getElementById("reporte-anual-resultado");
+          const reporteAnualTotal = document.getElementById("reporte-anual-total");
+          const reporteAnualAnioLabel = document.getElementById("reporte-anual-anio-label");
+          const reporteAnualLista = document.getElementById("reporte-anual-lista");
+          const reporteAnualVacio = document.getElementById("reporte-anual-vacio");
+
+          if (reporteAnualContainer) {
+            reporteAnualContainer.classList.remove("oculto");
+
+            // Poblar selector de años: del actual hacia 5 años atrás
+            const anioActual = new Date().getFullYear();
+            for (let a = anioActual; a >= anioActual - 5; a--) {
+              const opt = document.createElement("option");
+              opt.value = String(a);
+              opt.textContent = String(a);
+              if (a === anioActual) opt.selected = true;
+              selectAnioReporte.appendChild(opt);
+            }
+
+            const formatoMoneda = (n) => `$${Number(n || 0).toFixed(2)}`;
+
+            btnVerReporteAnual.addEventListener("click", () => {
+              try {
+                const anio = selectAnioReporte.value;
+                if (!anio) return;
+
+                btnVerReporteAnual.disabled = true;
+                btnVerReporteAnual.textContent = "📊 Cargando...";
+                reporteAnualResultado.classList.add("oculto");
+                reporteAnualVacio.classList.add("oculto");
+
+                fetch(`/api/reporte-anual?anio=${encodeURIComponent(anio)}`)
+                  .then(res => res.json().then(body => ({ ok: res.ok, body })))
+                  .then(({ ok, body }) => {
+                    if (!ok) {
+                      console.error("Error al cargar reporte anual:", body);
+                      mostrarError(body.error || "No se pudo cargar el reporte anual.");
+                      return;
+                    }
+
+                    const lista = Array.isArray(body.operarias) ? body.operarias : [];
+
+                    if (lista.length === 0) {
+                      reporteAnualVacio.classList.remove("oculto");
+                      return;
+                    }
+
+                    reporteAnualAnioLabel.textContent = body.anio;
+                    reporteAnualTotal.textContent = formatoMoneda(body.totalPagado);
+
+                    reporteAnualLista.innerHTML = lista.map(op => {
+                      const etiquetaInactiva = op.activa === false
+                        ? `<span style="display:inline-block; white-space:nowrap; font-size:10.5px; color:#f87171; background:rgba(248,113,113,0.12); border-radius:6px; padding:2px 7px; margin-top:4px;">Dada de baja</span>`
+                        : "";
+                      return `
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.08);">
+                          <div style="min-width:0;">
+                            <div style="font-weight:600; overflow-wrap:break-word;">${op.nombre}</div>
+                            ${etiquetaInactiva}
+                            <div style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">${op.piezas} piezas · ${op.registros} registros</div>
+                          </div>
+                          <div style="font-weight:700; color:#4ade80; white-space:nowrap;">${formatoMoneda(op.totalPagado)}</div>
+                        </div>
+                      `;
+                    }).join("");
+
+                    reporteAnualResultado.classList.remove("oculto");
+                  })
+                  .catch(err => {
+                    console.error("Error de red al cargar reporte anual:", err);
+                    mostrarError("Error de conexión al cargar el reporte anual.");
+                  })
+                  .finally(() => {
+                    btnVerReporteAnual.disabled = false;
+                    btnVerReporteAnual.textContent = "📊 Ver reporte anual";
+                  });
+              } catch (eClick) {
+                console.error("Error inesperado en reporte anual:", eClick);
+                btnVerReporteAnual.disabled = false;
+                btnVerReporteAnual.textContent = "📊 Ver reporte anual";
+              }
+            });
+          }
+        }
+      } catch (eReporteAnual) {
+        console.error("Error inicializando reporte anual:", eReporteAnual);
+      }
+      // =================== FIN MEJORA AGREGADA: Reporte Anual ===================
     });
   </script>
 
