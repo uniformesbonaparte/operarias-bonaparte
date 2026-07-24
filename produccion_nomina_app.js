@@ -932,7 +932,12 @@ app.post("/api/login/operaria", (req, res) => {
   if (op.password !== String(password)) {
     return res.status(401).json({ error: "Contraseña incorrecta.", ok: false });
   }
-  
+
+  // MEJORA AGREGADA: no permitir el ingreso a operarias dadas de baja
+  if (op.activa === false) {
+    return res.status(403).json({ error: "Esta cuenta fue dada de baja. Contacta al administrador.", ok: false });
+  }
+
   res.json({ 
     mensaje: "Login correcto", 
     ok: true,
@@ -992,6 +997,11 @@ app.post("/api/login", (req, res) => {
 
   if (operaria.password !== password) {
     return res.status(401).json({ ok: false, mensaje: "Usuario o contraseña incorrectos" });
+  }
+
+  // MEJORA AGREGADA: no permitir el ingreso a operarias dadas de baja
+  if (operaria.activa === false) {
+    return res.status(403).json({ ok: false, mensaje: "Esta cuenta fue dada de baja. Contacta al administrador." });
   }
 
   return res.json({
