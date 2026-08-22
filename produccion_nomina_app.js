@@ -1703,15 +1703,22 @@ app.put("/api/pedidos/:id", (req, res) => {
   }
 
   // ✅ Actualizar items detallados (nuevo formato)
+  // MEJORA AGREGADA: rastrear el precio anterior de cada operación para poder
+  // actualizar automáticamente los registros PENDIENTES de pago si el precio cambia
+  let registrosActualizadosPorPrecio = 0;
   if (Array.isArray(items)) {
     // Indexar operaciones existentes por prendaId+costura para preservar opIds
     const opsExistentes = {};
+    const precioAnteriorPorOpId = {}; // MEJORA AGREGADA
     (pedido.items || []).forEach(item => {
       (item.operaciones || []).forEach(op => {
         const key = `${item.prendaId}|${op.costura}|${op.maquina}`;
         opsExistentes[key] = op.opId;
+        if (op.opId) precioAnteriorPorOpId[op.opId] = Number(op.precio) || 0;
       });
     });
+
+    const cambiosDePrecio = []; // MEJORA AGREGADA: {opId, precioNuevo}
 
     pedido.items = items.map(item => {
       const prendaId = Number(item.prendaId);
@@ -1722,17 +1729,36 @@ app.put("/api/pedidos/:id", (req, res) => {
         // Preservar opId existente si la operación ya existía, generar nuevo solo si es nueva
         const key = `${prendaId}|${op.costura || op.descripcion || ''}|${op.maquina || ''}`;
         const existingOpId = op.opId || opsExistentes[key];
+        const precioNuevo = Number(op.precio) || 0;
+        // MEJORA AGREGADA: si esta operación ya existía y su precio cambió, registrar el cambio
+        if (existingOpId && precioAnteriorPorOpId[existingOpId] !== undefined && precioAnteriorPorOpId[existingOpId] !== precioNuevo) {
+          cambiosDePrecio.push({ opId: existingOpId, precioNuevo });
+        }
         return {
           opId: existingOpId || operacionIdCounter++,
           costura: op.costura || op.descripcion || "",
           maquina: op.maquina || "",
-          precio: Number(op.precio) || 0
+          precio: precioNuevo
         };
       });
       return { prendaId, cantidad: cantidadTotal, tallas, operaciones };
     });
     // Sync prendas[] desde items
     pedido.prendas = [...new Set(pedido.items.map(i => i.prendaId))];
+
+    // MEJORA AGREGADA: aplicar los cambios de precio SOLO a registros pendientes de pago.
+    // Los registros ya marcados como "pagado" nunca se tocan, para no alterar nómina ya cerrada.
+    if (cambiosDePrecio.length > 0) {
+      cambiosDePrecio.forEach(({ opId, precioNuevo }) => {
+        registros.forEach(r => {
+          if (r.operacionId === opId && r.estadoPago === "pendiente") {
+            r.pagoPorPieza = precioNuevo;
+            r.totalGanado = r.cantidad * precioNuevo;
+            registrosActualizadosPorPrecio++;
+          }
+        });
+      });
+    }
   }
 
   guardarDatos();
@@ -1740,6 +1766,7 @@ app.put("/api/pedidos/:id", (req, res) => {
   res.json({ 
     mensaje: "Pedido actualizado correctamente.",
     ok: true, 
+    registrosActualizadosPorPrecio, // MEJORA AGREGADA: informativo, cuántos registros pendientes se recalcularon
     pedido 
   });
 });
