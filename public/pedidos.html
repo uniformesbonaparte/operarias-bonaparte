@@ -73,6 +73,13 @@
     .prendas-lista { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .prenda-tag { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; background: rgba(59,130,246,0.2); color: #93c5fd; }
 
+    /* MEJORA AGREGADA: acordeón de pedidos + buscador */
+    .pedido-header.pedido-header-toggle { cursor: pointer; }
+    .pedido-toggle-arrow { font-size: 12px; color: var(--text-muted); display: inline-block; transition: transform 0.2s; margin-top: 3px; }
+    .pedido-toggle-arrow.abierto { transform: rotate(90deg); }
+    .pedido-quick-stats { font-size: 12px; color: var(--text-muted); margin: -4px 0 12px 26px; }
+    #input-buscar-pedido { margin-bottom: 14px; }
+
     /* Items (nuevo) */
     .item-card { background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px; margin-bottom: 10px; }
     .item-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
@@ -179,6 +186,7 @@
       <section class="card">
         <div class="card-title">📋 Lista de Pedidos</div>
         <p class="subtext" id="subtext-lista">Pedidos registrados</p>
+        <input type="text" id="input-buscar-pedido" placeholder="🔍 Buscar por escuela, folio o prenda..." />
         <div id="lista-pedidos"></div>
       </section>
     </main>
@@ -527,6 +535,10 @@ async function cargarPlantilla(card, prendaId) {
       }
 
       // ========== LISTA PEDIDOS ==========
+      // MEJORA AGREGADA: cache local de pedidos para poder filtrarlos con el buscador sin volver a pedir al servidor
+      let pedidosCache = [];
+      const inputBuscarPedido = document.getElementById("input-buscar-pedido");
+
       async function cargarPedidos() {
         try {
           let url = `/api/pedidos?conTotales=true&conPrendas=true&conDesglose=true`;
@@ -534,6 +546,35 @@ async function cargarPlantilla(card, prendaId) {
           const res = await fetch(url);
           if (!res.ok) throw new Error("Error");
           const pedidos = await res.json();
+          pedidosCache = pedidos;
+          aplicarFiltroBusquedaPedidos();
+        } catch(e) { mostrarError("Error cargando pedidos: " + e.message); }
+      }
+
+      // MEJORA AGREGADA: filtra pedidosCache por texto (escuela, folio o nombre de prenda) y renderiza
+      function aplicarFiltroBusquedaPedidos() {
+        const q = (inputBuscarPedido && inputBuscarPedido.value ? inputBuscarPedido.value : "").trim().toLowerCase();
+        if (!q) { renderListaPedidos(pedidosCache); return; }
+        const filtrados = pedidosCache.filter(p => {
+          const escuela = (p.escuela || "").toLowerCase();
+          const folio = (p.folio || "").toLowerCase();
+          let prendasTxt = "";
+          if (p.items && p.items.length > 0) {
+            prendasTxt = p.items.map(it => {
+              const pr = prendasCache.find(x => x.id === it.prendaId);
+              return pr ? pr.nombre : "";
+            }).join(" ").toLowerCase();
+          } else if (p.prendas) {
+            prendasTxt = (Array.isArray(p.prendas) ? p.prendas : []).join(" ").toLowerCase();
+          }
+          return escuela.includes(q) || folio.includes(q) || prendasTxt.includes(q);
+        });
+        renderListaPedidos(filtrados);
+      }
+      if (inputBuscarPedido) inputBuscarPedido.addEventListener("input", aplicarFiltroBusquedaPedidos);
+
+      function renderListaPedidos(pedidos) {
+        try {
           if (pedidos.length === 0) { listaPedidos.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;">No hay pedidos</p>'; return; }
 
           listaPedidos.innerHTML = pedidos.map(p => {
@@ -569,11 +610,18 @@ async function cargarPlantilla(card, prendaId) {
 
             const costo = p.costoEstimado || 0;
 
+            // MEJORA AGREGADA: el pedido ahora es un acordeón. El encabezado siempre se ve
+            // (con un resumen rápido); el detalle completo se retrae y solo se muestra al hacer clic.
             return `<div class="pedido-item">
-              <div class="pedido-header">
-                <div><div class="pedido-escuela">${p.escuela}</div><div class="pedido-folio">Folio: ${p.folio}</div></div>
+              <div class="pedido-header pedido-header-toggle" onclick="window._togglePedidoCard(${p.id})">
+                <div style="display:flex;gap:8px;align-items:flex-start;">
+                  <span class="pedido-toggle-arrow" id="pedido-flecha-${p.id}">▶</span>
+                  <div><div class="pedido-escuela">${p.escuela}</div><div class="pedido-folio">Folio: ${p.folio}</div></div>
+                </div>
                 <span class="badge ${p.estado==='activo'?'badge-proceso':'badge-terminado'}">${p.estado==='activo'?'🔄 En Proceso':'✅ Terminado'}</span>
               </div>
+              <div class="pedido-quick-stats">📦 ${p.totalPiezas||0} pzs${!esEnc?` · 💵 $${(p.totalPagado||0).toFixed(2)}`:''}</div>
+              <div class="pedido-card-body oculto" id="pedido-cuerpo-${p.id}">
               ${itemsHTML}
               <div class="pedido-info">📦 Piezas registradas: <strong>${p.totalPiezas||0}</strong></div>
               <div class="pedido-info">👥 Operarias: <strong>${p.numeroOperarias||0}</strong></div>
@@ -584,10 +632,21 @@ async function cargarPlantilla(card, prendaId) {
                 ${p.estado==='activo'?`<button class="btn-warning" onclick="marcarTerminado(${p.id})">✅ Terminado</button>`:`<button class="btn-success" onclick="marcarActivo(${p.id})">🔄 Reactivar</button>`}
                 ${esAdmin?`<button class="btn-danger" onclick="eliminarPedido(${p.id})">🗑️</button>`:''}
               </div>` : ''}
+              </div>
             </div>`;
           }).join("");
         } catch(e) { mostrarError("Error cargando pedidos: " + e.message); }
       }
+
+      // MEJORA AGREGADA: expandir/retraer el detalle de un pedido en la lista
+      window._togglePedidoCard = function(id) {
+        const cuerpo = document.getElementById(`pedido-cuerpo-${id}`);
+        const flecha = document.getElementById(`pedido-flecha-${id}`);
+        if (!cuerpo) return;
+        const abierto = !cuerpo.classList.contains("oculto");
+        if (abierto) { cuerpo.classList.add("oculto"); if (flecha) flecha.classList.remove("abierto"); }
+        else { cuerpo.classList.remove("oculto"); if (flecha) flecha.classList.add("abierto"); }
+      };
 
       // ========== ACCIONES ==========
       window.marcarTerminado = async function(id) {
