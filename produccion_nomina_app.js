@@ -3157,7 +3157,11 @@ app.get("/api/pedidos/:id/avance", (req, res) => {
 
   const avance = pedido.items.map(item => {
     const prenda = prendas.find(p => p.id === item.prendaId);
-    const operaciones = (item.operaciones || []).map(op => {
+    // MEJORA AGREGADA: el avance solo debe considerar operaciones que tienen un precio asignado.
+    // Las operaciones cargadas del catálogo que se dejaron en $0 (no aplican a este pedido en particular)
+    // nunca reciben registros de trabajo, por lo que quedan siempre en 0% y evitaban que el pedido llegara al 100%.
+    const operacionesConPrecio = (item.operaciones || []).filter(op => Number(op.precio) > 0);
+    const operaciones = operacionesConPrecio.map(op => {
       const regsOp = regsPedido.filter(r => r.operacionId === op.opId);
       const piezasHechas = regsOp.reduce((sum, r) => sum + r.cantidad, 0);
       const costoAvance = regsOp.reduce((sum, r) => sum + r.totalGanado, 0);
