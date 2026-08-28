@@ -228,6 +228,9 @@
         <div id="avance-contenido"></div>
       </div>
     </div>
+
+    <!-- MEJORA AGREGADA: datalist de máquinas para sugerir al agregar operaciones nuevas -->
+    <datalist id="datalist-maquinas"></datalist>
   </div>
 
   <script>
@@ -266,6 +269,16 @@
         } catch(e) { console.error("Error cargando datos base:", e); }
       }
       await cargarDatosBase();
+
+      // MEJORA AGREGADA: refresca las sugerencias del datalist de máquinas usado al agregar operaciones nuevas
+      function actualizarDatalistMaquinas() {
+        try {
+          const dl = document.getElementById("datalist-maquinas");
+          if (!dl) return;
+          dl.innerHTML = maquinasCache.map(m => `<option value="${m}"></option>`).join("");
+        } catch(e) { /* no romper si algo falla */ }
+      }
+      actualizarDatalistMaquinas();
 
       if (esAdmin || esEnc) { cardNuevo.classList.remove("oculto"); cardFiltros.classList.remove("oculto"); }
       if (usuarioActual.tipo === "operaria") filtroActual = "activo";
@@ -417,6 +430,18 @@ async function cargarPlantilla(card, prendaId) {
           </tr>`;
         });
         h += `</tbody></table><div style="margin-top:6px;color:rgba(255,255,255,0.55);font-size:12px;">Operaciones cargadas del catálogo (no se pueden editar).</div>`;
+        // MEJORA AGREGADA: permite agregar una operación (costura + máquina) nueva sin salir a Configuración
+        h += `<button type="button" class="btn-add-op btn-agregar-operacion-nueva" style="margin-top:8px;width:100%;">✂️ + Agregar operación nueva</button>
+        <div class="form-nueva-operacion oculto" style="margin-top:8px;padding:10px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+          <input type="text" class="input-nueva-costura" placeholder="Nombre de la costura/operación" style="width:100%;margin-bottom:6px;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:var(--text-main);font-size:12px;box-sizing:border-box;" />
+          <input type="text" class="input-nueva-maquina" list="datalist-maquinas" placeholder="Máquina (existente o escribe una nueva)" style="width:100%;margin-bottom:6px;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:var(--text-main);font-size:12px;box-sizing:border-box;" />
+          <input type="number" class="input-nueva-precio" placeholder="Precio" min="0" step="0.5" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:var(--text-main);font-size:12px;box-sizing:border-box;" />
+          <div style="display:flex;gap:8px;">
+            <button type="button" class="btn-confirmar-nueva-operacion" style="flex:1;background:rgba(34,197,94,0.15);color:#86efac;border:1px solid rgba(34,197,94,0.3);padding:7px;border-radius:8px;font-size:12px;">✓ Agregar</button>
+            <button type="button" class="btn-cancelar-nueva-operacion" style="flex:1;background:rgba(255,255,255,0.05);color:var(--text-muted);border:1px solid rgba(255,255,255,0.1);padding:7px;border-radius:8px;font-size:12px;">Cancelar</button>
+          </div>
+          <div class="msg-nueva-operacion" style="font-size:11px;margin-top:6px;"></div>
+        </div>`;
         // MEJORA AGREGADA: suma en vivo de la mano de obra de esta prenda mientras capturas precios
         h += `<div class="suma-mano-obra" style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:10px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.25);">
           <span style="font-size:12px;color:#fcd34d;font-weight:600;">🧵 Mano de obra por prenda</span>
@@ -431,6 +456,7 @@ async function cargarPlantilla(card, prendaId) {
           inp.addEventListener("input", () => actualizarSumaManoObra(card));
         });
         actualizarSumaManoObra(card);
+        configurarBotonAgregarOperacionNueva(card); // MEJORA AGREGADA
       }
 
       // MEJORA AGREGADA: suma los precios capturados de una prenda y muestra el total en vivo.
@@ -446,7 +472,104 @@ async function cargarPlantilla(card, prendaId) {
         } catch (e) { /* no romper la captura si algo falla */ }
       }
 
-      /* Operaciones vienen del catálogo: ya no se permite agregar/eliminar desde aquí */
+      // MEJORA AGREGADA: permite agregar una operación (costura + máquina) nueva sin salir a Configuración.
+      // La operación se guarda en la plantilla de la prenda (y la máquina en el catálogo si es nueva),
+      // y se agrega como fila editable a la tabla de operaciones de este pedido.
+      function configurarBotonAgregarOperacionNueva(card) {
+        try {
+          const btnMostrar = card.querySelector(".btn-agregar-operacion-nueva");
+          const formNueva = card.querySelector(".form-nueva-operacion");
+          if (!btnMostrar || !formNueva) return;
+          const inputCostura = formNueva.querySelector(".input-nueva-costura");
+          const inputMaquina = formNueva.querySelector(".input-nueva-maquina");
+          const inputPrecio = formNueva.querySelector(".input-nueva-precio");
+          const btnConfirmar = formNueva.querySelector(".btn-confirmar-nueva-operacion");
+          const btnCancelar = formNueva.querySelector(".btn-cancelar-nueva-operacion");
+          const msg = formNueva.querySelector(".msg-nueva-operacion");
+
+          btnMostrar.addEventListener("click", () => {
+            formNueva.classList.remove("oculto");
+            btnMostrar.style.display = "none";
+            inputCostura.focus();
+          });
+          btnCancelar.addEventListener("click", () => {
+            formNueva.classList.add("oculto");
+            btnMostrar.style.display = "";
+            inputCostura.value = ""; inputMaquina.value = ""; inputPrecio.value = "";
+            msg.textContent = "";
+          });
+
+          btnConfirmar.addEventListener("click", async () => {
+            const costura = inputCostura.value.trim();
+            const maquina = inputMaquina.value.trim();
+            const precio = Number(inputPrecio.value) || 0;
+            const prendaId = Number(card.querySelector(".sel-prenda").value);
+
+            if (!costura || !maquina) {
+              msg.style.color = "#fca5a5";
+              msg.textContent = "Escribe el nombre de la costura y la máquina.";
+              return;
+            }
+            if (!prendaId) {
+              msg.style.color = "#fca5a5";
+              msg.textContent = "Selecciona primero la prenda.";
+              return;
+            }
+
+            btnConfirmar.disabled = true;
+            btnConfirmar.textContent = "Guardando...";
+            try {
+              // Si la máquina no existe en el catálogo, se agrega primero
+              if (!maquinasCache.includes(maquina)) {
+                await fetch("/api/maquinas", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ nombre: maquina })
+                });
+                maquinasCache.push(maquina);
+                actualizarDatalistMaquinas();
+              }
+
+              // Se agrega la operación a la plantilla de la prenda (queda disponible para futuros pedidos)
+              const r = await fetch(`/api/plantillas-costuras/${prendaId}/agregar`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ costura, maquina })
+              });
+              if (!r.ok) throw new Error();
+
+              // Se agrega como fila editable a la tabla de operaciones de este pedido
+              const tbody = card.querySelector(".ops-container .ops-table tbody");
+              const tr = document.createElement("tr");
+              tr.innerHTML = `
+                <td><input type="text" class="op-costura-input" value="${costura}" readonly style="opacity:0.9;" /></td>
+                <td><input type="text" class="op-maquina-select" value="${maquina}" readonly style="opacity:0.9;" /></td>
+                <td><input type="number" class="op-precio" value="${precio}" min="0" step="0.5" /></td>
+                <td style="color:#86efac;font-size:12px;">nueva</td>`;
+              tbody.appendChild(tr);
+              tr.querySelector(".op-precio").addEventListener("input", () => actualizarSumaManoObra(card));
+              actualizarSumaManoObra(card);
+
+              const lblOps = card.querySelector(".lbl-total-ops");
+              if (lblOps) lblOps.textContent = tbody.querySelectorAll("tr").length + " ops";
+
+              formNueva.classList.add("oculto");
+              btnMostrar.style.display = "";
+              inputCostura.value = ""; inputMaquina.value = ""; inputPrecio.value = "";
+              msg.textContent = "";
+            } catch (e) {
+              msg.style.color = "#fca5a5";
+              msg.textContent = "❌ No se pudo agregar la operación. Intenta de nuevo.";
+            } finally {
+              btnConfirmar.disabled = false;
+              btnConfirmar.textContent = "✓ Agregar";
+            }
+          });
+        } catch (e) { /* no romper la captura de operaciones si algo falla aquí */ }
+      }
+
+      /* Las operaciones que ya vienen del catálogo no se pueden editar directamente aquí, pero se puede
+         agregar una operación nueva con el botón "+ Agregar operación nueva" (MEJORA AGREGADA). */
 
       function extraerItems(containerId) {
         const items = [];
@@ -721,8 +844,9 @@ async function cargarPlantilla(card, prendaId) {
           const r = await fetch(`/api/pedidos/${id}/avance`);
           if (!r.ok) throw new Error();
           const data = await r.json();
+          // MEJORA AGREGADA: la encargada no debe ver montos/estimados de dinero en el avance
           let h = `<div style="margin-bottom:12px;"><strong>${data.escuela}</strong> · Folio: ${data.folio}<br>
-            <span style="font-size:12px;color:var(--text-muted);">Estimado: $${(data.costoEstimadoTotal||0).toFixed(2)} · Avance: $${(data.costoAvanceTotal||0).toFixed(2)}</span></div>`;
+            ${!esEnc ? `<span style="font-size:12px;color:var(--text-muted);">Estimado: $${(data.costoEstimadoTotal||0).toFixed(2)} · Avance: $${(data.costoAvanceTotal||0).toFixed(2)}</span>` : ''}</div>`;
           (data.avance||[]).forEach(item => {
             h += `<div class="item-card">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
