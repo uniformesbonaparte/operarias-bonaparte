@@ -45,6 +45,301 @@ app.use("/api", (req, res, next) => {
   next();
 });
 
+// ============================================================
+// MEJORA AGREGADA — MÓDULO DE SEGURIDAD
+// Puntos 1-5 del diagnóstico. Todo es ADITIVO: no se modifica
+// ninguna lógica de negocio existente. Usa solo módulos nativos
+// de Node (crypto), sin dependencias nuevas que instalar.
+// ============================================================
+const crypto = require("crypto");
+
+// ---------- 1) Secreto para firmar las sesiones ----------
+// Se prioriza la variable de entorno SESSION_SECRET (recomendado en Render).
+// Si no existe, se guarda un secreto generado en disco para que las sesiones
+// sobrevivan a un reinicio. Si tampoco se puede escribir, se usa uno en memoria.
+const SESSION_SECRET = (() => {
+  if (process.env.SESSION_SECRET) return String(process.env.SESSION_SECRET);
+  try {
+    const f = path.join(__dirname, ".session_secret");
+    if (fs.existsSync(f)) {
+      const v = fs.readFileSync(f, "utf8").trim();
+      if (v) return v;
+    }
+    const nuevo = crypto.randomBytes(48).toString("hex");
+    fs.writeFileSync(f, nuevo, "utf8");
+    return nuevo;
+  } catch (e) {
+    console.warn("⚠️  No se pudo persistir el secreto de sesión, se usa uno temporal.");
+    return crypto.randomBytes(48).toString("hex");
+  }
+})();
+
+const SESION_DURACION_MS = 12 * 60 * 60 * 1000; // 12 horas
+const COOKIE_SESION = "taller_sesion";
+
+// ---------- 2) Cifrado de contraseñas (scrypt, nativo de Node) ----------
+function hashPassword(plano) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(String(plano), salt, 64).toString("hex");
+  return `scrypt$${salt}$${hash}`;
+}
+
+function esHash(valor) {
+  return typeof valor === "string" && valor.startsWith("scrypt$");
+}
+
+/**
+ * Verifica una contraseña. Acepta tanto hashes nuevos como contraseñas
+ * antiguas en texto plano (para que nadie se quede fuera durante la
+ * migración). Devuelve { ok, necesitaMigrar }.
+ */
+function verifyPassword(plano, almacenado) {
+  if (almacenado === undefined || almacenado === null) return { ok: false, necesitaMigrar: false };
+  if (!esHash(almacenado)) {
+    return { ok: String(almacenado) === String(plano), necesitaMigrar: true };
+  }
+  try {
+    const [, salt, hash] = almacenado.split("$");
+    const calc = crypto.scryptSync(String(plano), salt, 64);
+    const guardado = Buffer.from(hash, "hex");
+    if (calc.length !== guardado.length) return { ok: false, necesitaMigrar: false };
+    return { ok: crypto.timingSafeEqual(calc, guardado), necesitaMigrar: false };
+  } catch (e) {
+    return { ok: false, necesitaMigrar: false };
+  }
+}
+
+/**
+ * Convierte a hash todas las contraseñas que sigan en texto plano.
+ * Se ejecuta una sola vez al arrancar, después de cargar los datos.
+ */
+function migrarPasswordsAHash() {
+  try {
+    let cambios = 0;
+    if (Array.isArray(usuarios)) {
+      usuarios.forEach(u => {
+        if (u && u.password && !esHash(u.password)) { u.password = hashPassword(u.password); cambios++; }
+      });
+    }
+    if (Array.isArray(operarias)) {
+      operarias.forEach(o => {
+        if (o && o.password && !esHash(o.password)) { o.password = hashPassword(o.password); cambios++; }
+      });
+    }
+    if (cambios > 0) {
+      guardarDatos();
+      console.log(`🔐 Contraseñas cifradas por primera vez: ${cambios}`);
+    } else {
+      console.log("🔐 Todas las contraseñas ya estaban cifradas.");
+    }
+  } catch (e) {
+    console.error("⚠️  No se pudieron migrar las contraseñas:", e.message || e);
+  }
+}
+
+// ---------- 3) Tokens de sesión firmados ----------
+function b64url(str) {
+  return Buffer.from(str, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function deB64url(str) {
+  return Buffer.from(String(str).replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+}
+function firmar(payloadB64) {
+  return crypto.createHmac("sha256", SESSION_SECRET).update(payloadB64).digest("hex");
+}
+
+function crearToken({ tipo, id, nombre }) {
+  const payload = { tipo, id, nombre, exp: Date.now() + SESION_DURACION_MS };
+  const p = b64url(JSON.stringify(payload));
+  return `${p}.${firmar(p)}`;
+}
+
+function leerToken(token) {
+  try {
+    if (!token || typeof token !== "string" || token.indexOf(".") < 0) return null;
+    const [p, firma] = token.split(".");
+    const esperada = firmar(p);
+    const a = Buffer.from(String(firma), "utf8");
+    const b = Buffer.from(esperada, "utf8");
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+    const payload = JSON.parse(deB64url(p));
+    if (!payload || !payload.exp || Date.now() > payload.exp) return null;
+    return payload;
+  } catch (e) {
+    return null;
+  }
+}
+
+function leerCookies(req) {
+  const out = {};
+  const raw = req.headers && req.headers.cookie;
+  if (!raw) return out;
+  String(raw).split(";").forEach(par => {
+    const i = par.indexOf("=");
+    if (i > 0) out[par.slice(0, i).trim()] = decodeURIComponent(par.slice(i + 1).trim());
+  });
+  return out;
+}
+
+function enviarCookieSesion(res, token) {
+  const partes = [
+    `${COOKIE_SESION}=${encodeURIComponent(token)}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${Math.floor(SESION_DURACION_MS / 1000)}`
+  ];
+  if (process.env.NODE_ENV === "production" || process.env.FORZAR_COOKIE_SEGURA === "1") partes.push("Secure");
+  res.append("Set-Cookie", partes.join("; "));
+}
+
+function limpiarCookieSesion(res) {
+  res.append("Set-Cookie", `${COOKIE_SESION}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+}
+
+/** Devuelve la sesión del request (cookie o header), o null. */
+function sesionDe(req) {
+  const cookies = leerCookies(req);
+  return leerToken(cookies[COOKIE_SESION] || req.headers["x-auth-token"] || "");
+}
+
+// ---------- 4) Límite de intentos de login (anti fuerza bruta) ----------
+const intentosLogin = new Map(); // ip -> { n, hasta }
+const LOGIN_MAX_INTENTOS = 10;
+const LOGIN_VENTANA_MS = 15 * 60 * 1000;
+
+function ipDe(req) {
+  return (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.ip || "desconocida";
+}
+function loginBloqueado(req) {
+  const r = intentosLogin.get(ipDe(req));
+  if (!r) return false;
+  if (Date.now() > r.hasta) { intentosLogin.delete(ipDe(req)); return false; }
+  return r.n >= LOGIN_MAX_INTENTOS;
+}
+function registrarFallo(req) {
+  const ip = ipDe(req);
+  const r = intentosLogin.get(ip);
+  if (!r || Date.now() > r.hasta) intentosLogin.set(ip, { n: 1, hasta: Date.now() + LOGIN_VENTANA_MS });
+  else r.n++;
+}
+function limpiarIntentos(req) { intentosLogin.delete(ipDe(req)); }
+
+// ---------- 5) Cabeceras de seguridad ----------
+app.use((req, res, next) => {
+  res.set("X-Content-Type-Options", "nosniff");
+  res.set("X-Frame-Options", "SAMEORIGIN");
+  res.set("Referrer-Policy", "same-origin");
+  res.set("X-XSS-Protection", "0");
+  res.set("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+  next();
+});
+
+// ---------- 6) Reglas de permisos por endpoint ----------
+// Coinciden exactamente con lo que hoy permite cada pantalla,
+// para que nadie pierda un permiso que ya tenía.
+const TODOS = ["admin", "encargada", "operaria"];
+const GESTION = ["admin", "encargada"];
+const SOLO_ADMIN = ["admin"];
+
+const REGLAS = [
+  // Usuarios y configuración: solo admin
+  { m: /^(PUT|POST|DELETE)$/, p: /^\/api\/usuarios/, roles: SOLO_ADMIN },
+  { m: /^(POST)$/, p: /^\/api\/configuracion\/backup/, roles: SOLO_ADMIN },
+
+  // Pagos de nómina: solo admin (hoy solo el admin marca semanas pagadas)
+  { m: /^(POST|PUT|DELETE)$/, p: /^\/api\/pagos/, roles: SOLO_ADMIN },
+
+  // Eliminar pedidos: solo admin (igual que el botón 🗑️ de la pantalla)
+  { m: /^DELETE$/, p: /^\/api\/pedidos/, roles: SOLO_ADMIN },
+
+  // Crear/editar pedidos y catálogos: admin y encargada
+  { m: /^(POST|PUT)$/, p: /^\/api\/pedidos/, roles: GESTION },
+  { m: /^(POST|PUT|DELETE)$/, p: /^\/api\/operarias/, roles: GESTION },
+  { m: /^(POST|PUT|DELETE)$/, p: /^\/api\/(maquinas|prendas|costuras|plantillas-costuras)/, roles: GESTION },
+
+  // Registros de producción: los tres roles (la operaria registra lo suyo)
+  { m: /^(POST|PUT|DELETE)$/, p: /^\/api\/registros/, roles: TODOS },
+
+  // Herramientas internas de diagnóstico y migración: solo admin
+  { m: /^GET$/, p: /^\/api\/debug-semana/, roles: SOLO_ADMIN },
+  { m: /^POST$/, p: /^\/api\/migrar/, roles: SOLO_ADMIN }
+];
+
+// MEJORA AGREGADA (punto 4): la página de diagnóstico queda fuera de servicio.
+// Se bloquea aquí, antes de los archivos estáticos, por si el archivo sigue
+// existiendo en la carpeta public.
+app.all(/^\/test_diagnostico(\.html)?$/, (req, res) => {
+  res.status(404).send("No encontrado");
+});
+
+/**
+ * Devuelve siempre la ruta completa ("/api/...").
+ * Dentro de un middleware montado en "/api", req.path viene recortado,
+ * por eso se reconstruye con baseUrl y se limpia la query string.
+ */
+function rutaCompleta(req) {
+  const base = req.baseUrl || "";
+  const resto = req.path || "";
+  let full = (base + resto) || req.originalUrl || "";
+  const q = full.indexOf("?");
+  if (q >= 0) full = full.slice(0, q);
+  if (full.length > 1 && full.endsWith("/")) full = full.slice(0, -1);
+  return full;
+}
+
+// Endpoints accesibles sin haber iniciado sesión
+function esRutaPublica(req) {
+  const p = rutaCompleta(req);
+  if (p === "/api/login" || p.startsWith("/api/login/")) return true;
+  if (p === "/api/logout" || p === "/api/session") return true;
+  // La pantalla de login necesita la lista de operarias para el selector.
+  // Se permite, pero más abajo se entrega SIN contraseñas ni datos sensibles.
+  if (req.method === "GET" && p === "/api/operarias") return true;
+  return false;
+}
+
+function reglaAplicable(req) {
+  const p = rutaCompleta(req);
+  return REGLAS.find(r => r.m.test(req.method) && r.p.test(p));
+}
+
+// Middleware principal de autenticación y permisos
+app.use("/api", (req, res, next) => {
+  try {
+    const sesion = sesionDe(req);
+    req.sesion = sesion; // queda disponible para los endpoints
+
+    if (esRutaPublica(req)) return next();
+
+    if (!sesion) {
+      return res.status(401).json({ ok: false, error: "Sesión no válida o expirada. Vuelve a iniciar sesión.", sesionExpirada: true });
+    }
+
+    const regla = reglaAplicable(req);
+    if (regla && !regla.roles.includes(sesion.tipo)) {
+      return res.status(403).json({ ok: false, error: "No tienes permiso para realizar esta acción." });
+    }
+    return next();
+  } catch (e) {
+    console.error("Error en el control de acceso:", e.message || e);
+    return res.status(500).json({ ok: false, error: "Error de autenticación" });
+  }
+});
+
+// Consultar la sesión actual / cerrar sesión
+app.get("/api/session", (req, res) => {
+  const s = sesionDe(req);
+  if (!s) return res.status(401).json({ ok: false, autenticado: false });
+  res.json({ ok: true, autenticado: true, tipo: s.tipo, id: s.id, nombre: s.nombre });
+});
+
+app.post("/api/logout", (req, res) => {
+  limpiarCookieSesion(res);
+  res.json({ ok: true, mensaje: "Sesión cerrada" });
+});
+// ============ FIN MÓDULO DE SEGURIDAD (MEJORA AGREGADA) ============
+
 // Servir archivos estáticos si existe la carpeta public
 const publicPath = path.join(__dirname, "public");
 app.use(express.static(publicPath));
@@ -866,6 +1161,8 @@ process.on('SIGTERM', () => {
   }
   // Asegurar que las plantillas existan siempre
   inicializarPlantillasCosturas();
+  // MEJORA AGREGADA: cifrar de una sola vez las contraseñas que sigan en texto plano
+  try { migrarPasswordsAHash(); } catch (e) { console.error("⚠️  Migración de contraseñas omitida:", e.message || e); }
 })();
 // =========================
 // CREDENCIALES (compatibilidad)
@@ -888,16 +1185,27 @@ function getEncargadaPassword() {
  * Login de Admin (endpoint original)
  */
 app.post("/api/login/admin", (req, res) => {
+  // MEJORA AGREGADA: límite de intentos
+  if (loginBloqueado(req)) {
+    return res.status(429).json({ error: "Demasiados intentos fallidos. Espera 15 minutos.", ok: false });
+  }
   const { password } = req.body;
   const admin = usuarios.find(u => u.tipo === "admin");
-  if (password === getAdminPassword()) {
+  // MEJORA AGREGADA: verificación contra contraseña cifrada (acepta la antigua y la migra)
+  const v = verifyPassword(password, getAdminPassword());
+  if (v.ok) {
+    if (v.necesitaMigrar && admin) { try { admin.password = hashPassword(password); guardarDatos(); } catch (e) {} }
+    limpiarIntentos(req);
+    const nombreAdmin = admin ? admin.nombre : "admin";
+    enviarCookieSesion(res, crearToken({ tipo: "admin", id: "admin", nombre: nombreAdmin }));
     return res.json({ 
       mensaje: "Login admin correcto", 
       ok: true, 
       rol: "admin",
-      nombre: admin ? admin.nombre : "admin"
+      nombre: nombreAdmin
     });
   }
+  registrarFallo(req);
   return res.status(401).json({ error: "Contraseña de admin incorrecta.", ok: false });
 });
 
@@ -905,16 +1213,27 @@ app.post("/api/login/admin", (req, res) => {
  * Login de Encargada (endpoint original)
  */
 app.post("/api/login/encargada", (req, res) => {
+  // MEJORA AGREGADA: límite de intentos
+  if (loginBloqueado(req)) {
+    return res.status(429).json({ error: "Demasiados intentos fallidos. Espera 15 minutos.", ok: false });
+  }
   const { password } = req.body;
   const encargada = usuarios.find(u => u.tipo === "encargada");
-  if (password === getEncargadaPassword()) {
+  // MEJORA AGREGADA: verificación contra contraseña cifrada
+  const v = verifyPassword(password, getEncargadaPassword());
+  if (v.ok) {
+    if (v.necesitaMigrar && encargada) { try { encargada.password = hashPassword(password); guardarDatos(); } catch (e) {} }
+    limpiarIntentos(req);
+    const nombreEnc = encargada ? encargada.nombre : "encargada";
+    enviarCookieSesion(res, crearToken({ tipo: "encargada", id: "encargada", nombre: nombreEnc }));
     return res.json({ 
       mensaje: "Login encargada correcto", 
       ok: true, 
       rol: "encargada",
-      nombre: encargada ? encargada.nombre : "encargada"
+      nombre: nombreEnc
     });
   }
+  registrarFallo(req);
   return res.status(401).json({ error: "Contraseña de encargada incorrecta.", ok: false });
 });
 
@@ -929,15 +1248,25 @@ app.post("/api/login/operaria", (req, res) => {
   if (!op) {
     return res.status(404).json({ error: "Operaria no encontrada.", ok: false });
   }
-  if (op.password !== String(password)) {
+  // MEJORA AGREGADA: límite de intentos
+  if (loginBloqueado(req)) {
+    return res.status(429).json({ error: "Demasiados intentos fallidos. Espera 15 minutos.", ok: false });
+  }
+  // MEJORA AGREGADA: verificación contra contraseña cifrada
+  const vOp = verifyPassword(password, op.password);
+  if (!vOp.ok) {
+    registrarFallo(req);
     return res.status(401).json({ error: "Contraseña incorrecta.", ok: false });
   }
+  if (vOp.necesitaMigrar) { try { op.password = hashPassword(password); guardarDatos(); } catch (e) {} }
 
   // MEJORA AGREGADA: no permitir el ingreso a operarias dadas de baja
   if (op.activa === false) {
     return res.status(403).json({ error: "Esta cuenta fue dada de baja. Contacta al administrador.", ok: false });
   }
 
+  limpiarIntentos(req);
+  enviarCookieSesion(res, crearToken({ tipo: "operaria", id: op.id, nombre: op.nombre }));
   res.json({ 
     mensaje: "Login correcto", 
     ok: true,
@@ -956,9 +1285,20 @@ app.post("/api/login", (req, res) => {
     return res.status(400).json({ ok: false, mensaje: "Faltan usuario o contraseña" });
   }
 
+  // MEJORA AGREGADA: límite de intentos fallidos por IP
+  if (loginBloqueado(req)) {
+    return res.status(429).json({ ok: false, mensaje: "Demasiados intentos fallidos. Espera 15 minutos." });
+  }
+
   // Admin
   if (usuario === "admin") {
-    if (password === getAdminPassword()) {
+    // MEJORA AGREGADA: verificación contra contraseña cifrada
+    const vA = verifyPassword(password, getAdminPassword());
+    if (vA.ok) {
+      const adminU = usuarios.find(u => u.tipo === "admin");
+      if (vA.necesitaMigrar && adminU) { try { adminU.password = hashPassword(password); guardarDatos(); } catch (e) {} }
+      limpiarIntentos(req);
+      enviarCookieSesion(res, crearToken({ tipo: "admin", id: "admin", nombre: "Administrador" }));
       return res.json({
         ok: true,
         rol: "admin",
@@ -967,12 +1307,19 @@ app.post("/api/login", (req, res) => {
         id: "admin"
       });
     }
+    registrarFallo(req);
     return res.status(401).json({ ok: false, mensaje: "Contraseña incorrecta" });
   }
 
   // Encargada
   if (usuario === "encargada") {
-    if (password === getEncargadaPassword()) {
+    // MEJORA AGREGADA: verificación contra contraseña cifrada
+    const vE = verifyPassword(password, getEncargadaPassword());
+    if (vE.ok) {
+      const encU = usuarios.find(u => u.tipo === "encargada");
+      if (vE.necesitaMigrar && encU) { try { encU.password = hashPassword(password); guardarDatos(); } catch (e) {} }
+      limpiarIntentos(req);
+      enviarCookieSesion(res, crearToken({ tipo: "encargada", id: "encargada", nombre: "Encargada" }));
       return res.json({
         ok: true,
         rol: "encargada",
@@ -981,6 +1328,7 @@ app.post("/api/login", (req, res) => {
         id: "encargada"
       });
     }
+    registrarFallo(req);
     return res.status(401).json({ ok: false, mensaje: "Contraseña incorrecta" });
   }
 
@@ -992,17 +1340,26 @@ app.post("/api/login", (req, res) => {
   );
 
   if (!operaria) {
+    registrarFallo(req);
     return res.status(401).json({ ok: false, mensaje: "Usuario o contraseña incorrectos" });
   }
 
-  if (operaria.password !== password) {
+  // MEJORA AGREGADA: verificación contra contraseña cifrada
+  const vOperaria = verifyPassword(password, operaria.password);
+  if (!vOperaria.ok) {
+    registrarFallo(req);
     return res.status(401).json({ ok: false, mensaje: "Usuario o contraseña incorrectos" });
   }
+  if (vOperaria.necesitaMigrar) { try { operaria.password = hashPassword(password); guardarDatos(); } catch (e) {} }
 
   // MEJORA AGREGADA: no permitir el ingreso a operarias dadas de baja
   if (operaria.activa === false) {
     return res.status(403).json({ ok: false, mensaje: "Esta cuenta fue dada de baja. Contacta al administrador." });
   }
+
+  // MEJORA AGREGADA: se entrega la sesión firmada como cookie segura
+  limpiarIntentos(req);
+  enviarCookieSesion(res, crearToken({ tipo: "operaria", id: operaria.id, nombre: operaria.nombre }));
 
   return res.json({
     ok: true,
@@ -1055,7 +1412,14 @@ app.post("/api/migrar", async (req, res) => {
  * Lista todas las operarias
  */
 app.get("/api/operarias", (req, res) => {
-  res.json(operarias);
+  // MEJORA AGREGADA: nunca se entrega la contraseña (ni cifrada) al navegador.
+  // Si aún no hay sesión (pantalla de login), solo se manda lo mínimo para el selector.
+  const autenticado = !!req.sesion;
+  const seguras = operarias.map(o => {
+    const { password, ...resto } = o;
+    return autenticado ? resto : { id: o.id, nombre: o.nombre, usuario: o.usuario, activa: o.activa };
+  });
+  res.json(seguras);
 });
 
 /**
@@ -1077,7 +1441,8 @@ app.post("/api/operarias", (req, res) => {
   const nueva = {
     id: operariaIdCounter++,
     nombre: nombre.trim(),
-    password: String(password).trim(),
+    // MEJORA AGREGADA: la contraseña se guarda cifrada, nunca en texto plano
+    password: hashPassword(String(password).trim()),
     usuario: nuevoUsuario,
     rol: rol || "operaria",
     pagoPorPrenda: Number(pagoPorPrenda) || 0,
@@ -1087,10 +1452,12 @@ app.post("/api/operarias", (req, res) => {
   operarias.push(nueva);
   guardarDatos();
   
+  // MEJORA AGREGADA: la respuesta no incluye la contraseña
+  const { password: _pwNueva, ...nuevaSegura } = nueva;
   res.status(201).json({ 
     mensaje: "Operaria creada correctamente", 
     ok: true,
-    operaria: nueva 
+    operaria: nuevaSegura 
   });
 });
 
@@ -1112,7 +1479,8 @@ app.put("/api/operarias/:id", (req, res) => {
     op.nombre = nombre.trim();
   }
   if (password && password.trim()) {
-    op.password = String(password).trim();
+    // MEJORA AGREGADA: la contraseña se guarda cifrada
+    op.password = hashPassword(String(password).trim());
   }
   if (usuario && usuario.trim()) {
     op.usuario = usuario.trim().toLowerCase();
@@ -1129,11 +1497,47 @@ app.put("/api/operarias/:id", (req, res) => {
 
   guardarDatos();
   
+  // MEJORA AGREGADA: la respuesta no incluye la contraseña
+  const { password: _pwOp, ...opSegura } = op;
   res.json({ 
     mensaje: "Operaria actualizada correctamente.", 
     ok: true,
-    operaria: op 
+    operaria: opSegura 
   });
+});
+
+/**
+ * MEJORA AGREGADA
+ * POST /api/operarias/:id/restablecer-password
+ * Genera una contraseña nueva para una operaria que olvidó la suya.
+ * Se muestra UNA sola vez en la respuesta para poder dictársela.
+ * Permitido para admin y encargada (igual que el resto de la pantalla de Operarias).
+ */
+app.post("/api/operarias/:id/restablecer-password", (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const op = operarias.find(o => o.id === id);
+    if (!op) return res.status(404).json({ ok: false, error: "Operaria no encontrada." });
+
+    // Si mandan una contraseña concreta se usa esa; si no, se genera un PIN de 4 dígitos
+    const manual = (req.body && req.body.password ? String(req.body.password).trim() : "");
+    const nueva = manual || String(Math.floor(1000 + Math.random() * 9000));
+
+    op.password = hashPassword(nueva);
+    guardarDatos();
+
+    return res.json({
+      ok: true,
+      mensaje: "Contraseña restablecida correctamente.",
+      operariaId: op.id,
+      nombre: op.nombre,
+      usuario: op.usuario || "",
+      passwordNueva: nueva
+    });
+  } catch (e) {
+    console.error("Error al restablecer contraseña:", e.message || e);
+    return res.status(500).json({ ok: false, error: "No se pudo restablecer la contraseña." });
+  }
 });
 
 /**
@@ -2854,12 +3258,24 @@ app.put("/api/usuarios/admin", (req, res) => {
     return res.status(404).json({ error: "Usuario admin no encontrado" });
   }
 
+  // MEJORA AGREGADA: para cambiar la contraseña hay que confirmar la actual
+  if (password) {
+    const actual = req.body.passwordActual || req.body.password_actual || "";
+    if (!actual) {
+      return res.status(400).json({ error: "Debes escribir la contraseña actual para poder cambiarla.", requiereActual: true });
+    }
+    if (!verifyPassword(actual, getAdminPassword()).ok) {
+      return res.status(401).json({ error: "La contraseña actual no es correcta." });
+    }
+  }
+
   // Actualizar campos
   if (nombre) {
     admin.nombre = nombre;
   }
   if (password) {
-    admin.password = password;
+    // MEJORA AGREGADA: se guarda cifrada
+    admin.password = hashPassword(password);
   }
 
   guardarDatos();
@@ -2893,12 +3309,24 @@ app.put("/api/usuarios/encargada", (req, res) => {
     return res.status(404).json({ error: "Usuario encargada no encontrado" });
   }
 
+  // MEJORA AGREGADA: el admin confirma SU propia contraseña para cambiar la de la encargada
+  if (password) {
+    const actual = req.body.passwordActual || req.body.password_actual || "";
+    if (!actual) {
+      return res.status(400).json({ error: "Debes escribir tu contraseña de administrador para confirmar el cambio.", requiereActual: true });
+    }
+    if (!verifyPassword(actual, getAdminPassword()).ok) {
+      return res.status(401).json({ error: "Tu contraseña de administrador no es correcta." });
+    }
+  }
+
   // Actualizar campos
   if (nombre) {
     encargada.nombre = nombre;
   }
   if (password) {
-    encargada.password = password;
+    // MEJORA AGREGADA: se guarda cifrada
+    encargada.password = hashPassword(password);
   }
 
   guardarDatos();
