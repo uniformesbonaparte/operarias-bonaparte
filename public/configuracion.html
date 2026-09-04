@@ -316,6 +316,33 @@
   </style>
 </head>
 <body>
+<!-- MEJORA AGREGADA: si la sesion expira, la app regresa sola al login -->
+<script>
+(function () {
+  try {
+    if (window.__sesionWrapListo) return;
+    window.__sesionWrapListo = true;
+    var fetchOriginal = window.fetch.bind(window);
+    window.fetch = function () {
+      return fetchOriginal.apply(null, arguments).then(function (res) {
+        try {
+          var u = String((res && res.url) || "");
+          if (res && res.status === 401 && u.indexOf("/api/") >= 0 && u.indexOf("/api/login") < 0) {
+            if (!window.__redirigiendoLogin) {
+              window.__redirigiendoLogin = true;
+              try { localStorage.removeItem("usuarioActual"); } catch (e1) {}
+              alert("Tu sesion expiro. Vuelve a iniciar sesion.");
+              window.location.href = "/login.html";
+            }
+          }
+        } catch (e2) { console.error("Aviso de sesion:", e2); }
+        return res;
+      });
+    };
+  } catch (e3) { console.error("No se pudo activar el aviso de sesion:", e3); }
+})();
+</script>
+
   <div class="shell">
     <header>
       <button class="btn-back" id="btn-volver">←</button>
@@ -878,6 +905,13 @@
 
         if (!confirm("¿Estás seguro de cambiar las credenciales de Admin?")) return;
 
+        // MEJORA AGREGADA: para cambiar la contraseña hay que confirmar la actual
+        let passwordActualAdmin = "";
+        if (password) {
+          passwordActualAdmin = (prompt("Por seguridad, escribe tu contraseña ACTUAL de administrador:") || "").trim();
+          if (!passwordActualAdmin) { alert("❌ Cambio cancelado: se necesita la contraseña actual."); return; }
+        }
+
         const btn = document.getElementById("btn-cambiar-admin");
         btn.disabled = true;
         btn.textContent = "⏳ Actualizando...";
@@ -886,6 +920,8 @@
           const body = {};
           if (usuario) body.nombre = usuario;
           if (password) body.password = password;
+          // MEJORA AGREGADA: se envía la contraseña actual para que el servidor la valide
+          if (password) body.passwordActual = passwordActualAdmin;
 
           const res = await fetch("/api/usuarios/admin", {
             method: "PUT",
@@ -929,6 +965,13 @@
 
         if (!confirm("¿Estás seguro de cambiar las credenciales de Encargada?")) return;
 
+        // MEJORA AGREGADA: el admin confirma SU contraseña para cambiar la de la encargada
+        let passwordActualEnc = "";
+        if (password) {
+          passwordActualEnc = (prompt("Por seguridad, escribe TU contraseña de administrador para confirmar:") || "").trim();
+          if (!passwordActualEnc) { alert("❌ Cambio cancelado: se necesita tu contraseña de administrador."); return; }
+        }
+
         const btn = document.getElementById("btn-cambiar-encargada");
         btn.disabled = true;
         btn.textContent = "⏳ Actualizando...";
@@ -937,6 +980,8 @@
           const body = {};
           if (usuario) body.nombre = usuario;
           if (password) body.password = password;
+          // MEJORA AGREGADA: se envía la contraseña de admin para que el servidor la valide
+          if (password) body.passwordActual = passwordActualEnc;
 
           const res = await fetch("/api/usuarios/encargada", {
             method: "PUT",

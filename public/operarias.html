@@ -648,6 +648,33 @@
   </style>
 </head>
 <body>
+<!-- MEJORA AGREGADA: si la sesion expira, la app regresa sola al login -->
+<script>
+(function () {
+  try {
+    if (window.__sesionWrapListo) return;
+    window.__sesionWrapListo = true;
+    var fetchOriginal = window.fetch.bind(window);
+    window.fetch = function () {
+      return fetchOriginal.apply(null, arguments).then(function (res) {
+        try {
+          var u = String((res && res.url) || "");
+          if (res && res.status === 401 && u.indexOf("/api/") >= 0 && u.indexOf("/api/login") < 0) {
+            if (!window.__redirigiendoLogin) {
+              window.__redirigiendoLogin = true;
+              try { localStorage.removeItem("usuarioActual"); } catch (e1) {}
+              alert("Tu sesion expiro. Vuelve a iniciar sesion.");
+              window.location.href = "/login.html";
+            }
+          }
+        } catch (e2) { console.error("Aviso de sesion:", e2); }
+        return res;
+      });
+    };
+  } catch (e3) { console.error("No se pudo activar el aviso de sesion:", e3); }
+})();
+</script>
+
   <div class="app-shell">
 
     <!-- ENCABEZADO -->
@@ -738,6 +765,18 @@
         <button class="btn-secondary" id="btn-reactivar" style="display:none;">
           ✅ Reactivar operaria
         </button>
+
+        <!-- MEJORA AGREGADA: restablecer la contraseña de una operaria que la olvidó -->
+        <button class="btn-secondary" id="btn-restablecer-pass" style="display:none;">
+          🔑 Restablecer contraseña
+        </button>
+
+        <!-- MEJORA AGREGADA: aquí se muestra la contraseña nueva, una sola vez -->
+        <div id="aviso-pass-nueva" style="display:none;margin-top:10px;padding:12px;border-radius:12px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.45);">
+          <div style="font-size:12px;color:#cbd5e1;margin-bottom:6px;">Apúntala o díctasela ahora. No se volverá a mostrar.</div>
+          <div style="font-size:13px;color:#e2e8f0;">Usuario: <strong id="pass-nueva-usuario" style="color:#fff;"></strong></div>
+          <div style="font-size:13px;color:#e2e8f0;">Contraseña nueva: <strong id="pass-nueva-valor" style="color:#4ade80;font-size:20px;letter-spacing:2px;"></strong></div>
+        </div>
 
         <button class="btn-danger" id="btn-eliminar" style="display:none;">
           🗑️ Eliminar operaria
@@ -831,6 +870,8 @@
       const btnNuevo = document.getElementById("btn-nuevo");
       const btnEliminar = document.getElementById("btn-eliminar");
       const btnReactivar = document.getElementById("btn-reactivar"); // MEJORA AGREGADA
+      const btnRestablecerPass = document.getElementById("btn-restablecer-pass"); // MEJORA AGREGADA
+      const avisoPassNueva = document.getElementById("aviso-pass-nueva"); // MEJORA AGREGADA
       const statusBar = document.getElementById("status-bar");
 
       let operarias = [];
@@ -873,6 +914,11 @@
         btnNuevo.style.display = "none";
         btnEliminar.style.display = "none";
         if (btnReactivar) btnReactivar.style.display = "none"; // MEJORA AGREGADA
+        // MEJORA AGREGADA: ocultar el botón y el aviso de contraseña al limpiar
+        try {
+          if (btnRestablecerPass) btnRestablecerPass.style.display = "none";
+          if (avisoPassNueva) avisoPassNueva.style.display = "none";
+        } catch (ePass) { console.error("Error ocultando restablecer contraseña:", ePass); }
         btnGuardar.textContent = "💾 Guardar operaria";
         limpiarStatus();
 
@@ -902,6 +948,14 @@
           }
         } catch (eReact) {
           console.error("Error mostrando botón reactivar:", eReact);
+        }
+
+        // MEJORA AGREGADA: mostrar el botón de restablecer contraseña y esconder el aviso anterior
+        try {
+          if (btnRestablecerPass) btnRestablecerPass.style.display = "block";
+          if (avisoPassNueva) avisoPassNueva.style.display = "none";
+        } catch (ePass2) {
+          console.error("Error mostrando botón restablecer contraseña:", ePass2);
         }
 
         limpiarStatus();
@@ -1238,6 +1292,56 @@
             btnEliminar.textContent = "🗑️ Eliminar operaria";
           });
       });
+
+      // MEJORA AGREGADA: Restablecer la contraseña de una operaria que la olvidó.
+      // El servidor genera una contraseña nueva y la devuelve UNA sola vez para dictársela.
+      if (btnRestablecerPass) {
+        btnRestablecerPass.addEventListener("click", () => {
+          try {
+            if (!operariaSeleccionadaId) return;
+
+            const op = operarias.find(o => o.id === operariaSeleccionadaId);
+            const nombreOp = op ? op.nombre : "esta operaria";
+            if (!confirm(`¿Restablecer la contraseña de ${nombreOp}?\n\nSe generará una contraseña nueva y la anterior dejará de funcionar.`)) return;
+
+            btnRestablecerPass.disabled = true;
+            btnRestablecerPass.textContent = "🔑 Restableciendo...";
+            if (avisoPassNueva) avisoPassNueva.style.display = "none";
+
+            fetch(`/api/operarias/${operariaSeleccionadaId}/restablecer-password`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({})
+            })
+              .then(res => res.json().then(body => ({ ok: res.ok, body })))
+              .then(({ ok, body }) => {
+                if (!ok || !body.ok) {
+                  console.error("Error al restablecer contraseña:", body);
+                  mostrarStatus("error", body.error || body.mensaje || "No se pudo restablecer la contraseña");
+                  return;
+                }
+                const spanUsuario = document.getElementById("pass-nueva-usuario");
+                const spanValor = document.getElementById("pass-nueva-valor");
+                if (spanUsuario) spanUsuario.textContent = body.usuario || "(sin usuario)";
+                if (spanValor) spanValor.textContent = body.passwordNueva || "";
+                if (avisoPassNueva) avisoPassNueva.style.display = "block";
+                mostrarStatus("ok", "Contraseña restablecida. Anótala antes de salir de esta pantalla.");
+              })
+              .catch(err => {
+                console.error("Error de red al restablecer contraseña:", err);
+                mostrarStatus("error", "Error de conexión al restablecer la contraseña");
+              })
+              .finally(() => {
+                btnRestablecerPass.disabled = false;
+                btnRestablecerPass.textContent = "🔑 Restablecer contraseña";
+              });
+          } catch (eRP) {
+            console.error("Error en restablecer contraseña:", eRP);
+            btnRestablecerPass.disabled = false;
+            btnRestablecerPass.textContent = "🔑 Restablecer contraseña";
+          }
+        });
+      }
 
       // MEJORA AGREGADA: Reactivar operaria dada de baja
       if (btnReactivar) {

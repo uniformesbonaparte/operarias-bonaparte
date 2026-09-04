@@ -535,6 +535,33 @@
   </style>
 </head>
 <body>
+<!-- MEJORA AGREGADA: si la sesion expira, la app regresa sola al login -->
+<script>
+(function () {
+  try {
+    if (window.__sesionWrapListo) return;
+    window.__sesionWrapListo = true;
+    var fetchOriginal = window.fetch.bind(window);
+    window.fetch = function () {
+      return fetchOriginal.apply(null, arguments).then(function (res) {
+        try {
+          var u = String((res && res.url) || "");
+          if (res && res.status === 401 && u.indexOf("/api/") >= 0 && u.indexOf("/api/login") < 0) {
+            if (!window.__redirigiendoLogin) {
+              window.__redirigiendoLogin = true;
+              try { localStorage.removeItem("usuarioActual"); } catch (e1) {}
+              alert("Tu sesion expiro. Vuelve a iniciar sesion.");
+              window.location.href = "/login.html";
+            }
+          }
+        } catch (e2) { console.error("Aviso de sesion:", e2); }
+        return res;
+      });
+    };
+  } catch (e3) { console.error("No se pudo activar el aviso de sesion:", e3); }
+})();
+</script>
+
   <div class="shell">
     <header>
       <button class="btn-back" id="btn-volver">←</button>
