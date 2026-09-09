@@ -3681,11 +3681,28 @@ app.get("/api/pedidos/:id/avance", (req, res) => {
     const totalOps = operaciones.length;
     const opsCompletas = operaciones.filter(o => o.porcentaje >= 100).length;
 
+    // MEJORA AGREGADA (punto 21): las operaciones que se dejaron en $0 no se muestran
+    // en el reporte del pedido, pero aqui se informa cuantas son (y si alguien alcanzo
+    // a registrar piezas en ellas) para que nunca se pierda trabajo sin darse cuenta.
+    const operacionesSinPrecio = (item.operaciones || [])
+      .filter(op => !(Number(op.precio) > 0))
+      .map(op => {
+        const regsOp0 = regsPedido.filter(r => r.operacionId === op.opId);
+        return {
+          opId: op.opId,
+          costura: op.costura || op.descripcion,
+          maquina: op.maquina,
+          piezasHechas: regsOp0.reduce((sum, r) => sum + r.cantidad, 0)
+        };
+      });
+
     return {
       prendaId: item.prendaId,
       prenda: prenda ? prenda.nombre : "Desconocida",
       cantidad: item.cantidad,
       operaciones,
+      operacionesSinPrecio,
+      totalOperacionesSinPrecio: operacionesSinPrecio.length,
       totalOperaciones: totalOps,
       operacionesCompletas: opsCompletas,
       porcentajeGeneral: totalOps > 0 ? Math.round(operaciones.reduce((s, o) => s + o.porcentaje, 0) / totalOps) : 0
