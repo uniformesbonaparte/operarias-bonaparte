@@ -263,7 +263,18 @@ const REGLAS = [
 
   // Herramientas internas de diagnóstico y migración: solo admin
   { m: /^GET$/, p: /^\/api\/debug-semana/, roles: SOLO_ADMIN },
-  { m: /^POST$/, p: /^\/api\/migrar/, roles: SOLO_ADMIN }
+  { m: /^POST$/, p: /^\/api\/migrar/, roles: SOLO_ADMIN },
+
+  // MEJORA AGREGADA (puntos 12 a 16): permisos de lo nuevo.
+  // Se respeta exactamente quién ve qué hoy en las pantallas.
+  { m: /^GET$/, p: /^\/api\/exportar\/reporte-anual/, roles: SOLO_ADMIN },
+  { m: /^GET$/, p: /^\/api\/exportar\/catalogos/, roles: SOLO_ADMIN },
+  { m: /^GET$/, p: /^\/api\/exportar\/pedidos/, roles: GESTION },
+  { m: /^GET$/, p: /^\/api\/exportar\/(reporte-semanal|produccion)/, roles: TODOS },
+  { m: /^GET$/, p: /^\/api\/dashboard\/resumen/, roles: TODOS },
+  { m: /^GET$/, p: /^\/api\/alertas/, roles: TODOS },
+  { m: /^GET$/, p: /^\/api\/catalogos\/uso/, roles: GESTION },
+  { m: /^(POST|PUT)$/, p: /^\/api\/catalogos\/renombrar/, roles: GESTION }
 ];
 
 // MEJORA AGREGADA (punto 4): la página de diagnóstico queda fuera de servicio.
@@ -663,7 +674,10 @@ async function cargarDatosDesdeSupabase() {
     items: p.items || [],
     estado: p.estado || "activo",
     fechaTerminado: p.fechaterminado ? new Date(p.fechaterminado).toISOString() : (p.fechaterminado || null),
-    pagoPorPieza: Number(p.pagoporpieza || 0)
+    pagoPorPieza: Number(p.pagoporpieza || 0),
+    // MEJORA AGREGADA: fecha de entrega opcional. Si la columna todavía no
+    // existe en Supabase, llega undefined y simplemente queda en null.
+    fechaEntrega: p.fechaentrega ? String(p.fechaentrega).slice(0, 10) : null
   }));
 
   registros = (regs.data || []).map(r => ({
@@ -735,6 +749,9 @@ async function cargarDatosDesdeSupabase() {
   return true;
 }
 
+// MEJORA AGREGADA: para avisar una sola vez si falta la columna fechaentrega
+let avisoFechaEntregaMostrado = false;
+
 async function guardarTodoASupabase() {
   if (!SUPABASE_ENABLED) return;
 
@@ -767,7 +784,9 @@ async function guardarTodoASupabase() {
     items: p.items || [],
     estado: p.estado || "activo",
     fechaterminado: p.fechaTerminado ? new Date(p.fechaTerminado).toISOString() : null,
-    pagoporpieza: Number(p.pagoPorPieza || 0)
+    pagoporpieza: Number(p.pagoPorPieza || 0),
+    // MEJORA AGREGADA: fecha de entrega opcional
+    fechaentrega: p.fechaEntrega ? String(p.fechaEntrega).slice(0, 10) : null
   }));
 
   const regs = registros.map(r => ({
@@ -802,7 +821,32 @@ async function guardarTodoASupabase() {
   await upsertChunked("maquinas", maq, "nombre");
   await upsertChunked("prendas", prnds, "id");
   await upsertChunked("usuarios", usrs, "id");
-  await upsertChunked("pedidos", peds, "id");
+  // MEJORA AGREGADA: guardado a prueba de fallos para "fechaentrega".
+  // Si esa columna todavía no existe en la tabla de Supabase, el upsert
+  // se reintenta SIN ese campo, para que jamás se deje de guardar nada.
+  try {
+    await upsertChunked("pedidos", peds, "id");
+  } catch (errPed) {
+    const msg = String((errPed && errPed.message) || errPed || "");
+    const esColumnaFaltante = /fechaentrega/i.test(msg) ||
+      /column .* does not exist/i.test(msg) ||
+      /PGRST204/i.test(String((errPed && errPed.code) || ""));
+    if (!esColumnaFaltante) throw errPed;
+
+    if (!avisoFechaEntregaMostrado) {
+      avisoFechaEntregaMostrado = true;
+      console.warn("⚠️ La columna 'fechaentrega' no existe en la tabla 'pedidos' de Supabase.");
+      console.warn("   Los pedidos se seguirán guardando normal, pero la fecha de entrega");
+      console.warn("   no se conservará al reiniciar. Para activarla, ejecuta en Supabase:");
+      console.warn("   ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS fechaentrega date;");
+    }
+    const pedsSinFecha = peds.map(p => {
+      const copia = Object.assign({}, p);
+      delete copia.fechaentrega;
+      return copia;
+    });
+    await upsertChunked("pedidos", pedsSinFecha, "id");
+  }
   await upsertChunked("registros", regs, "id", 300);
 
   // Limpiar filas huérfanas en Supabase (borradas en memoria pero que siguen en DB)
@@ -1933,6 +1977,19 @@ app.post("/api/pedidos", (req, res) => {
     return res.status(400).json({ error: "El folio es obligatorio." });
   }
 
+  // MEJORA AGREGADA: fecha de entrega OPCIONAL. Si no viene o viene mal, queda
+  // en null y el pedido se crea igual que siempre.
+  let fechaEntregaNueva = null;
+  try {
+    const fe = req.body ? req.body.fechaEntrega : null;
+    if (fe) {
+      const texto = String(fe).slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(texto) && !isNaN(new Date(texto + "T12:00:00").getTime())) {
+        fechaEntregaNueva = texto;
+      }
+    }
+  } catch (e) { fechaEntregaNueva = null; }
+
   const nuevo = {
     id: pedidoIdCounter++,
     escuela: escuela.trim(),
@@ -1940,7 +1997,8 @@ app.post("/api/pedidos", (req, res) => {
     prendas: prendasSeleccionadas || [],
     items: [],
     estado: "activo",
-    fechaTerminado: null
+    fechaTerminado: null,
+    fechaEntrega: fechaEntregaNueva
   };
 
   // Si vienen items detallados (nuevo formato)
@@ -4105,6 +4163,1102 @@ app.get("/api/debug-semana", (req, res) => {
     registros: enEstaSemana,
     discrepanciasDetalle: noMatch
   });
+});
+
+// ==========================================================================
+// MEJORA AGREGADA — Bloque de mejoras 12 a 16
+//   12. Exportar a Excel real (.xlsx) sin librerías externas
+//   13. Resumen para el Dashboard
+//   14. Alertas de pedidos
+//   15. Editar catálogos (con renombrado en cascada) y evitar duplicados
+//   16. Avisar en cuántos pedidos se usa algo antes de eliminarlo
+// Todo es aditivo: no reemplaza ni modifica endpoints existentes.
+// ==========================================================================
+
+// ---------- Generador de .xlsx (solo módulos nativos de Node) ----------
+const zlibXlsx = require("zlib");
+
+const TABLA_CRC32_XLSX = (() => {
+  const t = new Int32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[i] = c;
+  }
+  return t;
+})();
+
+function crc32Xlsx(buf) {
+  let c = -1;
+  for (let i = 0; i < buf.length; i++) c = (c >>> 8) ^ TABLA_CRC32_XLSX[(c ^ buf[i]) & 0xFF];
+  return (c ^ -1) >>> 0;
+}
+
+function crearZipXlsx(archivos) {
+  const locales = [], centrales = [];
+  let offset = 0;
+  for (const a of archivos) {
+    const nombreBuf = Buffer.from(a.nombre, "utf8");
+    const contenido = Buffer.isBuffer(a.contenido) ? a.contenido : Buffer.from(a.contenido, "utf8");
+    const comprimido = zlibXlsx.deflateRawSync(contenido, { level: 9 });
+    const crc = crc32Xlsx(contenido);
+
+    const cabLocal = Buffer.alloc(30);
+    cabLocal.writeUInt32LE(0x04034b50, 0);
+    cabLocal.writeUInt16LE(20, 4);
+    cabLocal.writeUInt16LE(0x0800, 6);
+    cabLocal.writeUInt16LE(8, 8);
+    cabLocal.writeUInt16LE(0, 10);
+    cabLocal.writeUInt16LE(0x2100, 12);
+    cabLocal.writeUInt32LE(crc, 14);
+    cabLocal.writeUInt32LE(comprimido.length, 18);
+    cabLocal.writeUInt32LE(contenido.length, 22);
+    cabLocal.writeUInt16LE(nombreBuf.length, 26);
+    cabLocal.writeUInt16LE(0, 28);
+    locales.push(cabLocal, nombreBuf, comprimido);
+
+    const cabCentral = Buffer.alloc(46);
+    cabCentral.writeUInt32LE(0x02014b50, 0);
+    cabCentral.writeUInt16LE(20, 4);
+    cabCentral.writeUInt16LE(20, 6);
+    cabCentral.writeUInt16LE(0x0800, 8);
+    cabCentral.writeUInt16LE(8, 10);
+    cabCentral.writeUInt16LE(0, 12);
+    cabCentral.writeUInt16LE(0x2100, 14);
+    cabCentral.writeUInt32LE(crc, 16);
+    cabCentral.writeUInt32LE(comprimido.length, 20);
+    cabCentral.writeUInt32LE(contenido.length, 24);
+    cabCentral.writeUInt16LE(nombreBuf.length, 28);
+    cabCentral.writeUInt16LE(0, 30);
+    cabCentral.writeUInt16LE(0, 32);
+    cabCentral.writeUInt16LE(0, 34);
+    cabCentral.writeUInt16LE(0, 36);
+    cabCentral.writeUInt32LE(0, 38);
+    cabCentral.writeUInt32LE(offset, 42);
+    centrales.push(cabCentral, nombreBuf);
+    offset += cabLocal.length + nombreBuf.length + comprimido.length;
+  }
+  const cuerpo = Buffer.concat(locales);
+  const directorio = Buffer.concat(centrales);
+  const fin = Buffer.alloc(22);
+  fin.writeUInt32LE(0x06054b50, 0);
+  fin.writeUInt16LE(0, 4);
+  fin.writeUInt16LE(0, 6);
+  fin.writeUInt16LE(archivos.length, 8);
+  fin.writeUInt16LE(archivos.length, 10);
+  fin.writeUInt32LE(directorio.length, 12);
+  fin.writeUInt32LE(cuerpo.length, 16);
+  fin.writeUInt16LE(0, 20);
+  return Buffer.concat([cuerpo, directorio, fin]);
+}
+
+function escXml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&apos;")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+}
+
+function letraCol(n) {
+  let s = "";
+  while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+
+/**
+ * hojas = [{ nombre, columnas:[{titulo, ancho, tipo:"moneda"|undefined}], filas:[[...]] }]
+ */
+function construirXlsx(hojas) {
+  const partes = [];
+
+  partes.push({
+    nombre: "[Content_Types].xml",
+    contenido: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+      hojas.map((h, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("") +
+      '</Types>'
+  });
+
+  partes.push({
+    nombre: "_rels/.rels",
+    contenido: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+      '</Relationships>'
+  });
+
+  partes.push({
+    nombre: "xl/workbook.xml",
+    contenido: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' +
+      hojas.map((h, i) => `<sheet name="${escXml((h.nombre || ("Hoja" + (i + 1))).slice(0, 31).replace(/[\\\/\?\*\[\]:]/g, " "))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("") +
+      '</sheets></workbook>'
+  });
+
+  partes.push({
+    nombre: "xl/_rels/workbook.xml.rels",
+    contenido: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      hojas.map((h, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("") +
+      `<Relationship Id="rId${hojas.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
+      '</Relationships>'
+  });
+
+  partes.push({
+    nombre: "xl/styles.xml",
+    contenido: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0.00"/></numFmts>' +
+      '<fonts count="2"><font><sz val="11"/><color theme="1"/><name val="Calibri"/></font>' +
+      '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts>' +
+      '<fills count="3"><fill><patternFill patternType="none"/></fill>' +
+      '<fill><patternFill patternType="gray125"/></fill>' +
+      '<fill><patternFill patternType="solid"><fgColor rgb="FF2563EB"/><bgColor indexed="64"/></patternFill></fill></fills>' +
+      '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      '<cellXfs count="4">' +
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+      '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
+      '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+      '<xf numFmtId="14" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+      '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'
+  });
+
+  hojas.forEach((hoja, indice) => {
+    const columnas = hoja.columnas || [];
+    const filas = hoja.filas || [];
+    const cols = columnas.length
+      ? "<cols>" + columnas.map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${Number(c.ancho) || 16}" customWidth="1"/>`).join("") + "</cols>"
+      : "";
+
+    const lineas = [];
+    if (columnas.length) {
+      lineas.push(`<row r="1" ht="22" customHeight="1">` + columnas.map((c, i) =>
+        `<c r="${letraCol(i + 1)}1" s="1" t="inlineStr"><is><t>${escXml(c.titulo)}</t></is></c>`).join("") + `</row>`);
+    }
+    filas.forEach((fila, fi) => {
+      const numFila = fi + (columnas.length ? 2 : 1);
+      const celdas = fila.map((valor, ci) => {
+        const ref = letraCol(ci + 1) + numFila;
+        if (valor === null || valor === undefined || valor === "") return "";
+        const meta = columnas[ci] || {};
+        if (typeof valor === "number" && isFinite(valor)) {
+          return `<c r="${ref}"${meta.tipo === "moneda" ? ' s="2"' : ""}><v>${valor}</v></c>`;
+        }
+        return `<c r="${ref}" t="inlineStr"><is><t>${escXml(valor)}</t></is></c>`;
+      }).join("");
+      lineas.push(`<row r="${numFila}">${celdas}</row>`);
+    });
+
+    const ultimaCol = letraCol(Math.max(1, columnas.length || 1));
+    const ultimaFila = filas.length + (columnas.length ? 1 : 0);
+    partes.push({
+      nombre: `xl/worksheets/sheet${indice + 1}.xml`,
+      contenido: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+        (columnas.length ? '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' : "") +
+        cols + "<sheetData>" + lineas.join("") + "</sheetData>" +
+        (columnas.length && filas.length ? `<autoFilter ref="A1:${ultimaCol}${ultimaFila}"/>` : "") +
+        "</worksheet>"
+    });
+  });
+
+  return crearZipXlsx(partes);
+}
+
+function nombreArchivoSeguro(base) {
+  return String(base).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9_\-\. ]/g, "").replace(/\s+/g, "_").slice(0, 80);
+}
+
+function enviarXlsx(res, nombreBase, hojas) {
+  const buffer = construirXlsx(hojas);
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="${nombreArchivoSeguro(nombreBase)}.xlsx"`);
+  res.setHeader("Content-Length", buffer.length);
+  res.setHeader("Cache-Control", "no-store");
+  res.end(buffer);
+}
+
+// Helpers de apoyo
+function rolDe(req) { return (req.sesion && req.sesion.tipo) || null; }
+function puedeVerMontos(req) {
+  // Espeja exactamente lo que ya muestra cada pantalla:
+  // el admin ve todo; la operaria ve lo suyo; la encargada NUNCA ve montos.
+  const t = rolDe(req);
+  return t === "admin" || t === "operaria";
+}
+function nombreOperaria(id) {
+  const o = operarias.find(x => x.id === Number(id));
+  return o ? o.nombre : "N/D";
+}
+function nombrePrenda(id) {
+  const p = prendas.find(x => x.id === Number(id));
+  return p ? p.nombre : "";
+}
+function fechaCorta(iso) {
+  try { return toMexicoYMD(new Date(iso)); } catch (e) { return ""; }
+}
+
+/** Calcula piezas hechas y totales de un pedido, ignorando operaciones sin precio */
+function resumenAvancePedido(pedido) {
+  let piezasMeta = 0, piezasHechas = 0, opsConPrecio = 0, opsCompletas = 0;
+  (pedido.items || []).forEach(item => {
+    const cantidadItem = Number(item.cantidad) || 0;
+    (item.operaciones || []).forEach(op => {
+      if (!(Number(op.precio) > 0)) return; // misma regla que ya usa la pantalla de Avance
+      opsConPrecio++;
+      piezasMeta += cantidadItem;
+      const hechas = registros
+        .filter(r => r.pedidoId === pedido.id && r.operacionId === op.opId)
+        .reduce((s, r) => s + Number(r.cantidad || 0), 0);
+      const acotadas = Math.min(hechas, cantidadItem);
+      piezasHechas += acotadas;
+      if (cantidadItem > 0 && acotadas >= cantidadItem) opsCompletas++;
+    });
+  });
+  const porcentaje = piezasMeta > 0 ? Math.round((piezasHechas / piezasMeta) * 100) : 0;
+  return { piezasMeta, piezasHechas, porcentaje, opsConPrecio, opsCompletas };
+}
+
+// ==========================================================================
+// PUNTO 12 — EXPORTAR A EXCEL
+// ==========================================================================
+
+/**
+ * GET /api/exportar/reporte-semanal?semana=YYYY-WNN&fuente=&estadoPago=&operariaId=
+ * Admin: resumen por operaria + detalle, con montos.
+ * Operaria: solo sus propios registros, con montos (ya los ve en pantalla).
+ * Encargada: solo piezas, SIN montos (igual que su vista).
+ */
+app.get("/api/exportar/reporte-semanal", (req, res) => {
+  try {
+    let { semana, fecha, fuente, estadoPago, estado, operariaId } = req.query;
+    if (!estadoPago && estado) estadoPago = estado;
+
+    const rol = rolDe(req);
+    const conMontos = puedeVerMontos(req);
+
+    let estadoFiltro = estadoPago || "pendiente";
+    let fuenteFiltro = fuente || "operaria";
+    let opId = operariaId ? Number(operariaId) : null;
+
+    // La operaria solo puede exportar lo suyo
+    if (rol === "operaria" && req.sesion && req.sesion.id) opId = Number(req.sesion.id);
+    // La encargada consulta su propia base, igual que su pantalla
+    if (rol === "encargada") { fuenteFiltro = "encargada"; estadoFiltro = "todos"; }
+
+    let inicioStr, finStr, etiqueta;
+    if (semana) {
+      const info = resolverSemanaPorCodigo(String(semana));
+      if (!info) return res.status(400).json({ error: "Semana inválida" });
+      inicioStr = info.inicio; finStr = info.fin; etiqueta = String(semana);
+    } else if (fecha) {
+      const info = obtenerSemanaLaboral(fecha);
+      inicioStr = info.inicio; finStr = info.fin; etiqueta = info.codigo || String(fecha);
+    } else {
+      return res.status(400).json({ error: "Semana o fecha requerida" });
+    }
+
+    const dentro = registros.filter(r => {
+      const f = fechaCorta(r.fecha);
+      if (f < inicioStr || f > finStr) return false;
+      if (estadoFiltro !== "todos" && (r.estadoPago || "pendiente") !== estadoFiltro) return false;
+      if (fuenteFiltro !== "todos" && (r.fuente || "operaria") !== fuenteFiltro) return false;
+      if (opId && r.operariaId !== opId) return false;
+      return true;
+    });
+
+    // Hoja 1: resumen por operaria
+    const porOperaria = {};
+    dentro.forEach(r => {
+      if (!porOperaria[r.operariaId]) {
+        porOperaria[r.operariaId] = { nombre: nombreOperaria(r.operariaId), piezas: 0, ganado: 0, registros: 0 };
+      }
+      porOperaria[r.operariaId].piezas += Number(r.cantidad || 0);
+      porOperaria[r.operariaId].ganado += Number(r.totalGanado || 0);
+      porOperaria[r.operariaId].registros += 1;
+    });
+
+    const colsResumen = conMontos
+      ? [{ titulo: "Operaria", ancho: 28 }, { titulo: "Piezas", ancho: 12 }, { titulo: "Registros", ancho: 12 }, { titulo: "Total a pagar", ancho: 16, tipo: "moneda" }]
+      : [{ titulo: "Operaria", ancho: 28 }, { titulo: "Piezas", ancho: 12 }, { titulo: "Registros", ancho: 12 }];
+
+    const filasResumen = Object.values(porOperaria)
+      .sort((a, b) => b.piezas - a.piezas)
+      .map(o => conMontos
+        ? [o.nombre, o.piezas, o.registros, Number(o.ganado.toFixed(2))]
+        : [o.nombre, o.piezas, o.registros]);
+
+    // Fila de totales
+    if (filasResumen.length) {
+      const totPiezas = filasResumen.reduce((s, f) => s + f[1], 0);
+      const totRegs = filasResumen.reduce((s, f) => s + f[2], 0);
+      filasResumen.push(conMontos
+        ? ["TOTAL", totPiezas, totRegs, Number(filasResumen.reduce((s, f) => s + (f[3] || 0), 0).toFixed(2))]
+        : ["TOTAL", totPiezas, totRegs]);
+    }
+
+    // Hoja 2: detalle
+    const colsDetalle = [
+      { titulo: "Fecha", ancho: 12 },
+      { titulo: "Operaria", ancho: 26 },
+      { titulo: "Escuela", ancho: 26 },
+      { titulo: "Folio", ancho: 14 },
+      { titulo: "Prenda", ancho: 20 },
+      { titulo: "Operación", ancho: 24 },
+      { titulo: "Máquina", ancho: 16 },
+      { titulo: "Talla", ancho: 10 },
+      { titulo: "Piezas", ancho: 10 }
+    ];
+    if (conMontos) {
+      colsDetalle.push({ titulo: "Precio x pieza", ancho: 15, tipo: "moneda" });
+      colsDetalle.push({ titulo: "Total", ancho: 14, tipo: "moneda" });
+    }
+    colsDetalle.push({ titulo: "Estado de pago", ancho: 16 });
+    colsDetalle.push({ titulo: "Registrado por", ancho: 16 });
+
+    const filasDetalle = dentro
+      .slice()
+      .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)))
+      .map(r => {
+        const ped = pedidos.find(p => p.id === r.pedidoId);
+        const base = [
+          fechaCorta(r.fecha),
+          nombreOperaria(r.operariaId),
+          ped ? ped.escuela : "",
+          ped ? ped.folio : "",
+          nombrePrenda(r.prendaId),
+          r.descripcion || "",
+          r.maquina || "",
+          r.talla || "",
+          Number(r.cantidad || 0)
+        ];
+        if (conMontos) {
+          base.push(Number(Number(r.pagoPorPieza || 0).toFixed(2)));
+          base.push(Number(Number(r.totalGanado || 0).toFixed(2)));
+        }
+        base.push(r.estadoPago === "pagado" ? "Pagado" : "Pendiente");
+        base.push((r.fuente || "operaria") === "encargada" ? "Encargada" : "Operaria");
+        return base;
+      });
+
+    const hojas = [
+      { nombre: "Resumen por operaria", columnas: colsResumen, filas: filasResumen },
+      { nombre: "Detalle", columnas: colsDetalle, filas: filasDetalle }
+    ];
+
+    return enviarXlsx(res, `Reporte_semanal_${etiqueta}`, hojas);
+  } catch (e) {
+    console.error("Error exportando reporte semanal:", e.message || e);
+    return res.status(500).json({ error: "No se pudo generar el Excel." });
+  }
+});
+
+/**
+ * GET /api/exportar/reporte-anual?anio=YYYY  (solo admin, lleva montos)
+ */
+app.get("/api/exportar/reporte-anual", (req, res) => {
+  try {
+    const anio = Number(req.query.anio) || new Date().getFullYear();
+    const conMontos = puedeVerMontos(req);
+
+    const delAnio = registros.filter(r => {
+      const f = fechaCorta(r.fecha);
+      return f && Number(f.slice(0, 4)) === anio;
+    });
+
+    // Por mes
+    const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    const porMes = {};
+    delAnio.forEach(r => {
+      const m = Number(fechaCorta(r.fecha).slice(5, 7));
+      if (!porMes[m]) porMes[m] = { piezas: 0, ganado: 0, registros: 0 };
+      porMes[m].piezas += Number(r.cantidad || 0);
+      porMes[m].ganado += Number(r.totalGanado || 0);
+      porMes[m].registros += 1;
+    });
+
+    const colsMes = conMontos
+      ? [{ titulo: "Mes", ancho: 16 }, { titulo: "Piezas", ancho: 12 }, { titulo: "Registros", ancho: 12 }, { titulo: "Nómina", ancho: 16, tipo: "moneda" }]
+      : [{ titulo: "Mes", ancho: 16 }, { titulo: "Piezas", ancho: 12 }, { titulo: "Registros", ancho: 12 }];
+    const filasMes = [];
+    for (let m = 1; m <= 12; m++) {
+      const d = porMes[m] || { piezas: 0, ganado: 0, registros: 0 };
+      filasMes.push(conMontos
+        ? [meses[m - 1], d.piezas, d.registros, Number(d.ganado.toFixed(2))]
+        : [meses[m - 1], d.piezas, d.registros]);
+    }
+
+    // Por operaria
+    const porOp = {};
+    delAnio.forEach(r => {
+      if (!porOp[r.operariaId]) porOp[r.operariaId] = { nombre: nombreOperaria(r.operariaId), piezas: 0, ganado: 0 };
+      porOp[r.operariaId].piezas += Number(r.cantidad || 0);
+      porOp[r.operariaId].ganado += Number(r.totalGanado || 0);
+    });
+    const colsOp = conMontos
+      ? [{ titulo: "Operaria", ancho: 28 }, { titulo: "Piezas", ancho: 12 }, { titulo: "Total del año", ancho: 16, tipo: "moneda" }]
+      : [{ titulo: "Operaria", ancho: 28 }, { titulo: "Piezas", ancho: 12 }];
+    const filasOp = Object.values(porOp).sort((a, b) => b.piezas - a.piezas)
+      .map(o => conMontos ? [o.nombre, o.piezas, Number(o.ganado.toFixed(2))] : [o.nombre, o.piezas]);
+
+    return enviarXlsx(res, `Reporte_anual_${anio}`, [
+      { nombre: "Por mes", columnas: colsMes, filas: filasMes },
+      { nombre: "Por operaria", columnas: colsOp, filas: filasOp }
+    ]);
+  } catch (e) {
+    console.error("Error exportando reporte anual:", e.message || e);
+    return res.status(500).json({ error: "No se pudo generar el Excel." });
+  }
+});
+
+/**
+ * GET /api/exportar/pedidos?estado=activo|terminado|todos
+ * Admin y encargada. Los montos solo se incluyen para el admin.
+ */
+app.get("/api/exportar/pedidos", (req, res) => {
+  try {
+    const estado = String(req.query.estado || "todos");
+    const conMontos = puedeVerMontos(req);
+    const lista = pedidos.filter(p => estado === "todos" ? true : (p.estado || "activo") === estado);
+
+    const colsPed = [
+      { titulo: "Folio", ancho: 14 },
+      { titulo: "Escuela", ancho: 30 },
+      { titulo: "Estado", ancho: 14 },
+      { titulo: "Fecha de entrega", ancho: 16 },
+      { titulo: "Piezas meta", ancho: 12 },
+      { titulo: "Piezas hechas", ancho: 14 },
+      { titulo: "Avance %", ancho: 10 },
+      { titulo: "Operaciones completas", ancho: 20 }
+    ];
+    if (conMontos) colsPed.push({ titulo: "Nómina generada", ancho: 17, tipo: "moneda" });
+
+    const filasPed = lista.map(p => {
+      const av = resumenAvancePedido(p);
+      const nomina = registros.filter(r => r.pedidoId === p.id).reduce((s, r) => s + Number(r.totalGanado || 0), 0);
+      const fila = [
+        p.folio || "", p.escuela || "",
+        (p.estado || "activo") === "terminado" ? "Terminado" : "Activo",
+        p.fechaEntrega ? String(p.fechaEntrega).slice(0, 10) : "",
+        av.piezasMeta, av.piezasHechas, av.porcentaje,
+        `${av.opsCompletas} de ${av.opsConPrecio}`
+      ];
+      if (conMontos) fila.push(Number(nomina.toFixed(2)));
+      return fila;
+    });
+
+    // Hoja de operaciones por pedido
+    const colsOps = [
+      { titulo: "Folio", ancho: 14 },
+      { titulo: "Escuela", ancho: 26 },
+      { titulo: "Prenda", ancho: 20 },
+      { titulo: "Operación", ancho: 24 },
+      { titulo: "Máquina", ancho: 16 },
+      { titulo: "Piezas meta", ancho: 12 },
+      { titulo: "Piezas hechas", ancho: 14 },
+      { titulo: "Avance %", ancho: 10 }
+    ];
+    if (conMontos) colsOps.push({ titulo: "Precio x pieza", ancho: 15, tipo: "moneda" });
+
+    const filasOps = [];
+    lista.forEach(p => {
+      (p.items || []).forEach(item => {
+        const cant = Number(item.cantidad) || 0;
+        (item.operaciones || []).forEach(op => {
+          if (!(Number(op.precio) > 0)) return; // consistente con la pantalla de Avance
+          const hechas = registros.filter(r => r.pedidoId === p.id && r.operacionId === op.opId)
+            .reduce((s, r) => s + Number(r.cantidad || 0), 0);
+          const fila = [
+            p.folio || "", p.escuela || "", nombrePrenda(item.prendaId),
+            op.costura || op.descripcion || "", op.maquina || "",
+            cant, Math.min(hechas, cant),
+            cant > 0 ? Math.round((Math.min(hechas, cant) / cant) * 100) : 0
+          ];
+          if (conMontos) fila.push(Number(Number(op.precio || 0).toFixed(2)));
+          filasOps.push(fila);
+        });
+      });
+    });
+
+    return enviarXlsx(res, `Pedidos_${estado}`, [
+      { nombre: "Pedidos", columnas: colsPed, filas: filasPed },
+      { nombre: "Operaciones", columnas: colsOps, filas: filasOps }
+    ]);
+  } catch (e) {
+    console.error("Error exportando pedidos:", e.message || e);
+    return res.status(500).json({ error: "No se pudo generar el Excel." });
+  }
+});
+
+/**
+ * GET /api/exportar/catalogos  (solo admin: la pantalla de Configuración ya es solo suya)
+ */
+app.get("/api/exportar/catalogos", (req, res) => {
+  try {
+    const usoMaquina = (nombre) => {
+      let n = 0;
+      pedidos.forEach(p => (p.items || []).forEach(i => (i.operaciones || []).forEach(o => {
+        if (String(o.maquina || "").trim().toLowerCase() === String(nombre).trim().toLowerCase()) n++;
+      })));
+      return n;
+    };
+    const usoCostura = (nombre) => {
+      let n = 0;
+      pedidos.forEach(p => (p.items || []).forEach(i => (i.operaciones || []).forEach(o => {
+        const t = o.costura || o.descripcion || "";
+        if (String(t).trim().toLowerCase() === String(nombre).trim().toLowerCase()) n++;
+      })));
+      return n;
+    };
+
+    const hojas = [
+      {
+        nombre: "Maquinas",
+        columnas: [{ titulo: "Máquina", ancho: 26 }, { titulo: "Veces usada en pedidos", ancho: 22 }],
+        filas: (maquinas || []).map(m => [m, usoMaquina(m)])
+      },
+      {
+        nombre: "Prendas",
+        columnas: [{ titulo: "ID", ancho: 8 }, { titulo: "Prenda", ancho: 30 }, { titulo: "Pedidos que la usan", ancho: 20 }],
+        filas: (prendas || []).map(p => [
+          p.id, p.nombre,
+          pedidos.filter(pe => (pe.items || []).some(i => Number(i.prendaId) === Number(p.id))).length
+        ])
+      },
+      {
+        nombre: "Costuras",
+        columnas: [{ titulo: "Costura", ancho: 30 }, { titulo: "Veces usada en pedidos", ancho: 22 }],
+        filas: (costuras || []).map(c => {
+          const nombre = typeof c === "string" ? c : (c && c.nombre) || "";
+          return [nombre, usoCostura(nombre)];
+        })
+      },
+      {
+        nombre: "Operarias",
+        columnas: [{ titulo: "ID", ancho: 8 }, { titulo: "Nombre", ancho: 30 }, { titulo: "Usuario", ancho: 18 }, { titulo: "Rol", ancho: 14 }, { titulo: "Activa", ancho: 10 }],
+        filas: (operarias || []).map(o => [o.id, o.nombre, o.usuario || "", o.rol || "operaria", o.activa === false ? "No" : "Sí"])
+      }
+    ];
+
+    // Plantillas de costuras por prenda
+    const filasPlt = [];
+    Object.keys(plantillasCosturas || {}).forEach(prendaId => {
+      const lista = plantillasCosturas[prendaId] || [];
+      lista.forEach(item => {
+        filasPlt.push([nombrePrenda(prendaId) || `Prenda ${prendaId}`, item.costura || "", item.maquina || ""]);
+      });
+    });
+    hojas.push({
+      nombre: "Plantillas por prenda",
+      columnas: [{ titulo: "Prenda", ancho: 26 }, { titulo: "Costura", ancho: 26 }, { titulo: "Máquina", ancho: 18 }],
+      filas: filasPlt
+    });
+
+    return enviarXlsx(res, "Catalogos", hojas);
+  } catch (e) {
+    console.error("Error exportando catálogos:", e.message || e);
+    return res.status(500).json({ error: "No se pudo generar el Excel." });
+  }
+});
+
+/**
+ * GET /api/exportar/produccion?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&operariaId=&pedidoId=
+ * Historial completo de registros. Montos solo para admin/operaria.
+ */
+app.get("/api/exportar/produccion", (req, res) => {
+  try {
+    const { desde, hasta, pedidoId } = req.query;
+    const rol = rolDe(req);
+    const conMontos = puedeVerMontos(req);
+    let opId = req.query.operariaId ? Number(req.query.operariaId) : null;
+    if (rol === "operaria" && req.sesion && req.sesion.id) opId = Number(req.sesion.id);
+
+    const lista = registros.filter(r => {
+      const f = fechaCorta(r.fecha);
+      if (desde && f < String(desde)) return false;
+      if (hasta && f > String(hasta)) return false;
+      if (opId && r.operariaId !== opId) return false;
+      if (pedidoId && r.pedidoId !== Number(pedidoId)) return false;
+      return true;
+    }).sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+
+    const cols = [
+      { titulo: "Fecha", ancho: 12 },
+      { titulo: "Operaria", ancho: 26 },
+      { titulo: "Escuela", ancho: 26 },
+      { titulo: "Folio", ancho: 14 },
+      { titulo: "Prenda", ancho: 20 },
+      { titulo: "Operación", ancho: 24 },
+      { titulo: "Máquina", ancho: 16 },
+      { titulo: "Talla", ancho: 10 },
+      { titulo: "Piezas", ancho: 10 }
+    ];
+    if (conMontos) {
+      cols.push({ titulo: "Precio x pieza", ancho: 15, tipo: "moneda" });
+      cols.push({ titulo: "Total", ancho: 14, tipo: "moneda" });
+    }
+    cols.push({ titulo: "Estado de pago", ancho: 16 });
+    cols.push({ titulo: "Registrado por", ancho: 16 });
+
+    const filas = lista.map(r => {
+      const ped = pedidos.find(p => p.id === r.pedidoId);
+      const base = [
+        fechaCorta(r.fecha), nombreOperaria(r.operariaId),
+        ped ? ped.escuela : "", ped ? ped.folio : "",
+        nombrePrenda(r.prendaId), r.descripcion || "", r.maquina || "",
+        r.talla || "", Number(r.cantidad || 0)
+      ];
+      if (conMontos) {
+        base.push(Number(Number(r.pagoPorPieza || 0).toFixed(2)));
+        base.push(Number(Number(r.totalGanado || 0).toFixed(2)));
+      }
+      base.push(r.estadoPago === "pagado" ? "Pagado" : "Pendiente");
+      base.push((r.fuente || "operaria") === "encargada" ? "Encargada" : "Operaria");
+      return base;
+    });
+
+    const etiqueta = [desde || "inicio", hasta || "hoy"].join("_a_");
+    return enviarXlsx(res, `Produccion_${etiqueta}`, [
+      { nombre: "Produccion", columnas: cols, filas }
+    ]);
+  } catch (e) {
+    console.error("Error exportando producción:", e.message || e);
+    return res.status(500).json({ error: "No se pudo generar el Excel." });
+  }
+});
+
+// ==========================================================================
+// PUNTO 13 — RESUMEN PARA EL DASHBOARD
+// ==========================================================================
+
+/**
+ * GET /api/dashboard/resumen
+ * Tarjetas: producción de hoy, pedidos por terminar, producción de la semana.
+ * NO devuelve montos para ningún rol (así la encargada puede usarlo sin problema).
+ */
+app.get("/api/dashboard/resumen", (req, res) => {
+  try {
+    const rol = rolDe(req);
+    const hoyStr = toMexicoYMD(new Date());
+
+    // La operaria solo ve lo suyo
+    const propios = (r) => (rol === "operaria" && req.sesion && req.sesion.id)
+      ? r.operariaId === Number(req.sesion.id) : true;
+
+    // --- Producción de hoy ---
+    const deHoy = registros.filter(r => fechaCorta(r.fecha) === hoyStr && propios(r));
+    const piezasHoy = deHoy.reduce((s, r) => s + Number(r.cantidad || 0), 0);
+    const operariasHoy = new Set(deHoy.map(r => r.operariaId)).size;
+
+    // --- Producción de la semana en curso vs la anterior ---
+    const semActual = obtenerSemanaLaboral(new Date().toISOString());
+    const piezasEnRango = (inicio, fin) => registros
+      .filter(r => { const f = fechaCorta(r.fecha); return f >= inicio && f <= fin && propios(r); })
+      .reduce((s, r) => s + Number(r.cantidad || 0), 0);
+
+    const piezasSemana = piezasEnRango(semActual.inicio, semActual.fin);
+
+    // Semana anterior: un día antes del inicio de la actual
+    const antes = new Date(semActual.inicio + "T12:00:00");
+    antes.setDate(antes.getDate() - 1);
+    const semPrevia = obtenerSemanaLaboral(antes.toISOString());
+    const piezasSemanaPrevia = piezasEnRango(semPrevia.inicio, semPrevia.fin);
+
+    let variacion = null;
+    if (piezasSemanaPrevia > 0) {
+      variacion = Math.round(((piezasSemana - piezasSemanaPrevia) / piezasSemanaPrevia) * 100);
+    }
+
+    // --- Pedidos por terminar ---
+    const activos = pedidos.filter(p => (p.estado || "activo") !== "terminado");
+    const casiListos = [];
+    activos.forEach(p => {
+      const av = resumenAvancePedido(p);
+      if (av.porcentaje >= 90 && av.piezasMeta > 0) {
+        casiListos.push({ id: p.id, folio: p.folio, escuela: p.escuela, porcentaje: av.porcentaje });
+      }
+    });
+    casiListos.sort((a, b) => b.porcentaje - a.porcentaje);
+
+    return res.json({
+      ok: true,
+      hoy: {
+        fecha: hoyStr,
+        piezas: piezasHoy,
+        operariasActivas: operariasHoy,
+        registros: deHoy.length
+      },
+      semana: {
+        codigo: semActual.codigo,
+        inicio: semActual.inicio,
+        fin: semActual.fin,
+        piezas: piezasSemana,
+        piezasSemanaPrevia,
+        variacionPorcentaje: variacion
+      },
+      pedidos: {
+        activos: activos.length,
+        porTerminar: casiListos.length,
+        listaPorTerminar: casiListos.slice(0, 5)
+      }
+    });
+  } catch (e) {
+    console.error("Error en resumen de dashboard:", e.message || e);
+    return res.status(500).json({ ok: false, error: "No se pudo calcular el resumen." });
+  }
+});
+
+// ==========================================================================
+// PUNTO 14 — ALERTAS
+// ==========================================================================
+
+/**
+ * GET /api/alertas
+ * Avisos de: pedido vencido, pedido por vencer (3 días), pedido casi terminado (>=90%),
+ * y operación sin precio capturado en pedidos activos.
+ * No incluye montos, así que sirve para los tres roles.
+ */
+app.get("/api/alertas", (req, res) => {
+  try {
+    const rol = rolDe(req);
+    const hoyStr = toMexicoYMD(new Date());
+    const avisos = [];
+
+    const enDias = (ymd) => {
+      const a = new Date(hoyStr + "T12:00:00");
+      const b = new Date(String(ymd).slice(0, 10) + "T12:00:00");
+      return Math.round((b - a) / 86400000);
+    };
+
+    const activos = pedidos.filter(p => (p.estado || "activo") !== "terminado");
+
+    activos.forEach(p => {
+      const av = resumenAvancePedido(p);
+
+      // Fechas de entrega (solo si el pedido tiene fecha capturada)
+      if (p.fechaEntrega) {
+        const dias = enDias(p.fechaEntrega);
+        if (dias < 0) {
+          avisos.push({
+            tipo: "pedido_vencido", prioridad: "alta", pedidoId: p.id,
+            titulo: `Pedido vencido: ${p.escuela}`,
+            detalle: `Folio ${p.folio} · se venció hace ${Math.abs(dias)} día(s) · avance ${av.porcentaje}%`
+          });
+        } else if (dias <= 3) {
+          avisos.push({
+            tipo: "pedido_por_vencer", prioridad: "media", pedidoId: p.id,
+            titulo: `Entrega cerca: ${p.escuela}`,
+            detalle: dias === 0
+              ? `Folio ${p.folio} · se entrega HOY · avance ${av.porcentaje}%`
+              : `Folio ${p.folio} · faltan ${dias} día(s) · avance ${av.porcentaje}%`
+          });
+        }
+      }
+
+      // Casi terminado
+      if (av.piezasMeta > 0 && av.porcentaje >= 90 && av.porcentaje < 100) {
+        avisos.push({
+          tipo: "pedido_casi_listo", prioridad: "baja", pedidoId: p.id,
+          titulo: `Casi listo: ${p.escuela}`,
+          detalle: `Folio ${p.folio} · ${av.porcentaje}% · faltan ${av.piezasMeta - av.piezasHechas} pieza(s)`
+        });
+      }
+      // Terminado al 100% pero sin cerrar
+      if (av.piezasMeta > 0 && av.porcentaje >= 100) {
+        avisos.push({
+          tipo: "pedido_completo_sin_cerrar", prioridad: "media", pedidoId: p.id,
+          titulo: `Listo para cerrar: ${p.escuela}`,
+          detalle: `Folio ${p.folio} · producción al 100%, sigue marcado como activo`
+        });
+      }
+
+      // Operaciones sin precio (solo para quien administra precios)
+      if (rol === "admin" || rol === "encargada") {
+        let sinPrecio = 0;
+        (p.items || []).forEach(i => (i.operaciones || []).forEach(o => {
+          if (!(Number(o.precio) > 0)) sinPrecio++;
+        }));
+        if (sinPrecio > 0) {
+          avisos.push({
+            tipo: "operacion_sin_precio", prioridad: "media", pedidoId: p.id,
+            titulo: `Falta capturar precio: ${p.escuela}`,
+            detalle: `Folio ${p.folio} · ${sinPrecio} operación(es) en $0, no cuentan para el avance ni para la nómina`
+          });
+        }
+      }
+    });
+
+    const orden = { alta: 0, media: 1, baja: 2 };
+    avisos.sort((a, b) => orden[a.prioridad] - orden[b.prioridad]);
+
+    return res.json({
+      ok: true,
+      total: avisos.length,
+      porPrioridad: {
+        alta: avisos.filter(a => a.prioridad === "alta").length,
+        media: avisos.filter(a => a.prioridad === "media").length,
+        baja: avisos.filter(a => a.prioridad === "baja").length
+      },
+      alertas: avisos
+    });
+  } catch (e) {
+    console.error("Error calculando alertas:", e.message || e);
+    return res.status(500).json({ ok: false, error: "No se pudieron calcular las alertas." });
+  }
+});
+
+// ==========================================================================
+// PUNTOS 15 y 16 — EDITAR CATÁLOGOS Y VER DÓNDE SE USAN
+// ==========================================================================
+
+/** Cuenta en cuántos lugares se usa un elemento del catálogo */
+function contarUsoCatalogo(tipo, nombre) {
+  const buscado = String(nombre || "").trim().toLowerCase();
+  let enOperaciones = 0;
+  const pedidosAfectados = new Set();
+  let enPlantillas = 0;
+  let enRegistros = 0;
+
+  pedidos.forEach(p => (p.items || []).forEach(item => (item.operaciones || []).forEach(op => {
+    const valor = tipo === "maquina" ? op.maquina : (op.costura || op.descripcion);
+    if (String(valor || "").trim().toLowerCase() === buscado) {
+      enOperaciones++;
+      pedidosAfectados.add(p.folio || p.id);
+    }
+  })));
+
+  Object.keys(plantillasCosturas || {}).forEach(pid => {
+    (plantillasCosturas[pid] || []).forEach(item => {
+      const valor = tipo === "maquina" ? item.maquina : item.costura;
+      if (String(valor || "").trim().toLowerCase() === buscado) enPlantillas++;
+    });
+  });
+
+  registros.forEach(r => {
+    const valor = tipo === "maquina" ? r.maquina : r.descripcion;
+    if (String(valor || "").trim().toLowerCase() === buscado) enRegistros++;
+  });
+
+  return {
+    enOperaciones, enPlantillas, enRegistros,
+    pedidos: Array.from(pedidosAfectados),
+    totalPedidos: pedidosAfectados.size,
+    enUso: enOperaciones > 0 || enPlantillas > 0 || enRegistros > 0
+  };
+}
+
+/** Cuenta el uso de una prenda */
+function contarUsoPrenda(prendaId) {
+  const id = Number(prendaId);
+  const pedidosAfectados = pedidos.filter(p =>
+    (p.items || []).some(i => Number(i.prendaId) === id) ||
+    (Array.isArray(p.prendas) && p.prendas.map(Number).includes(id))
+  );
+  const regs = registros.filter(r => Number(r.prendaId) === id).length;
+  const tienePlantilla = !!(plantillasCosturas && plantillasCosturas[String(id)] && plantillasCosturas[String(id)].length);
+  return {
+    totalPedidos: pedidosAfectados.length,
+    pedidos: pedidosAfectados.map(p => p.folio || p.id),
+    enRegistros: regs,
+    tienePlantilla,
+    enUso: pedidosAfectados.length > 0 || regs > 0
+  };
+}
+
+/**
+ * PUNTO 16
+ * GET /api/catalogos/uso?tipo=maquina|costura|prenda&nombre=...  (o id= para prenda)
+ * Sirve para avisar ANTES de eliminar. Solo consulta, no modifica nada.
+ */
+app.get("/api/catalogos/uso", (req, res) => {
+  try {
+    const tipo = String(req.query.tipo || "").toLowerCase();
+    if (tipo === "prenda") {
+      const id = req.query.id || req.query.nombre;
+      if (!id) return res.status(400).json({ ok: false, error: "Falta el id de la prenda." });
+      const p = prendas.find(x => Number(x.id) === Number(id));
+      const uso = contarUsoPrenda(id);
+      return res.json({ ok: true, tipo, nombre: p ? p.nombre : String(id), uso });
+    }
+    if (tipo !== "maquina" && tipo !== "costura") {
+      return res.status(400).json({ ok: false, error: "Tipo inválido. Usa maquina, costura o prenda." });
+    }
+    const nombre = req.query.nombre;
+    if (!nombre) return res.status(400).json({ ok: false, error: "Falta el nombre." });
+    return res.json({ ok: true, tipo, nombre, uso: contarUsoCatalogo(tipo, nombre) });
+  } catch (e) {
+    console.error("Error consultando uso de catálogo:", e.message || e);
+    return res.status(500).json({ ok: false, error: "No se pudo consultar el uso." });
+  }
+}); 
+
+/**
+ * PUNTO 15 — Renombrar elementos del catálogo (con cascada)
+ * PUT /api/catalogos/renombrar
+ * Body: { tipo: "maquina"|"costura"|"prenda", nombreActual?, id?, nombreNuevo }
+ *
+ * Se usa una ruta nueva a propósito, para no tocar los endpoints que ya
+ * existen de maquinas / costuras / prendas y que siguen funcionando igual.
+ */
+app.put("/api/catalogos/renombrar", (req, res) => {
+  try {
+    const body = req.body || {};
+    const tipo = String(body.tipo || "").trim().toLowerCase();
+    const nuevo = String(body.nombreNuevo || body.nombre || "").trim();
+
+    if (!nuevo) return res.status(400).json({ ok: false, error: "El nombre nuevo no puede estar vacio." });
+    if (nuevo.length > 80) return res.status(400).json({ ok: false, error: "El nombre es demasiado largo." });
+
+    const igual = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+
+    // ---------- MÁQUINA ----------
+    if (tipo === "maquina") {
+      const actual = String(body.nombreActual || "").trim();
+      if (!actual) return res.status(400).json({ ok: false, error: "Falta el nombre actual." });
+
+      const idx = maquinas.findIndex(m => igual(m, actual));
+      if (idx === -1) return res.status(404).json({ ok: false, error: "Esa maquina no existe en el catalogo." });
+      if (maquinas.some((m, i) => i !== idx && igual(m, nuevo))) {
+        return res.status(409).json({ ok: false, error: `Ya existe una maquina llamada "${nuevo}".` });
+      }
+
+      const detalle = contarUsoCatalogo("maquina", actual);
+      maquinas[idx] = nuevo;
+
+      let cambios = 0;
+      pedidos.forEach(p => (p.items || []).forEach(item => (item.operaciones || []).forEach(op => {
+        if (igual(op.maquina, actual)) { op.maquina = nuevo; cambios++; }
+      })));
+      Object.keys(plantillasCosturas || {}).forEach(pid => {
+        (plantillasCosturas[pid] || []).forEach(item => {
+          if (igual(item.maquina, actual)) { item.maquina = nuevo; cambios++; }
+        });
+      });
+      registros.forEach(r => { if (igual(r.maquina, actual)) { r.maquina = nuevo; cambios++; } });
+
+      guardarDatos();
+      return res.json({
+        ok: true, tipo,
+        mensaje: `Maquina renombrada de "${actual}" a "${nuevo}".`,
+        nombreAnterior: actual, nombreNuevo: nuevo,
+        lugaresActualizados: cambios, detalle, maquinas
+      });
+    }
+
+    // ---------- COSTURA ----------
+    if (tipo === "costura") {
+      const nombreDe = (c) => typeof c === "string" ? c : ((c && c.nombre) || "");
+      let idx = -1;
+      let actual = String(body.nombreActual || "").trim();
+
+      if (body.id !== undefined && body.id !== null && String(body.id) !== "") {
+        idx = costuras.findIndex(c => c && Number(c.id) === Number(body.id));
+        if (idx !== -1) actual = nombreDe(costuras[idx]).trim();
+      }
+      if (idx === -1 && actual) idx = costuras.findIndex(c => igual(nombreDe(c), actual));
+      if (idx === -1) return res.status(404).json({ ok: false, error: "Esa costura no existe en el catalogo." });
+
+      if (costuras.some((c, i) => i !== idx && igual(nombreDe(c), nuevo))) {
+        return res.status(409).json({ ok: false, error: `Ya existe una costura llamada "${nuevo}".` });
+      }
+
+      const detalle = contarUsoCatalogo("costura", actual);
+      if (typeof costuras[idx] === "string") costuras[idx] = nuevo;
+      else costuras[idx].nombre = nuevo;
+
+      let cambios = 0;
+      pedidos.forEach(p => (p.items || []).forEach(item => (item.operaciones || []).forEach(op => {
+        if (igual(op.costura, actual)) { op.costura = nuevo; cambios++; }
+        if (igual(op.descripcion, actual)) { op.descripcion = nuevo; cambios++; }
+      })));
+      Object.keys(plantillasCosturas || {}).forEach(pid => {
+        (plantillasCosturas[pid] || []).forEach(item => {
+          if (igual(item.costura, actual)) { item.costura = nuevo; cambios++; }
+        });
+      });
+      registros.forEach(r => { if (igual(r.descripcion, actual)) { r.descripcion = nuevo; cambios++; } });
+
+      guardarDatos();
+      return res.json({
+        ok: true, tipo,
+        mensaje: `Costura renombrada de "${actual}" a "${nuevo}".`,
+        nombreAnterior: actual, nombreNuevo: nuevo,
+        lugaresActualizados: cambios, detalle, costuras
+      });
+    }
+
+    // ---------- PRENDA ----------
+    if (tipo === "prenda") {
+      const id = Number(body.id);
+      const prenda = prendas.find(p => Number(p.id) === id);
+      if (!prenda) return res.status(404).json({ ok: false, error: "Esa prenda no existe." });
+
+      if (prendas.some(p => Number(p.id) !== id && igual(p.nombre, nuevo))) {
+        return res.status(409).json({ ok: false, error: `Ya existe una prenda llamada "${nuevo}".` });
+      }
+
+      const anterior = prenda.nombre;
+      prenda.nombre = nuevo;
+      guardarDatos();
+
+      // Los pedidos guardan prendaId, por eso no hace falta cascada de texto.
+      return res.json({
+        ok: true, tipo,
+        mensaje: `Prenda renombrada de "${anterior}" a "${nuevo}".`,
+        nombreAnterior: anterior, nombreNuevo: nuevo,
+        lugaresActualizados: 0, detalle: contarUsoPrenda(id), prendas
+      });
+    }
+
+    return res.status(400).json({ ok: false, error: "Tipo invalido. Usa maquina, costura o prenda." });
+  } catch (e) {
+    console.error("Error renombrando en catalogo:", e.message || e);
+    return res.status(500).json({ ok: false, error: "No se pudo renombrar." });
+  }
+});
+
+/**
+ * Fecha de entrega de un pedido (campo opcional).
+ * PUT /api/pedidos/:id/fecha-entrega   Body: { fechaEntrega: "YYYY-MM-DD" | null }
+ */
+app.put("/api/pedidos/:id/fecha-entrega", (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const pedido = pedidos.find(p => p.id === id);
+    if (!pedido) return res.status(404).json({ ok: false, error: "Pedido no encontrado." });
+
+    let valor = req.body ? req.body.fechaEntrega : null;
+    if (valor === "" || valor === undefined) valor = null;
+
+    if (valor !== null) {
+      const texto = String(valor).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+        return res.status(400).json({ ok: false, error: "Usa el formato AAAA-MM-DD." });
+      }
+      const prueba = new Date(texto + "T12:00:00");
+      if (isNaN(prueba.getTime())) {
+        return res.status(400).json({ ok: false, error: "Esa fecha no es válida." });
+      }
+      valor = texto;
+    }
+
+    pedido.fechaEntrega = valor;
+    guardarDatos();
+    return res.json({
+      ok: true,
+      mensaje: valor ? "Fecha de entrega guardada." : "Fecha de entrega quitada.",
+      pedidoId: id, fechaEntrega: valor
+    });
+  } catch (e) {
+    console.error("Error guardando fecha de entrega:", e.message || e);
+    return res.status(500).json({ ok: false, error: "No se pudo guardar la fecha." });
+  }
 });
 
 app.listen(PORT, () => {
