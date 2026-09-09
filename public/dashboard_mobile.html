@@ -279,7 +279,11 @@
       margin-bottom: 6px;
       min-height: 28px;
     }
-    .resumen-valor { font-size: 26px; font-weight: 700; line-height: 1.1; }
+    .resumen-valor {
+      font-size: 26px; font-weight: 700; line-height: 1.1;
+      /* MEJORA AGREGADA (avisos): que "518 pzs" no se parta en dos lineas */
+      white-space: nowrap;
+    }
     .resumen-extra { font-size: 12px; opacity: 0.7; margin-top: 4px; min-height: 15px; }
     .resumen-extra.sube { color: #6ee7a8; opacity: 1; }
     .resumen-extra.baja { color: #ffb4a8; opacity: 1; }
@@ -321,6 +325,51 @@
     .alerta-item.alta { border-left-color: #ff6b6b; }
     .alerta-item.media { border-left-color: #ffd166; }
     .alerta-item.baja { border-left-color: #6ee7a8; }
+
+    /* MEJORA AGREGADA (avisos): poder ver todos y marcarlos como revisados */
+    .alerta-acciones {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 6px;
+    }
+    .alerta-visto {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #cfd6e4;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 7px 12px;
+      min-height: 34px;
+      border-radius: 8px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .alerta-visto:active { background: rgba(255, 255, 255, 0.16); }
+    .avisos-pie {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+    }
+    .avisos-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #e6ebf5;
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 9px 14px;
+      min-height: 38px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .avisos-btn.suave { color: #9aa4b8; font-weight: 500; }
+    .avisos-vacio {
+      font-size: 13px;
+      color: #9aa4b8;
+      padding: 6px 2px;
+    }
     .alerta-item strong { display: block; margin-bottom: 2px; }
     .alerta-item span { opacity: 0.8; }
     .oculto { display: none !important; }
@@ -675,10 +724,25 @@
               }
 
               wrap.classList.remove("oculto");
+
+              // MEJORA AGREGADA (avisos): si el numero es muy largo (miles de
+              // piezas) se reduce la letra lo justo para que quepa en una linea.
+              try {
+                document.querySelectorAll(".resumen-valor").forEach(el => {
+                  let px = 26;
+                  while (el.scrollWidth > el.clientWidth && px > 15) {
+                    px -= 1;
+                    el.style.fontSize = px + "px";
+                  }
+                });
+              } catch (eAjuste) {}
             })
             .catch(() => {});
 
           // ---- Avisos ----
+          // MEJORA AGREGADA (avisos): se pueden ver todos y marcarlos como
+          // revisados. Lo revisado se guarda en este dispositivo; si el aviso
+          // empeora (cambia su sello) vuelve a aparecer solo.
           fetch("/api/alertas", { credentials: "same-origin" })
             .then(r => r.ok ? r.json() : null)
             .then(data => {
@@ -688,22 +752,96 @@
 
               const box = document.getElementById("alertas-box");
               const cont = document.getElementById("alertas-lista");
-              document.getElementById("alertas-conteo").textContent = lista.length;
+              const conteo = document.getElementById("alertas-conteo");
 
               const esc = (t) => String(t == null ? "" : t)
-                .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
 
-              cont.innerHTML = lista.slice(0, 8).map(a =>
-                '<div class="alerta-item ' + esc(a.prioridad) + '">' +
-                  '<strong>' + esc(a.titulo) + '</strong>' +
-                  '<span>' + esc(a.detalle) + '</span>' +
-                '</div>'
-              ).join("");
+              // Cada usuario guarda sus propios avisos revisados
+              let llave = "avisosRevisados";
+              try { llave += "_" + (usuarioActual.id || usuarioActual.nombre || "x"); } catch (eL) {}
 
-              if (lista.length > 8) {
-                cont.innerHTML += '<div class="alerta-item baja"><span>y ' +
-                  (lista.length - 8) + ' aviso(s) mas...</span></div>';
+              function leerRevisados() {
+                try { return JSON.parse(localStorage.getItem(llave) || "{}") || {}; }
+                catch (e) { return {}; }
               }
+              function guardarRevisados(obj) {
+                try { localStorage.setItem(llave, JSON.stringify(obj)); } catch (e) {}
+              }
+              function claveDe(a, i) { return a.clave || (String(a.tipo || "aviso") + ":" + i); }
+              function selloDe(a) { return String(a.sello == null ? "1" : a.sello); }
+
+              let verTodos = false;
+
+              function pintar() {
+                const revisados = leerRevisados();
+                const visibles = lista.filter((a, i) => revisados[claveDe(a, i)] !== selloDe(a));
+                const ocultos = lista.length - visibles.length;
+
+                conteo.textContent = visibles.length;
+
+                const muestra = verTodos ? visibles : visibles.slice(0, 8);
+                let html = muestra.map((a) => {
+                  const i = lista.indexOf(a);
+                  return '<div class="alerta-item ' + esc(a.prioridad) + '">' +
+                    '<strong>' + esc(a.titulo) + '</strong>' +
+                    '<span>' + esc(a.detalle) + '</span>' +
+                    '<div class="alerta-acciones">' +
+                      '<button type="button" class="alerta-visto" ' +
+                        'data-clave="' + esc(claveDe(a, i)) + '" ' +
+                        'data-sello="' + esc(selloDe(a)) + '" ' +
+                        'title="Ocultar este aviso" ' +
+                        'aria-label="Marcar como revisado: ' + esc(a.titulo) + '">' +
+                        '&#10003; Revisado' +
+                      '</button>' +
+                    '</div>' +
+                  '</div>';
+                }).join("");
+
+                if (visibles.length === 0) {
+                  html = '<div class="avisos-vacio">Sin avisos pendientes. Buen trabajo.</div>';
+                }
+
+                // Pie: ver todos / ver menos y restaurar los revisados
+                let pie = "";
+                if (visibles.length > 8) {
+                  pie += '<button type="button" class="avisos-btn" id="btn-ver-todos-avisos">' +
+                    (verTodos ? "Ver menos" : ("Ver todos (" + visibles.length + ")")) +
+                    '</button>';
+                } else {
+                  pie += '<span></span>';
+                }
+                if (ocultos > 0) {
+                  pie += '<button type="button" class="avisos-btn suave" id="btn-restaurar-avisos">' +
+                    ocultos + ' revisado(s) &#183; mostrar</button>';
+                }
+                if (pie) html += '<div class="avisos-pie">' + pie + '</div>';
+
+                cont.innerHTML = html;
+              }
+
+              // Un solo manejador para todos los botones de la lista
+              cont.addEventListener("click", (ev) => {
+                try {
+                  const visto = ev.target.closest(".alerta-visto");
+                  if (visto) {
+                    const revisados = leerRevisados();
+                    revisados[visto.getAttribute("data-clave")] = visto.getAttribute("data-sello");
+                    guardarRevisados(revisados);
+                    pintar();
+                    return;
+                  }
+                  if (ev.target.closest("#btn-ver-todos-avisos")) { verTodos = !verTodos; pintar(); return; }
+                  if (ev.target.closest("#btn-restaurar-avisos")) {
+                    guardarRevisados({});
+                    verTodos = false;
+                    pintar();
+                  }
+                } catch (eClick) { console.warn("Aviso:", eClick); }
+              });
+
+              pintar();
 
               // Se puede plegar tocando el titulo
               const titulo = document.getElementById("alertas-titulo");
