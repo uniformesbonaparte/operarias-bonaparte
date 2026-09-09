@@ -326,10 +326,472 @@
       font-family: inherit;
     }
     .btn-editar-cat:hover { background: rgba(59,130,246,0.32); }
+    /* ===================================================================
+       MEJORA AGREGADA (punto 18): ventanas propias con el estilo de la app
+       en lugar de las ventanitas grises del navegador.
+       Todo vive bajo el prefijo .uiw- para no chocar con nada existente.
+       =================================================================== */
+    .uiw-overlay {
+      position: fixed; inset: 0; z-index: 99999;
+      background: rgba(3, 6, 20, 0.78);
+      backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+      opacity: 0; transition: opacity 0.18s ease;
+    }
+    .uiw-overlay.uiw-abierto { display: flex; opacity: 1; }
+    .uiw-caja {
+      width: 100%; max-width: 420px;
+      background: linear-gradient(135deg, #101638, #0a0e27);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 20px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+      padding: 22px;
+      transform: translateY(10px) scale(0.98);
+      transition: transform 0.18s ease;
+      max-height: 88vh; overflow-y: auto;
+      text-align: left;
+    }
+    .uiw-overlay.uiw-abierto .uiw-caja { transform: translateY(0) scale(1); }
+    .uiw-icono {
+      width: 46px; height: 46px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 23px; margin-bottom: 14px;
+    }
+    .uiw-icono.uiw-info    { background: rgba(59, 130, 246, 0.18); }
+    .uiw-icono.uiw-exito   { background: rgba(16, 185, 129, 0.18); }
+    .uiw-icono.uiw-alerta  { background: rgba(245, 158, 11, 0.18); }
+    .uiw-icono.uiw-peligro { background: rgba(239, 68, 68, 0.18); }
+    .uiw-titulo {
+      font-size: 17px; font-weight: 700; color: #f8fafc;
+      margin-bottom: 8px; line-height: 1.3;
+    }
+    .uiw-texto {
+      font-size: 14px; color: #cbd5e1; line-height: 1.55;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .uiw-detalle {
+      margin-top: 12px; padding: 12px 14px;
+      background: rgba(0, 0, 0, 0.28);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 12px;
+      font-size: 13px; color: #94a3b8; line-height: 1.6;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .uiw-campo {
+      width: 100%; margin-top: 14px;
+      padding: 13px 14px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 12px;
+      color: #f8fafc; font-size: 15px; font-family: inherit;
+      box-sizing: border-box;
+    }
+    .uiw-campo:focus { outline: none; border-color: #3b82f6; }
+    .uiw-botones {
+      display: flex; gap: 10px; margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .uiw-btn {
+      flex: 1 1 130px; min-height: 46px;
+      padding: 12px 16px; border-radius: 12px;
+      border: 1px solid transparent;
+      font-size: 15px; font-weight: 600; font-family: inherit;
+      cursor: pointer; transition: filter 0.18s ease;
+    }
+    .uiw-btn:hover { filter: brightness(1.14); }
+    .uiw-btn-cancelar {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: rgba(255, 255, 255, 0.16);
+      color: #e2e8f0;
+    }
+    .uiw-btn-ok      { background: linear-gradient(135deg, #3b82f6, #6366f1); color: #fff; }
+    .uiw-btn-exito   { background: linear-gradient(135deg, #10b981, #059669); color: #fff; }
+    .uiw-btn-peligro { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; }
+
+    /* Avisos rápidos que no bloquean (para "guardado", "eliminado", etc.) */
+    .uiw-tostadas {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: 22px; z-index: 100000;
+      display: flex; flex-direction: column; gap: 10px;
+      width: calc(100% - 32px); max-width: 420px;
+      pointer-events: none;
+    }
+    .uiw-tostada {
+      display: flex; gap: 10px; align-items: flex-start;
+      padding: 13px 16px; border-radius: 14px;
+      background: linear-gradient(135deg, #101638, #0a0e27);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+      color: #f1f5f9; font-size: 14px; line-height: 1.45;
+      white-space: pre-wrap; word-break: break-word;
+      opacity: 0; transform: translateY(12px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .uiw-tostada.uiw-visible { opacity: 1; transform: translateY(0); }
+    .uiw-tostada.uiw-t-exito   { border-left: 4px solid #10b981; }
+    .uiw-tostada.uiw-t-error   { border-left: 4px solid #ef4444; }
+    .uiw-tostada.uiw-t-info    { border-left: 4px solid #3b82f6; }
+    .uiw-tostada.uiw-t-alerta  { border-left: 4px solid #f59e0b; }
+    /* ===================================================================
+       MEJORA AGREGADA (punto 22): avisos de "cargando..." para que se vea
+       que la app está trabajando y no parezca que se quedó pegada.
+       Todo va con el prefijo .uic- para no chocar con nada existente.
+       =================================================================== */
+    #uic-barra {
+      position: fixed; top: 0; left: 0; height: 3px; width: 0;
+      background: linear-gradient(90deg, #3b82f6, #8b5cf6, #10b981);
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
+      z-index: 100001;
+      opacity: 0;
+      transition: width 0.25s ease, opacity 0.25s ease;
+      pointer-events: none;
+    }
+    #uic-barra.uic-activa { opacity: 1; }
+    .uic-cargando {
+      display: flex; align-items: center; gap: 10px;
+      padding: 18px; border-radius: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px dashed rgba(255, 255, 255, 0.14);
+      color: #94a3b8; font-size: 13px;
+    }
+    .uic-rueda {
+      width: 18px; height: 18px; flex: 0 0 18px;
+      border: 2px solid rgba(255, 255, 255, 0.18);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: uic-girar 0.75s linear infinite;
+    }
+    @keyframes uic-girar { to { transform: rotate(360deg); } }
+    .uic-lineas { display: flex; flex-direction: column; gap: 10px; }
+    .uic-linea {
+      height: 46px; border-radius: 12px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.11) 37%, rgba(255,255,255,0.05) 63%);
+      background-size: 400% 100%;
+      animation: uic-brillo 1.3s ease-in-out infinite;
+    }
+    @keyframes uic-brillo {
+      0%   { background-position: 100% 50%; }
+      100% { background-position: 0 50%; }
+    }
   </style>
 </head>
 <body>
 <!-- MEJORA AGREGADA: si la sesion expira, la app regresa sola al login -->
+  <!-- MEJORA AGREGADA (punto 18): ventanas con el estilo de la app -->
+  <!-- MEJORA AGREGADA (punto 22): avisos de cargando -->
+  <script>
+    // =====================================================================
+    // MEJORA AGREGADA (punto 22): avisos de "cargando...".
+    //
+    //   uiCargando(idOElemento, texto)  -> pinta un aviso dentro de un bloque
+    //   uiEsqueleto(idOElemento, n)     -> pinta n renglones "fantasma"
+    //   Barra de progreso arriba: se enciende sola mientras haya peticiones
+    //   en curso. Todo va envuelto en try/catch: si algo fallara, la app
+    //   sigue funcionando exactamente igual que antes.
+    // =====================================================================
+    (function () {
+      "use strict";
+      if (window.uiCargando) return;
+
+      function resolver(ref) {
+        if (!ref) return null;
+        return typeof ref === "string" ? document.getElementById(ref) : ref;
+      }
+
+      window.uiCargando = function (ref, texto) {
+        try {
+          var el = resolver(ref);
+          if (!el) return;
+          el.innerHTML =
+            '<div class="uic-cargando"><div class="uic-rueda"></div><span>' +
+            String(texto || "Cargando\u2026").replace(/</g, "&lt;") +
+            "</span></div>";
+        } catch (e) {}
+      };
+
+      window.uiEsqueleto = function (ref, n) {
+        try {
+          var el = resolver(ref);
+          if (!el) return;
+          var cuantos = Math.max(1, Math.min(8, Number(n) || 3));
+          var html = '<div class="uic-lineas">';
+          for (var i = 0; i < cuantos; i++) html += '<div class="uic-linea"></div>';
+          el.innerHTML = html + "</div>";
+        } catch (e) {}
+      };
+
+      // ---- barra de progreso automática ----
+      try {
+        var barra = null, enCurso = 0, temporizador = null;
+
+        function obtenerBarra() {
+          if (barra && barra.parentNode) return barra;
+          barra = document.getElementById("uic-barra");
+          if (!barra) {
+            barra = document.createElement("div");
+            barra.id = "uic-barra";
+            (document.body || document.documentElement).appendChild(barra);
+          }
+          return barra;
+        }
+
+        function pintar() {
+          var b = obtenerBarra();
+          if (enCurso > 0) {
+            b.classList.add("uic-activa");
+            var ancho = Math.min(90, 30 + enCurso * 12);
+            b.style.width = ancho + "%";
+          } else {
+            b.style.width = "100%";
+            clearTimeout(temporizador);
+            temporizador = setTimeout(function () {
+              b.classList.remove("uic-activa");
+              setTimeout(function () { if (enCurso === 0) b.style.width = "0"; }, 260);
+            }, 180);
+          }
+        }
+
+        var fetchOriginal = window.fetch;
+        if (typeof fetchOriginal === "function") {
+          window.fetch = function () {
+            var p;
+            try { enCurso++; pintar(); } catch (e) {}
+            try {
+              p = fetchOriginal.apply(this, arguments);
+            } catch (e) {
+              try { enCurso = Math.max(0, enCurso - 1); pintar(); } catch (e2) {}
+              throw e;
+            }
+            if (p && typeof p.then === "function") {
+              var bajar = function () { try { enCurso = Math.max(0, enCurso - 1); pintar(); } catch (e) {} };
+              p.then(bajar, bajar);
+            } else {
+              try { enCurso = Math.max(0, enCurso - 1); pintar(); } catch (e) {}
+            }
+            return p;
+          };
+        }
+      } catch (e) {
+        try { console.warn("barra de carga omitida:", e); } catch (e2) {}
+      }
+    })();
+  </script>
+
+  <script>
+    // =====================================================================
+    // MEJORA AGREGADA (punto 18): ventanas con el estilo de la app.
+    //
+    //   uiAviso(mensaje, opciones)       -> Promise<void>   (informar)
+    //   uiConfirmar(mensaje, opciones)   -> Promise<boolean> (sí / no)
+    //   uiPreguntar(mensaje, opciones)   -> Promise<string|null> (escribir algo)
+    //   uiToast(mensaje, tipo)           -> aviso rápido que no bloquea
+    //
+    // Si por cualquier razón algo fallara, cada función cae de vuelta a la
+    // ventanita del navegador, así ninguna acción se queda a medias.
+    // =====================================================================
+    (function () {
+      "use strict";
+      if (window.uiConfirmar) return; // ya estaba cargado
+
+      var ICONOS = { info: "\u2139\uFE0F", exito: "\u2705", alerta: "\u26A0\uFE0F", peligro: "\uD83D\uDDD1\uFE0F", pregunta: "\u270F\uFE0F" };
+
+      function contenedorTostadas() {
+        var c = document.getElementById("uiw-tostadas");
+        if (!c) {
+          c = document.createElement("div");
+          c.id = "uiw-tostadas";
+          c.className = "uiw-tostadas";
+          document.body.appendChild(c);
+        }
+        return c;
+      }
+
+      function uiToast(mensaje, tipo) {
+        try {
+          var t = document.createElement("div");
+          t.className = "uiw-tostada uiw-t-" + (tipo || "info");
+          t.textContent = String(mensaje == null ? "" : mensaje);
+          contenedorTostadas().appendChild(t);
+          requestAnimationFrame(function () { t.classList.add("uiw-visible"); });
+          var ms = (tipo === "error" || tipo === "alerta") ? 5200 : 3200;
+          setTimeout(function () {
+            t.classList.remove("uiw-visible");
+            setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 260);
+          }, ms);
+        } catch (e) {
+          try { console.warn("uiToast:", e); } catch (e2) {}
+        }
+      }
+
+      // Construye y muestra una ventana. Devuelve una promesa con el resultado.
+      function abrir(cfg) {
+        return new Promise(function (resolver) {
+          var overlay, campo, cerrado = false;
+
+          function cerrar(valor) {
+            if (cerrado) return;
+            cerrado = true;
+            document.removeEventListener("keydown", alTeclado, true);
+            overlay.classList.remove("uiw-abierto");
+            setTimeout(function () { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }, 200);
+            resolver(valor);
+          }
+
+          function alTeclado(ev) {
+            if (ev.key === "Escape") { ev.preventDefault(); cerrar(cfg.valorCancelar); }
+            else if (ev.key === "Enter" && (!campo || campo.tagName !== "TEXTAREA")) {
+              ev.preventDefault();
+              cerrar(cfg.tipoVentana === "preguntar" ? (campo ? campo.value : "") : true);
+            }
+          }
+
+          overlay = document.createElement("div");
+          overlay.className = "uiw-overlay";
+
+          var caja = document.createElement("div");
+          caja.className = "uiw-caja";
+          caja.setAttribute("role", "dialog");
+          caja.setAttribute("aria-modal", "true");
+
+          var estilo = cfg.estilo || "info";
+          var ico = document.createElement("div");
+          ico.className = "uiw-icono uiw-" + estilo;
+          ico.textContent = cfg.icono || ICONOS[estilo] || ICONOS.info;
+          caja.appendChild(ico);
+
+          if (cfg.titulo) {
+            var h = document.createElement("div");
+            h.className = "uiw-titulo";
+            h.textContent = cfg.titulo;
+            caja.appendChild(h);
+          }
+          if (cfg.mensaje) {
+            var p = document.createElement("div");
+            p.className = "uiw-texto";
+            p.textContent = cfg.mensaje;
+            caja.appendChild(p);
+          }
+          if (cfg.detalle) {
+            var d = document.createElement("div");
+            d.className = "uiw-detalle";
+            d.textContent = cfg.detalle;
+            caja.appendChild(d);
+          }
+
+          if (cfg.tipoVentana === "preguntar") {
+            campo = document.createElement("input");
+            campo.className = "uiw-campo";
+            campo.type = cfg.tipoCampo || "text";
+            campo.value = cfg.valorInicial == null ? "" : String(cfg.valorInicial);
+            if (cfg.marcador) campo.placeholder = cfg.marcador;
+            caja.appendChild(campo);
+          }
+
+          var fila = document.createElement("div");
+          fila.className = "uiw-botones";
+
+          if (cfg.tipoVentana !== "aviso") {
+            var bCancel = document.createElement("button");
+            bCancel.type = "button";
+            bCancel.className = "uiw-btn uiw-btn-cancelar";
+            bCancel.textContent = cfg.textoCancelar || "Cancelar";
+            bCancel.addEventListener("click", function () { cerrar(cfg.valorCancelar); });
+            fila.appendChild(bCancel);
+          }
+
+          var claseOk = "uiw-btn-ok";
+          if (estilo === "peligro") claseOk = "uiw-btn-peligro";
+          else if (estilo === "exito") claseOk = "uiw-btn-exito";
+
+          var bOk = document.createElement("button");
+          bOk.type = "button";
+          bOk.className = "uiw-btn " + claseOk;
+          bOk.textContent = cfg.textoOk || (cfg.tipoVentana === "aviso" ? "Entendido" : "Aceptar");
+          bOk.addEventListener("click", function () {
+            cerrar(cfg.tipoVentana === "preguntar" ? (campo ? campo.value : "") : true);
+          });
+          fila.appendChild(bOk);
+
+          caja.appendChild(fila);
+          overlay.appendChild(caja);
+          overlay.addEventListener("click", function (ev) {
+            if (ev.target === overlay) cerrar(cfg.valorCancelar);
+          });
+
+          document.body.appendChild(overlay);
+          document.addEventListener("keydown", alTeclado, true);
+          requestAnimationFrame(function () {
+            overlay.classList.add("uiw-abierto");
+            try { (campo || bOk).focus(); if (campo) campo.select(); } catch (e) {}
+          });
+        });
+      }
+
+      window.uiToast = uiToast;
+
+      window.uiAviso = function (mensaje, opciones) {
+        var o = opciones || {};
+        try {
+          return abrir({
+            tipoVentana: "aviso",
+            estilo: o.estilo || "info",
+            icono: o.icono,
+            titulo: o.titulo || "Aviso",
+            mensaje: mensaje,
+            detalle: o.detalle,
+            textoOk: o.textoOk || "Entendido",
+            valorCancelar: undefined
+          });
+        } catch (e) {
+          try { window.alert(mensaje); } catch (e2) {}
+          return Promise.resolve();
+        }
+      };
+
+      window.uiConfirmar = function (mensaje, opciones) {
+        var o = opciones || {};
+        try {
+          return abrir({
+            tipoVentana: "confirmar",
+            estilo: o.estilo || "alerta",
+            icono: o.icono,
+            titulo: o.titulo || "¿Confirmas?",
+            mensaje: mensaje,
+            detalle: o.detalle,
+            textoOk: o.textoOk || "Sí, continuar",
+            textoCancelar: o.textoCancelar || "Cancelar",
+            valorCancelar: false
+          });
+        } catch (e) {
+          return Promise.resolve(window.confirm(mensaje));
+        }
+      };
+
+      window.uiPreguntar = function (mensaje, opciones) {
+        var o = opciones || {};
+        try {
+          return abrir({
+            tipoVentana: "preguntar",
+            estilo: o.estilo || "pregunta",
+            icono: o.icono,
+            titulo: o.titulo || "Escribe el dato",
+            mensaje: mensaje,
+            detalle: o.detalle,
+            valorInicial: o.valorInicial,
+            marcador: o.marcador,
+            tipoCampo: o.tipoCampo || "text",
+            textoOk: o.textoOk || "Guardar",
+            textoCancelar: o.textoCancelar || "Cancelar",
+            valorCancelar: null
+          });
+        } catch (e) {
+          return Promise.resolve(window.prompt(mensaje, o.valorInicial || ""));
+        }
+      };
+    })();
+  </script>
+
 <script>
 (function () {
   try {
@@ -532,7 +994,7 @@
         usuarioActual = JSON.parse(dataUsuario);
         
         if (usuarioActual.tipo !== "admin") {
-          alert("⛔ Acceso denegado. Solo para administradores.");
+          uiToast("⛔ Acceso denegado. Solo para administradores.", "error");
           window.location.href = "/dashboard";
           return;
         }
@@ -579,6 +1041,9 @@
 
       // Cargar máquinas
       async function cargarMaquinas() {
+        // MEJORA AGREGADA (punto 22)
+        try { const _l = document.getElementById("maquinas-lista");
+              if (_l && _l.children.length === 0) uiEsqueleto(_l, 3); } catch (eC) {}
         try {
           const res = await fetch("/api/maquinas");
           if (!res.ok) throw new Error("Error al cargar máquinas");
@@ -611,7 +1076,7 @@
         const nombre = input.value.trim();
         
         if (!nombre) {
-          alert("⚠️ Escribe el nombre de la máquina");
+          uiToast("⚠️ Escribe el nombre de la máquina", "alerta");
           return;
         }
 
@@ -622,7 +1087,7 @@
           if (rDup.ok) {
             const yaHay = await rDup.json();
             if (yaHay.some(m => _normNombre(m) === _normNombre(nombre))) {
-              alert("\u274C Ya existe una máquina llamada \"" + nombre + "\"");
+              uiToast("\u274C Ya existe una máquina llamada \"" + nombre + "\"", "error");
               return;
             }
           }
@@ -637,11 +1102,11 @@
 
           if (!res.ok) throw new Error("Error al agregar máquina");
 
-          alert("✅ Máquina agregada correctamente");
+          uiToast("✅ Máquina agregada correctamente", "exito");
           input.value = "";
           await cargarMaquinas();
         } catch (err) {
-          alert("❌ " + err.message);
+          uiToast("❌ " + err.message, "error");
         }
       }
 
@@ -658,10 +1123,10 @@
 
           if (!res.ok) throw new Error("Error al eliminar máquina");
 
-          alert("✅ Máquina eliminada");
+          uiToast("✅ Máquina eliminada", "exito");
           await cargarMaquinas();
         } catch (err) {
-          alert("❌ " + err.message);
+          uiToast("❌ " + err.message, "error");
         }
       };
 
@@ -687,6 +1152,9 @@
 
       // Cargar prendas
       async function cargarPrendas() {
+        // MEJORA AGREGADA (punto 22)
+        try { const _l = document.getElementById("prendas-lista");
+              if (_l && _l.children.length === 0) uiEsqueleto(_l, 3); } catch (eC) {}
         try {
           const res = await fetch("/api/prendas");
           if (!res.ok) throw new Error("Error al cargar prendas");
@@ -718,7 +1186,7 @@
         const nombre = document.getElementById("input-nueva-prenda").value.trim();
 
         if (!nombre) {
-          alert("❌ Ingresa el nombre de la prenda");
+          uiToast("❌ Ingresa el nombre de la prenda", "alerta");
           return;
         }
 
@@ -728,7 +1196,7 @@
           if (rDup.ok) {
             const yaHay = await rDup.json();
             if (yaHay.some(x => _normNombre(x.nombre) === _normNombre(nombre))) {
-              alert("\u274C Ya existe una prenda llamada \"" + nombre + "\"");
+              uiToast("\u274C Ya existe una prenda llamada \"" + nombre + "\"", "error");
               return;
             }
           }
@@ -748,10 +1216,10 @@
           }
 
           document.getElementById("input-nueva-prenda").value = "";
-          alert("✅ Prenda agregada correctamente");
+          uiToast("✅ Prenda agregada correctamente", "exito");
           await cargarPrendas();
         } catch (err) {
-          alert("❌ " + err.message);
+          uiToast("❌ " + err.message, "error");
         }
       }
 
@@ -780,15 +1248,18 @@
             throw new Error(data.error || "Error al eliminar");
           }
 
-          alert("✅ Prenda eliminada");
+          uiToast("✅ Prenda eliminada", "exito");
           await cargarPrendas();
         } catch (err) {
-          alert("❌ " + err.message);
+          uiToast("❌ " + err.message, "error");
         }
       };
 
       // ========== COSTURAS ==========
       async function cargarCosturas() {
+        // MEJORA AGREGADA (punto 22)
+        try { const _l = document.getElementById("costuras-lista");
+              if (_l && _l.children.length === 0) uiEsqueleto(_l, 3); } catch (eC) {}
         try {
           const res = await fetch("/api/costuras");
           if (!res.ok) throw new Error("Error");
@@ -812,7 +1283,7 @@
 
       async function agregarCostura() {
         const nombre = document.getElementById("input-nueva-costura").value.trim();
-        if (!nombre) { alert("❌ Ingresa el nombre"); return; }
+        if (!nombre) { uiToast("❌ Ingresa el nombre", "alerta"); return; }
 
         // MEJORA AGREGADA (punto 15): aviso claro de nombre repetido
         try {
@@ -820,7 +1291,7 @@
           if (rDup.ok) {
             const yaHay = await rDup.json();
             if (yaHay.some(x => _normNombre(x.nombre) === _normNombre(nombre))) {
-              alert("\u274C Ya existe una costura llamada \"" + nombre + "\"");
+              uiToast("\u274C Ya existe una costura llamada \"" + nombre + "\"", "error");
               return;
             }
           }
@@ -835,9 +1306,9 @@
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || "Error");
           document.getElementById("input-nueva-costura").value = "";
-          alert("✅ Costura agregada");
+          uiToast("✅ Costura agregada", "exito");
           await cargarCosturas();
-        } catch (err) { alert("❌ " + err.message); }
+        } catch (err) { uiToast("❌ " + err.message, "error"); }
       }
 
       window.eliminarCostura = async function(id) {
@@ -856,9 +1327,9 @@
         try {
           const res = await fetch(`/api/costuras/${id}`, { method: "DELETE" });
           if (!res.ok) throw new Error("Error");
-          alert("✅ Costura eliminada");
+          uiToast("✅ Costura eliminada", "exito");
           await cargarCosturas();
-        } catch (err) { alert("❌ " + err.message); }
+        } catch (err) { uiToast("❌ " + err.message, "error"); }
       };
 
 
@@ -919,15 +1390,25 @@
         const uso = await _consultarUso(tipo, valor);
         const detalle = _textoUso(tipo, uso);
         if (detalle) {
-          return confirm(
-            "\u26A0\uFE0F Ojo: \"" + etiqueta + "\" NO está libre.\n\n" + detalle +
-            "\n\nLos pedidos y registros que ya existen NO se borran, pero el nombre" +
-            "\nse quedará escrito en ellos y ya no lo verás en el catálogo." +
-            "\n\nSi solo quieres corregir el nombre, cancela y usa el botón \u270F\uFE0F." +
-            "\n\n\u00BFEliminar de todas formas?"
+          // MEJORA AGREGADA (punto 18): ventana con el estilo de la app
+          return await uiConfirmar(
+            "\"" + etiqueta + "\" todavía se está usando. Si solo quieres corregir el nombre," +
+            " cancela y usa el botón de editar \u270F\uFE0F.",
+            {
+              titulo: "\u00BFEliminar de todas formas?",
+              estilo: "peligro",
+              detalle: detalle +
+                "\n\nLos pedidos y registros que ya existen NO se borran, pero el nombre" +
+                " se quedará escrito en ellos y ya no lo verás en el catálogo.",
+              textoOk: "Sí, eliminar",
+              textoCancelar: "No, dejarlo"
+            }
           );
         }
-        return confirm("\u00BFEliminar \"" + etiqueta + "\" del catálogo?\n\nNo se está usando en ningún pedido.");
+        return await uiConfirmar(
+          "No se está usando en ningún pedido, así que se puede quitar sin afectar nada.",
+          { titulo: "\u00BFEliminar \"" + etiqueta + "\"?", estilo: "peligro", textoOk: "Sí, eliminar", textoCancelar: "Cancelar" }
+        );
       }
 
       // PUNTO 15: renombrar (el servidor actualiza todo en cascada)
@@ -946,29 +1427,33 @@
             msg += "\n\nSe actualizó el nombre en " + d.lugaresActualizados +
                    " lugar(es): pedidos, plantillas y registros.";
           }
-          alert(msg);
+          uiToast(msg, "exito");
           if (typeof recargar === "function") await recargar();
         } catch (e) {
-          alert("\u274C " + (e.message || "No se pudo renombrar"));
+          uiToast("\u274C " + (e.message || "No se pudo renombrar"), "error");
         }
       }
 
       window.editarMaquina = async function(nombreActual) {
         try {
-          const nuevo = prompt("Nuevo nombre para la máquina:", nombreActual);
+          const nuevo = await uiPreguntar("Escribe el nombre nuevo. Se va a actualizar en todos los pedidos, plantillas y registros donde aparezca.", {
+            titulo: "Cambiar nombre de la máquina",
+            valorInicial: nombreActual,
+            textoOk: "Guardar nombre"
+          });
           if (nuevo === null) return;
           const limpio = String(nuevo).trim();
-          if (!limpio) { alert("\u274C El nombre no puede quedar vacío"); return; }
+          if (!limpio) { uiToast("\u274C El nombre no puede quedar vacío", "alerta"); return; }
           if (_normNombre(limpio) === _normNombre(nombreActual)) return; // sin cambios
 
           const r = await fetch("/api/maquinas");
           const lista = r.ok ? await r.json() : [];
           if (lista.some(m => _normNombre(m) === _normNombre(limpio))) {
-            alert("\u274C Ya existe una máquina llamada \"" + limpio + "\"");
+            uiToast("\u274C Ya existe una máquina llamada \"" + limpio + "\"", "error");
             return;
           }
           await _renombrarCatalogo({ tipo: "maquina", nombreActual, nombreNuevo: limpio }, cargarMaquinas);
-        } catch (e) { alert("\u274C " + e.message); }
+        } catch (e) { uiToast("\u274C " + e.message, "error"); }
       };
 
       window.editarPrendaNombre = async function(id) {
@@ -976,23 +1461,27 @@
           const r = await fetch("/api/prendas");
           const lista = r.ok ? await r.json() : [];
           const actual = lista.find(x => Number(x.id) === Number(id));
-          if (!actual) { alert("\u274C No se encontró la prenda"); return; }
+          if (!actual) { uiToast("\u274C No se encontró la prenda", "error"); return; }
 
-          const nuevo = prompt("Nuevo nombre para la prenda:", actual.nombre);
+          const nuevo = await uiPreguntar("Escribe el nombre nuevo. Se va a actualizar en todos los pedidos, plantillas y registros donde aparezca.", {
+            titulo: "Cambiar nombre de la prenda",
+            valorInicial: actual.nombre,
+            textoOk: "Guardar nombre"
+          });
           if (nuevo === null) return;
           const limpio = String(nuevo).trim();
-          if (!limpio) { alert("\u274C El nombre no puede quedar vacío"); return; }
+          if (!limpio) { uiToast("\u274C El nombre no puede quedar vacío", "alerta"); return; }
           if (_normNombre(limpio) === _normNombre(actual.nombre)) return;
 
           if (lista.some(x => Number(x.id) !== Number(id) && _normNombre(x.nombre) === _normNombre(limpio))) {
-            alert("\u274C Ya existe una prenda llamada \"" + limpio + "\"");
+            uiToast("\u274C Ya existe una prenda llamada \"" + limpio + "\"", "error");
             return;
           }
           await _renombrarCatalogo({ tipo: "prenda", id: Number(id), nombreNuevo: limpio }, async () => {
             await cargarPrendas();
             try { await cargarSelectPrendasPlantilla(); } catch (e2) {}
           });
-        } catch (e) { alert("\u274C " + e.message); }
+        } catch (e) { uiToast("\u274C " + e.message, "error"); }
       };
 
       window.editarCosturaNombre = async function(id) {
@@ -1000,23 +1489,27 @@
           const r = await fetch("/api/costuras");
           const lista = r.ok ? await r.json() : [];
           const actual = lista.find(x => Number(x.id) === Number(id));
-          if (!actual) { alert("\u274C No se encontró la costura"); return; }
+          if (!actual) { uiToast("\u274C No se encontró la costura", "error"); return; }
 
-          const nuevo = prompt("Nuevo nombre para la costura:", actual.nombre);
+          const nuevo = await uiPreguntar("Escribe el nombre nuevo. Se va a actualizar en todos los pedidos, plantillas y registros donde aparezca.", {
+            titulo: "Cambiar nombre de la costura",
+            valorInicial: actual.nombre,
+            textoOk: "Guardar nombre"
+          });
           if (nuevo === null) return;
           const limpio = String(nuevo).trim();
-          if (!limpio) { alert("\u274C El nombre no puede quedar vacío"); return; }
+          if (!limpio) { uiToast("\u274C El nombre no puede quedar vacío", "alerta"); return; }
           if (_normNombre(limpio) === _normNombre(actual.nombre)) return;
 
           if (lista.some(x => Number(x.id) !== Number(id) && _normNombre(x.nombre) === _normNombre(limpio))) {
-            alert("\u274C Ya existe una costura llamada \"" + limpio + "\"");
+            uiToast("\u274C Ya existe una costura llamada \"" + limpio + "\"", "error");
             return;
           }
           await _renombrarCatalogo({ tipo: "costura", id: Number(id), nombreNuevo: limpio }, async () => {
             await cargarCosturas();
             try { await cargarPlantilla(); } catch (e2) {}
           });
-        } catch (e) { alert("\u274C " + e.message); }
+        } catch (e) { uiToast("\u274C " + e.message, "error"); }
       };
 
       // PUNTO 12: descargar los catálogos en Excel
@@ -1123,14 +1616,16 @@
             body: JSON.stringify({ operaciones })
           });
           if (!res.ok) throw new Error("Error");
-          alert("✅ Plantilla guardada (" + operaciones.length + " operaciones)");
+          uiToast("✅ Plantilla guardada (" + operaciones.length + " operaciones)", "exito");
           await cargarCosturas(); // Refresh por si se agregaron costuras nuevas
-        } catch (err) { alert("❌ " + err.message); }
+        } catch (err) { uiToast("❌ " + err.message, "error"); }
       };
 
       // Crear backup
       async function crearBackup() {
-        if (!confirm("¿Crear un backup de los datos del sistema?")) return;
+        if (!await uiConfirmar("Se guarda una copia de todos los datos en el servidor, con la fecha y hora de hoy.", {
+          titulo: "¿Crear un respaldo?", estilo: "info", textoOk: "Sí, crear respaldo"
+        })) return;
 
         const btn = document.getElementById("btn-backup");
         btn.disabled = true;
@@ -1144,12 +1639,14 @@
           const data = await res.json();
 
           if (data.ok) {
-            alert(`✅ Backup creado exitosamente\n\nArchivo: ${data.archivo}`);
+            await uiAviso("El respaldo se guardó en el servidor.", {
+              titulo: "✅ Respaldo creado", estilo: "exito", detalle: "Archivo: " + data.archivo
+            });
           } else {
             throw new Error(data.mensaje || "Error al crear backup");
           }
         } catch (err) {
-          alert("❌ " + err.message);
+          uiToast("❌ " + err.message, "error");
         } finally {
           btn.disabled = false;
           btn.textContent = "📦 Crear Backup Ahora";
@@ -1162,17 +1659,22 @@
         const password = document.getElementById("input-admin-password").value.trim();
 
         if (!usuario && !password) {
-          alert("❌ Ingresa al menos un campo para actualizar");
+          uiToast("❌ Ingresa al menos un campo para actualizar", "alerta");
           return;
         }
 
-        if (!confirm("¿Estás seguro de cambiar las credenciales de Admin?")) return;
+        if (!await uiConfirmar("Vas a cambiar el usuario o la contraseña del administrador. Asegúrate de anotar los datos nuevos antes de continuar.", {
+          titulo: "¿Cambiar credenciales de Admin?", estilo: "alerta", textoOk: "Sí, cambiar"
+        })) return;
 
         // MEJORA AGREGADA: para cambiar la contraseña hay que confirmar la actual
         let passwordActualAdmin = "";
         if (password) {
-          passwordActualAdmin = (prompt("Por seguridad, escribe tu contraseña ACTUAL de administrador:") || "").trim();
-          if (!passwordActualAdmin) { alert("❌ Cambio cancelado: se necesita la contraseña actual."); return; }
+          passwordActualAdmin = (await uiPreguntar("Por seguridad, escribe tu contraseña ACTUAL de administrador.", {
+            titulo: "Confirma que eres tú", estilo: "alerta", tipoCampo: "password",
+            marcador: "Contraseña actual", textoOk: "Confirmar"
+          }) || "").trim();
+          if (!passwordActualAdmin) { uiToast("❌ Cambio cancelado: se necesita la contraseña actual.", "alerta"); return; }
         }
 
         const btn = document.getElementById("btn-cambiar-admin");
@@ -1196,7 +1698,7 @@
 
           if (!res.ok) throw new Error(data.error || "Error al actualizar");
 
-          alert("✅ Credenciales de Admin actualizadas correctamente");
+          uiToast("✅ Credenciales de Admin actualizadas correctamente", "exito");
           
           // Limpiar campos
           document.getElementById("input-admin-usuario").value = "";
@@ -1209,7 +1711,7 @@
           }
 
         } catch (err) {
-          alert("❌ " + err.message);
+          uiToast("❌ " + err.message, "error");
         } finally {
           btn.disabled = false;
           btn.textContent = "💾 Actualizar Admin";
@@ -1222,17 +1724,22 @@
         const password = document.getElementById("input-encargada-password").value.trim();
 
         if (!usuario && !password) {
-          alert("❌ Ingresa al menos un campo para actualizar");
+          uiToast("❌ Ingresa al menos un campo para actualizar", "alerta");
           return;
         }
 
-        if (!confirm("¿Estás seguro de cambiar las credenciales de Encargada?")) return;
+        if (!await uiConfirmar("Vas a cambiar el usuario o la contraseña de la encargada. Avísale de los datos nuevos para que pueda entrar.", {
+          titulo: "¿Cambiar credenciales de Encargada?", estilo: "alerta", textoOk: "Sí, cambiar"
+        })) return;
 
         // MEJORA AGREGADA: el admin confirma SU contraseña para cambiar la de la encargada
         let passwordActualEnc = "";
         if (password) {
-          passwordActualEnc = (prompt("Por seguridad, escribe TU contraseña de administrador para confirmar:") || "").trim();
-          if (!passwordActualEnc) { alert("❌ Cambio cancelado: se necesita tu contraseña de administrador."); return; }
+          passwordActualEnc = (await uiPreguntar("Por seguridad, escribe TU contraseña de administrador para confirmar el cambio.", {
+            titulo: "Confirma que eres tú", estilo: "alerta", tipoCampo: "password",
+            marcador: "Tu contraseña de admin", textoOk: "Confirmar"
+          }) || "").trim();
+          if (!passwordActualEnc) { uiToast("❌ Cambio cancelado: se necesita tu contraseña de administrador.", "alerta"); return; }
         }
 
         const btn = document.getElementById("btn-cambiar-encargada");
@@ -1256,14 +1763,14 @@
 
           if (!res.ok) throw new Error(data.error || "Error al actualizar");
 
-          alert("✅ Credenciales de Encargada actualizadas correctamente");
+          uiToast("✅ Credenciales de Encargada actualizadas correctamente", "exito");
           
           // Limpiar campos
           document.getElementById("input-encargada-usuario").value = "";
           document.getElementById("input-encargada-password").value = "";
 
         } catch (err) {
-          alert("❌ " + err.message);
+          uiToast("❌ " + err.message, "error");
         } finally {
           btn.disabled = false;
           btn.textContent = "💾 Actualizar Encargada";

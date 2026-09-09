@@ -327,10 +327,150 @@
       .resumen-valor { font-size: 22px; }
       .resumen-label { font-size: 10px; }
     }
+    /* ===================================================================
+       MEJORA AGREGADA (punto 22): avisos de "cargando..." para que se vea
+       que la app está trabajando y no parezca que se quedó pegada.
+       Todo va con el prefijo .uic- para no chocar con nada existente.
+       =================================================================== */
+    #uic-barra {
+      position: fixed; top: 0; left: 0; height: 3px; width: 0;
+      background: linear-gradient(90deg, #3b82f6, #8b5cf6, #10b981);
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
+      z-index: 100001;
+      opacity: 0;
+      transition: width 0.25s ease, opacity 0.25s ease;
+      pointer-events: none;
+    }
+    #uic-barra.uic-activa { opacity: 1; }
+    .uic-cargando {
+      display: flex; align-items: center; gap: 10px;
+      padding: 18px; border-radius: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px dashed rgba(255, 255, 255, 0.14);
+      color: #94a3b8; font-size: 13px;
+    }
+    .uic-rueda {
+      width: 18px; height: 18px; flex: 0 0 18px;
+      border: 2px solid rgba(255, 255, 255, 0.18);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: uic-girar 0.75s linear infinite;
+    }
+    @keyframes uic-girar { to { transform: rotate(360deg); } }
+    .uic-lineas { display: flex; flex-direction: column; gap: 10px; }
+    .uic-linea {
+      height: 46px; border-radius: 12px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.11) 37%, rgba(255,255,255,0.05) 63%);
+      background-size: 400% 100%;
+      animation: uic-brillo 1.3s ease-in-out infinite;
+    }
+    @keyframes uic-brillo {
+      0%   { background-position: 100% 50%; }
+      100% { background-position: 0 50%; }
+    }
   </style>
 </head>
 <body>
 <!-- MEJORA AGREGADA: si la sesion expira, la app regresa sola al login -->
+  <!-- MEJORA AGREGADA (punto 22): avisos de cargando -->
+  <script>
+    // =====================================================================
+    // MEJORA AGREGADA (punto 22): avisos de "cargando...".
+    //
+    //   uiCargando(idOElemento, texto)  -> pinta un aviso dentro de un bloque
+    //   uiEsqueleto(idOElemento, n)     -> pinta n renglones "fantasma"
+    //   Barra de progreso arriba: se enciende sola mientras haya peticiones
+    //   en curso. Todo va envuelto en try/catch: si algo fallara, la app
+    //   sigue funcionando exactamente igual que antes.
+    // =====================================================================
+    (function () {
+      "use strict";
+      if (window.uiCargando) return;
+
+      function resolver(ref) {
+        if (!ref) return null;
+        return typeof ref === "string" ? document.getElementById(ref) : ref;
+      }
+
+      window.uiCargando = function (ref, texto) {
+        try {
+          var el = resolver(ref);
+          if (!el) return;
+          el.innerHTML =
+            '<div class="uic-cargando"><div class="uic-rueda"></div><span>' +
+            String(texto || "Cargando\u2026").replace(/</g, "&lt;") +
+            "</span></div>";
+        } catch (e) {}
+      };
+
+      window.uiEsqueleto = function (ref, n) {
+        try {
+          var el = resolver(ref);
+          if (!el) return;
+          var cuantos = Math.max(1, Math.min(8, Number(n) || 3));
+          var html = '<div class="uic-lineas">';
+          for (var i = 0; i < cuantos; i++) html += '<div class="uic-linea"></div>';
+          el.innerHTML = html + "</div>";
+        } catch (e) {}
+      };
+
+      // ---- barra de progreso automática ----
+      try {
+        var barra = null, enCurso = 0, temporizador = null;
+
+        function obtenerBarra() {
+          if (barra && barra.parentNode) return barra;
+          barra = document.getElementById("uic-barra");
+          if (!barra) {
+            barra = document.createElement("div");
+            barra.id = "uic-barra";
+            (document.body || document.documentElement).appendChild(barra);
+          }
+          return barra;
+        }
+
+        function pintar() {
+          var b = obtenerBarra();
+          if (enCurso > 0) {
+            b.classList.add("uic-activa");
+            var ancho = Math.min(90, 30 + enCurso * 12);
+            b.style.width = ancho + "%";
+          } else {
+            b.style.width = "100%";
+            clearTimeout(temporizador);
+            temporizador = setTimeout(function () {
+              b.classList.remove("uic-activa");
+              setTimeout(function () { if (enCurso === 0) b.style.width = "0"; }, 260);
+            }, 180);
+          }
+        }
+
+        var fetchOriginal = window.fetch;
+        if (typeof fetchOriginal === "function") {
+          window.fetch = function () {
+            var p;
+            try { enCurso++; pintar(); } catch (e) {}
+            try {
+              p = fetchOriginal.apply(this, arguments);
+            } catch (e) {
+              try { enCurso = Math.max(0, enCurso - 1); pintar(); } catch (e2) {}
+              throw e;
+            }
+            if (p && typeof p.then === "function") {
+              var bajar = function () { try { enCurso = Math.max(0, enCurso - 1); pintar(); } catch (e) {} };
+              p.then(bajar, bajar);
+            } else {
+              try { enCurso = Math.max(0, enCurso - 1); pintar(); } catch (e) {}
+            }
+            return p;
+          };
+        }
+      } catch (e) {
+        try { console.warn("barra de carga omitida:", e); } catch (e2) {}
+      }
+    })();
+  </script>
+
 <script>
 (function () {
   try {

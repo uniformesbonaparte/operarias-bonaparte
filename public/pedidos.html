@@ -62,6 +62,15 @@
     .pedido-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
     .pedido-escuela { font-weight: 700; font-size: 15px; }
     .pedido-folio { font-size: 12px; color: var(--text-muted); }
+    /* MEJORA AGREGADA (punto 19): marcar en rojo el campo que falta */
+    .campo-falta {
+      border-color: #ef4444 !important;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
+    }
+    .campo-falta-aviso {
+      display: block; margin-top: 6px;
+      font-size: 12px; color: #fca5a5;
+    }
     /* MEJORA AGREGADA: aviso de fecha de entrega */
     .chip-entrega { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; margin-left:6px; }
     .chip-entrega.vencido { background:rgba(239,68,68,0.22); color:#fca5a5; }
@@ -142,10 +151,472 @@
     .modal-close:hover { background: rgba(255,255,255,0.1); transform: rotate(90deg); }
     .modal-actions { display: flex; gap: 12px; margin-top: 20px; }
     .modal-actions button { flex: 1; }
+    /* ===================================================================
+       MEJORA AGREGADA (punto 18): ventanas propias con el estilo de la app
+       en lugar de las ventanitas grises del navegador.
+       Todo vive bajo el prefijo .uiw- para no chocar con nada existente.
+       =================================================================== */
+    .uiw-overlay {
+      position: fixed; inset: 0; z-index: 99999;
+      background: rgba(3, 6, 20, 0.78);
+      backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+      opacity: 0; transition: opacity 0.18s ease;
+    }
+    .uiw-overlay.uiw-abierto { display: flex; opacity: 1; }
+    .uiw-caja {
+      width: 100%; max-width: 420px;
+      background: linear-gradient(135deg, #101638, #0a0e27);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 20px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+      padding: 22px;
+      transform: translateY(10px) scale(0.98);
+      transition: transform 0.18s ease;
+      max-height: 88vh; overflow-y: auto;
+      text-align: left;
+    }
+    .uiw-overlay.uiw-abierto .uiw-caja { transform: translateY(0) scale(1); }
+    .uiw-icono {
+      width: 46px; height: 46px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 23px; margin-bottom: 14px;
+    }
+    .uiw-icono.uiw-info    { background: rgba(59, 130, 246, 0.18); }
+    .uiw-icono.uiw-exito   { background: rgba(16, 185, 129, 0.18); }
+    .uiw-icono.uiw-alerta  { background: rgba(245, 158, 11, 0.18); }
+    .uiw-icono.uiw-peligro { background: rgba(239, 68, 68, 0.18); }
+    .uiw-titulo {
+      font-size: 17px; font-weight: 700; color: #f8fafc;
+      margin-bottom: 8px; line-height: 1.3;
+    }
+    .uiw-texto {
+      font-size: 14px; color: #cbd5e1; line-height: 1.55;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .uiw-detalle {
+      margin-top: 12px; padding: 12px 14px;
+      background: rgba(0, 0, 0, 0.28);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 12px;
+      font-size: 13px; color: #94a3b8; line-height: 1.6;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .uiw-campo {
+      width: 100%; margin-top: 14px;
+      padding: 13px 14px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 12px;
+      color: #f8fafc; font-size: 15px; font-family: inherit;
+      box-sizing: border-box;
+    }
+    .uiw-campo:focus { outline: none; border-color: #3b82f6; }
+    .uiw-botones {
+      display: flex; gap: 10px; margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .uiw-btn {
+      flex: 1 1 130px; min-height: 46px;
+      padding: 12px 16px; border-radius: 12px;
+      border: 1px solid transparent;
+      font-size: 15px; font-weight: 600; font-family: inherit;
+      cursor: pointer; transition: filter 0.18s ease;
+    }
+    .uiw-btn:hover { filter: brightness(1.14); }
+    .uiw-btn-cancelar {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: rgba(255, 255, 255, 0.16);
+      color: #e2e8f0;
+    }
+    .uiw-btn-ok      { background: linear-gradient(135deg, #3b82f6, #6366f1); color: #fff; }
+    .uiw-btn-exito   { background: linear-gradient(135deg, #10b981, #059669); color: #fff; }
+    .uiw-btn-peligro { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; }
+
+    /* Avisos rápidos que no bloquean (para "guardado", "eliminado", etc.) */
+    .uiw-tostadas {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: 22px; z-index: 100000;
+      display: flex; flex-direction: column; gap: 10px;
+      width: calc(100% - 32px); max-width: 420px;
+      pointer-events: none;
+    }
+    .uiw-tostada {
+      display: flex; gap: 10px; align-items: flex-start;
+      padding: 13px 16px; border-radius: 14px;
+      background: linear-gradient(135deg, #101638, #0a0e27);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+      color: #f1f5f9; font-size: 14px; line-height: 1.45;
+      white-space: pre-wrap; word-break: break-word;
+      opacity: 0; transform: translateY(12px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .uiw-tostada.uiw-visible { opacity: 1; transform: translateY(0); }
+    .uiw-tostada.uiw-t-exito   { border-left: 4px solid #10b981; }
+    .uiw-tostada.uiw-t-error   { border-left: 4px solid #ef4444; }
+    .uiw-tostada.uiw-t-info    { border-left: 4px solid #3b82f6; }
+    .uiw-tostada.uiw-t-alerta  { border-left: 4px solid #f59e0b; }
+    /* ===================================================================
+       MEJORA AGREGADA (punto 22): avisos de "cargando..." para que se vea
+       que la app está trabajando y no parezca que se quedó pegada.
+       Todo va con el prefijo .uic- para no chocar con nada existente.
+       =================================================================== */
+    #uic-barra {
+      position: fixed; top: 0; left: 0; height: 3px; width: 0;
+      background: linear-gradient(90deg, #3b82f6, #8b5cf6, #10b981);
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
+      z-index: 100001;
+      opacity: 0;
+      transition: width 0.25s ease, opacity 0.25s ease;
+      pointer-events: none;
+    }
+    #uic-barra.uic-activa { opacity: 1; }
+    .uic-cargando {
+      display: flex; align-items: center; gap: 10px;
+      padding: 18px; border-radius: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px dashed rgba(255, 255, 255, 0.14);
+      color: #94a3b8; font-size: 13px;
+    }
+    .uic-rueda {
+      width: 18px; height: 18px; flex: 0 0 18px;
+      border: 2px solid rgba(255, 255, 255, 0.18);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: uic-girar 0.75s linear infinite;
+    }
+    @keyframes uic-girar { to { transform: rotate(360deg); } }
+    .uic-lineas { display: flex; flex-direction: column; gap: 10px; }
+    .uic-linea {
+      height: 46px; border-radius: 12px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.11) 37%, rgba(255,255,255,0.05) 63%);
+      background-size: 400% 100%;
+      animation: uic-brillo 1.3s ease-in-out infinite;
+    }
+    @keyframes uic-brillo {
+      0%   { background-position: 100% 50%; }
+      100% { background-position: 0 50%; }
+    }
   </style>
 </head>
 <body>
 <!-- MEJORA AGREGADA: si la sesion expira, la app regresa sola al login -->
+  <!-- MEJORA AGREGADA (punto 18): ventanas con el estilo de la app -->
+  <!-- MEJORA AGREGADA (punto 22): avisos de cargando -->
+  <script>
+    // =====================================================================
+    // MEJORA AGREGADA (punto 22): avisos de "cargando...".
+    //
+    //   uiCargando(idOElemento, texto)  -> pinta un aviso dentro de un bloque
+    //   uiEsqueleto(idOElemento, n)     -> pinta n renglones "fantasma"
+    //   Barra de progreso arriba: se enciende sola mientras haya peticiones
+    //   en curso. Todo va envuelto en try/catch: si algo fallara, la app
+    //   sigue funcionando exactamente igual que antes.
+    // =====================================================================
+    (function () {
+      "use strict";
+      if (window.uiCargando) return;
+
+      function resolver(ref) {
+        if (!ref) return null;
+        return typeof ref === "string" ? document.getElementById(ref) : ref;
+      }
+
+      window.uiCargando = function (ref, texto) {
+        try {
+          var el = resolver(ref);
+          if (!el) return;
+          el.innerHTML =
+            '<div class="uic-cargando"><div class="uic-rueda"></div><span>' +
+            String(texto || "Cargando\u2026").replace(/</g, "&lt;") +
+            "</span></div>";
+        } catch (e) {}
+      };
+
+      window.uiEsqueleto = function (ref, n) {
+        try {
+          var el = resolver(ref);
+          if (!el) return;
+          var cuantos = Math.max(1, Math.min(8, Number(n) || 3));
+          var html = '<div class="uic-lineas">';
+          for (var i = 0; i < cuantos; i++) html += '<div class="uic-linea"></div>';
+          el.innerHTML = html + "</div>";
+        } catch (e) {}
+      };
+
+      // ---- barra de progreso automática ----
+      try {
+        var barra = null, enCurso = 0, temporizador = null;
+
+        function obtenerBarra() {
+          if (barra && barra.parentNode) return barra;
+          barra = document.getElementById("uic-barra");
+          if (!barra) {
+            barra = document.createElement("div");
+            barra.id = "uic-barra";
+            (document.body || document.documentElement).appendChild(barra);
+          }
+          return barra;
+        }
+
+        function pintar() {
+          var b = obtenerBarra();
+          if (enCurso > 0) {
+            b.classList.add("uic-activa");
+            var ancho = Math.min(90, 30 + enCurso * 12);
+            b.style.width = ancho + "%";
+          } else {
+            b.style.width = "100%";
+            clearTimeout(temporizador);
+            temporizador = setTimeout(function () {
+              b.classList.remove("uic-activa");
+              setTimeout(function () { if (enCurso === 0) b.style.width = "0"; }, 260);
+            }, 180);
+          }
+        }
+
+        var fetchOriginal = window.fetch;
+        if (typeof fetchOriginal === "function") {
+          window.fetch = function () {
+            var p;
+            try { enCurso++; pintar(); } catch (e) {}
+            try {
+              p = fetchOriginal.apply(this, arguments);
+            } catch (e) {
+              try { enCurso = Math.max(0, enCurso - 1); pintar(); } catch (e2) {}
+              throw e;
+            }
+            if (p && typeof p.then === "function") {
+              var bajar = function () { try { enCurso = Math.max(0, enCurso - 1); pintar(); } catch (e) {} };
+              p.then(bajar, bajar);
+            } else {
+              try { enCurso = Math.max(0, enCurso - 1); pintar(); } catch (e) {}
+            }
+            return p;
+          };
+        }
+      } catch (e) {
+        try { console.warn("barra de carga omitida:", e); } catch (e2) {}
+      }
+    })();
+  </script>
+
+  <script>
+    // =====================================================================
+    // MEJORA AGREGADA (punto 18): ventanas con el estilo de la app.
+    //
+    //   uiAviso(mensaje, opciones)       -> Promise<void>   (informar)
+    //   uiConfirmar(mensaje, opciones)   -> Promise<boolean> (sí / no)
+    //   uiPreguntar(mensaje, opciones)   -> Promise<string|null> (escribir algo)
+    //   uiToast(mensaje, tipo)           -> aviso rápido que no bloquea
+    //
+    // Si por cualquier razón algo fallara, cada función cae de vuelta a la
+    // ventanita del navegador, así ninguna acción se queda a medias.
+    // =====================================================================
+    (function () {
+      "use strict";
+      if (window.uiConfirmar) return; // ya estaba cargado
+
+      var ICONOS = { info: "\u2139\uFE0F", exito: "\u2705", alerta: "\u26A0\uFE0F", peligro: "\uD83D\uDDD1\uFE0F", pregunta: "\u270F\uFE0F" };
+
+      function contenedorTostadas() {
+        var c = document.getElementById("uiw-tostadas");
+        if (!c) {
+          c = document.createElement("div");
+          c.id = "uiw-tostadas";
+          c.className = "uiw-tostadas";
+          document.body.appendChild(c);
+        }
+        return c;
+      }
+
+      function uiToast(mensaje, tipo) {
+        try {
+          var t = document.createElement("div");
+          t.className = "uiw-tostada uiw-t-" + (tipo || "info");
+          t.textContent = String(mensaje == null ? "" : mensaje);
+          contenedorTostadas().appendChild(t);
+          requestAnimationFrame(function () { t.classList.add("uiw-visible"); });
+          var ms = (tipo === "error" || tipo === "alerta") ? 5200 : 3200;
+          setTimeout(function () {
+            t.classList.remove("uiw-visible");
+            setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 260);
+          }, ms);
+        } catch (e) {
+          try { console.warn("uiToast:", e); } catch (e2) {}
+        }
+      }
+
+      // Construye y muestra una ventana. Devuelve una promesa con el resultado.
+      function abrir(cfg) {
+        return new Promise(function (resolver) {
+          var overlay, campo, cerrado = false;
+
+          function cerrar(valor) {
+            if (cerrado) return;
+            cerrado = true;
+            document.removeEventListener("keydown", alTeclado, true);
+            overlay.classList.remove("uiw-abierto");
+            setTimeout(function () { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }, 200);
+            resolver(valor);
+          }
+
+          function alTeclado(ev) {
+            if (ev.key === "Escape") { ev.preventDefault(); cerrar(cfg.valorCancelar); }
+            else if (ev.key === "Enter" && (!campo || campo.tagName !== "TEXTAREA")) {
+              ev.preventDefault();
+              cerrar(cfg.tipoVentana === "preguntar" ? (campo ? campo.value : "") : true);
+            }
+          }
+
+          overlay = document.createElement("div");
+          overlay.className = "uiw-overlay";
+
+          var caja = document.createElement("div");
+          caja.className = "uiw-caja";
+          caja.setAttribute("role", "dialog");
+          caja.setAttribute("aria-modal", "true");
+
+          var estilo = cfg.estilo || "info";
+          var ico = document.createElement("div");
+          ico.className = "uiw-icono uiw-" + estilo;
+          ico.textContent = cfg.icono || ICONOS[estilo] || ICONOS.info;
+          caja.appendChild(ico);
+
+          if (cfg.titulo) {
+            var h = document.createElement("div");
+            h.className = "uiw-titulo";
+            h.textContent = cfg.titulo;
+            caja.appendChild(h);
+          }
+          if (cfg.mensaje) {
+            var p = document.createElement("div");
+            p.className = "uiw-texto";
+            p.textContent = cfg.mensaje;
+            caja.appendChild(p);
+          }
+          if (cfg.detalle) {
+            var d = document.createElement("div");
+            d.className = "uiw-detalle";
+            d.textContent = cfg.detalle;
+            caja.appendChild(d);
+          }
+
+          if (cfg.tipoVentana === "preguntar") {
+            campo = document.createElement("input");
+            campo.className = "uiw-campo";
+            campo.type = cfg.tipoCampo || "text";
+            campo.value = cfg.valorInicial == null ? "" : String(cfg.valorInicial);
+            if (cfg.marcador) campo.placeholder = cfg.marcador;
+            caja.appendChild(campo);
+          }
+
+          var fila = document.createElement("div");
+          fila.className = "uiw-botones";
+
+          if (cfg.tipoVentana !== "aviso") {
+            var bCancel = document.createElement("button");
+            bCancel.type = "button";
+            bCancel.className = "uiw-btn uiw-btn-cancelar";
+            bCancel.textContent = cfg.textoCancelar || "Cancelar";
+            bCancel.addEventListener("click", function () { cerrar(cfg.valorCancelar); });
+            fila.appendChild(bCancel);
+          }
+
+          var claseOk = "uiw-btn-ok";
+          if (estilo === "peligro") claseOk = "uiw-btn-peligro";
+          else if (estilo === "exito") claseOk = "uiw-btn-exito";
+
+          var bOk = document.createElement("button");
+          bOk.type = "button";
+          bOk.className = "uiw-btn " + claseOk;
+          bOk.textContent = cfg.textoOk || (cfg.tipoVentana === "aviso" ? "Entendido" : "Aceptar");
+          bOk.addEventListener("click", function () {
+            cerrar(cfg.tipoVentana === "preguntar" ? (campo ? campo.value : "") : true);
+          });
+          fila.appendChild(bOk);
+
+          caja.appendChild(fila);
+          overlay.appendChild(caja);
+          overlay.addEventListener("click", function (ev) {
+            if (ev.target === overlay) cerrar(cfg.valorCancelar);
+          });
+
+          document.body.appendChild(overlay);
+          document.addEventListener("keydown", alTeclado, true);
+          requestAnimationFrame(function () {
+            overlay.classList.add("uiw-abierto");
+            try { (campo || bOk).focus(); if (campo) campo.select(); } catch (e) {}
+          });
+        });
+      }
+
+      window.uiToast = uiToast;
+
+      window.uiAviso = function (mensaje, opciones) {
+        var o = opciones || {};
+        try {
+          return abrir({
+            tipoVentana: "aviso",
+            estilo: o.estilo || "info",
+            icono: o.icono,
+            titulo: o.titulo || "Aviso",
+            mensaje: mensaje,
+            detalle: o.detalle,
+            textoOk: o.textoOk || "Entendido",
+            valorCancelar: undefined
+          });
+        } catch (e) {
+          try { window.alert(mensaje); } catch (e2) {}
+          return Promise.resolve();
+        }
+      };
+
+      window.uiConfirmar = function (mensaje, opciones) {
+        var o = opciones || {};
+        try {
+          return abrir({
+            tipoVentana: "confirmar",
+            estilo: o.estilo || "alerta",
+            icono: o.icono,
+            titulo: o.titulo || "¿Confirmas?",
+            mensaje: mensaje,
+            detalle: o.detalle,
+            textoOk: o.textoOk || "Sí, continuar",
+            textoCancelar: o.textoCancelar || "Cancelar",
+            valorCancelar: false
+          });
+        } catch (e) {
+          return Promise.resolve(window.confirm(mensaje));
+        }
+      };
+
+      window.uiPreguntar = function (mensaje, opciones) {
+        var o = opciones || {};
+        try {
+          return abrir({
+            tipoVentana: "preguntar",
+            estilo: o.estilo || "pregunta",
+            icono: o.icono,
+            titulo: o.titulo || "Escribe el dato",
+            mensaje: mensaje,
+            detalle: o.detalle,
+            valorInicial: o.valorInicial,
+            marcador: o.marcador,
+            tipoCampo: o.tipoCampo || "text",
+            textoOk: o.textoOk || "Guardar",
+            textoCancelar: o.textoCancelar || "Cancelar",
+            valorCancelar: null
+          });
+        } catch (e) {
+          return Promise.resolve(window.prompt(mensaje, o.valorInicial || ""));
+        }
+      };
+    })();
+  </script>
+
 <script>
 (function () {
   try {
@@ -641,21 +1112,87 @@ async function cargarPlantilla(card, prendaId) {
       document.getElementById("btn-agregar-item-edit").addEventListener("click", () => crearItemHTML("items-edit-pedido"));
 
       // ========== VALIDACIÓN ==========
+      // ===================================================================
+      // MEJORA AGREGADA (punto 19): en lugar de un mensaje genérico, se marca
+      // en rojo el campo exacto que falta, se le hace scroll y se le da foco.
+      // ===================================================================
+      function limpiarMarcas(contenedor) {
+        try {
+          const raiz = contenedor || document;
+          raiz.querySelectorAll(".campo-falta").forEach(el => el.classList.remove("campo-falta"));
+          raiz.querySelectorAll(".campo-falta-aviso").forEach(el => el.remove());
+        } catch (e) {}
+      }
+
+      function marcarCampo(el, aviso) {
+        try {
+          if (!el) return;
+          el.classList.add("campo-falta");
+          if (aviso) {
+            const nota = document.createElement("small");
+            nota.className = "campo-falta-aviso";
+            nota.textContent = aviso;
+            if (el.parentNode) el.parentNode.insertBefore(nota, el.nextSibling);
+          }
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          setTimeout(() => { try { el.focus({ preventScroll: true }); } catch (e) {} }, 320);
+          const quitar = () => {
+            el.classList.remove("campo-falta");
+            const sig = el.nextSibling;
+            if (sig && sig.classList && sig.classList.contains("campo-falta-aviso")) sig.remove();
+            el.removeEventListener("input", quitar);
+            el.removeEventListener("change", quitar);
+          };
+          el.addEventListener("input", quitar);
+          el.addEventListener("change", quitar);
+        } catch (e) {}
+      }
+
+      // Revisa escuela + folio y devuelve el primer campo vacío
+      function validarEncabezado(idEscuela, idFolio) {
+        const elEsc = document.getElementById(idEscuela);
+        const elFol = document.getElementById(idFolio);
+        if (elEsc && !elEsc.value.trim()) {
+          return { ok: false, campo: elEsc, error: "❌ Falta el nombre de la escuela", aviso: "Escribe el nombre de la escuela" };
+        }
+        if (elFol && !elFol.value.trim()) {
+          return { ok: false, campo: elFol, error: "❌ Falta el folio del pedido", aviso: "Escribe el folio" };
+        }
+        return { ok: true };
+      }
+
       function validarPrendas(containerId) {
-        const cards = document.getElementById(containerId).querySelectorAll(".item-card");
-        if (cards.length === 0) return { ok: false, error: "❌ Agrega al menos una prenda" };
+        const cont = document.getElementById(containerId);
+        const cards = cont.querySelectorAll(".item-card");
+        // MEJORA AGREGADA (punto 19): se devuelve tambien el campo exacto que falla
+        if (cards.length === 0) {
+          return { ok: false, error: "❌ Agrega al menos una prenda al pedido" };
+        }
+        let n = 0;
         for (const card of cards) {
-          const prendaId = card.querySelector(".sel-prenda").value;
-          if (!prendaId) return { ok: false, error: "❌ Selecciona una prenda en cada item" };
+          n++;
+          const sel = card.querySelector(".sel-prenda");
+          const prendaId = sel ? sel.value : "";
+          if (!prendaId) {
+            return { ok: false, error: `❌ Falta elegir la prenda del renglón ${n}`, campo: sel, aviso: "Elige una prenda" };
+          }
           let totalTallas = 0;
+          let primeraFila = null;
           card.querySelectorAll(".tallas-container tbody tr").forEach(tr => {
+            if (!primeraFila) primeraFila = tr;
             const talla = tr.querySelector(".talla-input").value.trim();
             const cant = Number(tr.querySelector(".talla-cantidad").value) || 0;
             if (talla && cant > 0) totalTallas += cant;
           });
           if (totalTallas === 0) {
             const nombre = card.querySelector(".prenda-nombre").textContent;
-            return { ok: false, error: `❌ La prenda "${nombre}" necesita al menos una talla con cantidad` };
+            const campoTalla = primeraFila ? primeraFila.querySelector(".talla-input") : card;
+            return {
+              ok: false,
+              error: `❌ "${nombre}" necesita al menos una talla con cantidad`,
+              campo: campoTalla,
+              aviso: "Escribe la talla y cuántas piezas lleva"
+            };
           }
         }
         return { ok: true };
@@ -665,10 +1202,13 @@ async function cargarPlantilla(card, prendaId) {
       document.getElementById("btn-guardar-pedido").addEventListener("click", async () => {
         const escuela = document.getElementById("input-escuela").value.trim();
         const folio = document.getElementById("input-folio").value.trim();
-        if (!escuela || !folio) { mostrarError("❌ Completa escuela y folio"); return; }
-        
+        // MEJORA AGREGADA (punto 19): se marca el campo exacto que falta
+        limpiarMarcas(document.getElementById("form-nuevo-pedido") || document);
+        const enc = validarEncabezado("input-escuela", "input-folio");
+        if (!enc.ok) { mostrarError(enc.error); marcarCampo(enc.campo, enc.aviso); return; }
+
         const validacion = validarPrendas("items-nuevo-pedido");
-        if (!validacion.ok) { mostrarError(validacion.error); return; }
+        if (!validacion.ok) { mostrarError(validacion.error); marcarCampo(validacion.campo, validacion.aviso); return; }
         
         const items = extraerItems("items-nuevo-pedido");
         if (items.length === 0) { mostrarError("❌ Agrega al menos una prenda con cantidad"); return; }
@@ -716,6 +1256,8 @@ async function cargarPlantilla(card, prendaId) {
       const inputBuscarPedido = document.getElementById("input-buscar-pedido");
 
       async function cargarPedidos() {
+        // MEJORA AGREGADA (punto 22): aviso de que se está cargando la lista
+        try { if (listaPedidos && listaPedidos.children.length === 0) uiEsqueleto(listaPedidos, 4); } catch (eC) {}
         try {
           let url = `/api/pedidos?conTotales=true&conPrendas=true&conDesglose=true`;
           url += usuarioActual.tipo === "operaria" ? `&estado=activo` : `&estado=${filtroActual}`;
@@ -859,10 +1401,14 @@ async function cargarPlantilla(card, prendaId) {
       window.editarFechaEntrega = async function(id) {
         try {
           const actual = (pedidosCache.find(x => x.id === id) || {}).fechaEntrega || "";
-          const valor = prompt(
-            "Fecha de entrega en formato AAAA-MM-DD.\nDéjalo vacío para quitarla.",
-            String(actual).slice(0, 10)
-          );
+          // MEJORA AGREGADA (punto 18): ventana propia con selector de fecha
+          const valor = await uiPreguntar("Elige la fecha en que se debe entregar el pedido. Déjalo vacío si quieres quitarla.", {
+            titulo: "📅 Fecha de entrega",
+            estilo: "info",
+            tipoCampo: "date",
+            valorInicial: String(actual).slice(0, 10),
+            textoOk: "Guardar fecha"
+          });
           if (valor === null) return; // canceló
 
           const limpio = String(valor).trim();
@@ -902,15 +1448,83 @@ async function cargarPlantilla(card, prendaId) {
 
       // ========== ACCIONES ==========
       window.marcarTerminado = async function(id) {
-        if (!confirm("¿Marcar como terminado?")) return;
+        // MEJORA AGREGADA (punto 18): ventana con el estilo de la app
+        const _pT = (pedidosCache || []).find(x => Number(x.id) === Number(id)) || {};
+        if (!await uiConfirmar("El pedido pasa a la lista de terminados. Puedes reactivarlo después si hace falta.", {
+          titulo: "¿Marcar como terminado?",
+          estilo: "exito",
+          detalle: _pT.folio ? "Folio " + _pT.folio + " · " + (_pT.escuela || "") : "",
+          textoOk: "Sí, terminarlo"
+        })) return;
         try { const r = await fetch(`/api/pedidos/${id}/estado`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({estado:"terminado"})}); if(!r.ok) throw new Error(); mostrarExito("✅ Terminado"); await cargarPedidos(); } catch(e){mostrarError("❌ Error");}
       };
       window.marcarActivo = async function(id) {
-        if (!confirm("¿Reactivar?")) return;
+        // MEJORA AGREGADA (punto 18): ventana con el estilo de la app
+        const _pR = (pedidosCache || []).find(x => Number(x.id) === Number(id)) || {};
+        if (!await uiConfirmar("El pedido vuelve a la lista de pedidos en proceso.", {
+          titulo: "¿Reactivar el pedido?",
+          estilo: "info",
+          detalle: _pR.folio ? "Folio " + _pR.folio + " · " + (_pR.escuela || "") : "",
+          textoOk: "Sí, reactivar"
+        })) return;
         try { const r = await fetch(`/api/pedidos/${id}/estado`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({estado:"activo"})}); if(!r.ok) throw new Error(); mostrarExito("✅ Reactivado"); await cargarPedidos(); } catch(e){mostrarError("❌ Error");}
       };
       window.eliminarPedido = async function(id) {
-        if (!confirm("¿Eliminar? No se puede deshacer.")) return;
+        // ===============================================================
+        // MEJORA AGREGADA (puntos 18 y 23): antes de borrar te muestra
+        // exactamente qué producción y qué operarias se van a ver afectadas.
+        // ===============================================================
+        const _p = (pedidosCache || []).find(x => Number(x.id) === Number(id)) || {};
+        let _piezas = 0, _pagado = 0, _nombresOp = [], _pudoConsultar = false;
+        try {
+          const _rAv = await fetch(`/api/pedidos/${id}/avance`);
+          if (_rAv.ok) {
+            const _av = await _rAv.json();
+            _pudoConsultar = true;
+            _pagado = Number(_av.costoAvanceTotal) || 0;
+            (_av.avance || []).forEach(it => {
+              (it.operaciones || []).forEach(op => {
+                _piezas += Number(op.piezasHechas) || 0;
+                (op.desglose || []).forEach(d => {
+                  if (d.operaria && _nombresOp.indexOf(d.operaria) === -1) _nombresOp.push(d.operaria);
+                });
+              });
+            });
+          }
+        } catch (eAv) { _pudoConsultar = false; }
+        const _ops = _nombresOp.length;
+        const _tieneProduccion = _piezas > 0 || _ops > 0;
+
+        let _detalle = (_p.folio ? "Folio " + _p.folio + " · " + (_p.escuela || "") + "\n" : "");
+        if (_tieneProduccion) {
+          _detalle += "\u26A0\uFE0F Este pedido YA tiene trabajo registrado:\n" +
+                      "\u2022 " + _piezas + " pieza(s) cosidas\n" +
+                      "\u2022 " + _ops + " operaria(s): " + _nombresOp.join(", ");
+          if (!esEnc && _pagado > 0) {
+            _detalle += "\n\u2022 $" + _pagado.toFixed(2) + " de mano de obra registrada";
+          }
+          _detalle += "\n\nSi lo borras, esos registros dejan de estar ligados a un pedido" +
+                      " y el reporte de avance de este pedido ya no se podrá consultar.";
+        } else if (_pudoConsultar) {
+          _detalle += "Este pedido todavía no tiene ninguna pieza registrada," +
+                      " así que borrarlo no afecta la nómina de nadie.";
+        } else {
+          _detalle += "No se pudo revisar el avance en este momento. Si el pedido ya tenía" +
+                      " trabajo registrado, se perderá el reporte de avance.";
+        }
+
+        if (!await uiConfirmar(
+          (_tieneProduccion || !_pudoConsultar)
+            ? "Revisa bien lo de abajo antes de continuar. Esto no se puede deshacer."
+            : "Esta acción no se puede deshacer.",
+          {
+            titulo: "¿Eliminar el pedido?",
+            estilo: "peligro",
+            detalle: _detalle,
+            textoOk: (_tieneProduccion || !_pudoConsultar) ? "Entiendo, eliminar" : "Sí, eliminar",
+            textoCancelar: "No, conservarlo"
+          }
+        )) return;
         try { const r = await fetch(`/api/pedidos/${id}`,{method:"DELETE"}); const d = await r.json(); if(!r.ok) throw new Error(d.error); mostrarExito("✅ Eliminado"); await cargarPedidos(); } catch(e){mostrarError("❌ "+e.message);}
       };
 
@@ -947,10 +1561,13 @@ async function cargarPlantilla(card, prendaId) {
         if (!pedidoEditando) return;
         const escuela = document.getElementById("edit-escuela").value.trim();
         const folio = document.getElementById("edit-folio").value.trim();
-        if (!escuela || !folio) { mostrarError("❌ Completa los campos"); return; }
-        
+        // MEJORA AGREGADA (punto 19): se marca el campo exacto que falta
+        limpiarMarcas(document.getElementById("modal-editar") || document);
+        const encE = validarEncabezado("edit-escuela", "edit-folio");
+        if (!encE.ok) { mostrarError(encE.error); marcarCampo(encE.campo, encE.aviso); return; }
+
         const validacion = validarPrendas("items-edit-pedido");
-        if (!validacion.ok) { mostrarError(validacion.error); return; }
+        if (!validacion.ok) { mostrarError(validacion.error); marcarCampo(validacion.campo, validacion.aviso); return; }
         
         const items = extraerItems("items-edit-pedido");
 
@@ -967,9 +1584,35 @@ async function cargarPlantilla(card, prendaId) {
         finally { btn.disabled = false; btn.textContent = "💾 Guardar Cambios"; }
       });
 
+      // ===================================================================
+      // MEJORA AGREGADA (punto 21): las operaciones que se dejaron en $0 no
+      // aparecen en el reporte del pedido (asi no hay que cargar operaciones
+      // que la prenda no lleva). Aqui solo se avisa cuantas se omitieron, y
+      // si alguna ya tiene piezas registradas se marca en amarillo.
+      // ===================================================================
+      function _notaSinPrecio(item) {
+        try {
+          const lista = (item && item.operacionesSinPrecio) || [];
+          if (lista.length === 0) return "";
+          const conPiezas = lista.filter(o => Number(o.piezasHechas) > 0);
+          let txt = `<div style="margin-top:8px;font-size:11px;color:var(--text-muted);">
+            \u{1F515} ${lista.length} operación(es) sin precio no se muestran aquí:
+            ${lista.map(o => o.costura).join(", ")}</div>`;
+          if (conPiezas.length > 0) {
+            txt += `<div style="margin-top:6px;font-size:11px;color:#fbbf24;">
+              \u26A0\uFE0F Ojo: ${conPiezas.map(o => o.costura + " (" + o.piezasHechas + " pzas)").join(", ")}
+              ya tiene piezas registradas pero sigue en $0. Ponle precio para que cuente en el reporte.</div>`;
+          }
+          return txt;
+        } catch (e) { return ""; }
+      }
+
       // ========== MODAL AVANCE ==========
       window.verAvance = async function(id) {
         try {
+          // MEJORA AGREGADA (punto 22): el modal se abre ya con el aviso de cargando
+          uiCargando("avance-contenido", "Calculando el avance del pedido\u2026");
+          modalAvance.classList.add("active");
           const r = await fetch(`/api/pedidos/${id}/avance`);
           if (!r.ok) throw new Error();
           const data = await r.json();
@@ -992,6 +1635,7 @@ async function cargarPlantilla(card, prendaId) {
                 <td style="color:${op.porcentaje>=100?'var(--success)':op.porcentaje>0?'var(--accent)':'var(--text-muted)'};font-weight:700;">${op.porcentaje}%</td>
               </tr>`).join("")}
               </tbody></table>
+              ${_notaSinPrecio(item)}
             </div>`;
           });
           document.getElementById("avance-contenido").innerHTML = h;
