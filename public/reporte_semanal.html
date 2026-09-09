@@ -747,6 +747,13 @@
         </div>
 
         <button class="btn-primary" id="btn-consultar">🔍 Consultar</button>
+
+        <!-- MEJORA AGREGADA (punto 12): descargar el reporte en Excel real (.xlsx).
+             Usa exactamente los mismos filtros de arriba. -->
+        <button class="btn-secondary no-print" id="btn-descargar-excel" style="margin-top: 10px;">
+          📥 Descargar Excel
+        </button>
+        <p class="subtext no-print" id="aviso-excel" style="margin-top:6px; display:none;"></p>
       </section>
 
       <!-- Acciones globales (solo admin) -->
@@ -792,6 +799,11 @@
         </div>
 
         <button class="btn-primary" id="btn-ver-reporte-anual">📊 Ver reporte anual</button>
+
+        <!-- MEJORA AGREGADA (punto 12) -->
+        <button class="btn-secondary no-print" id="btn-descargar-anual" style="margin-top: 10px;">
+          📥 Descargar Excel del año
+        </button>
 
         <div id="reporte-anual-resultado" class="oculto" style="margin-top:14px;">
           <div class="total-general">
@@ -953,6 +965,85 @@
           await consultarPorSemana();
         }
       });
+
+
+      // ===================================================================
+      // MEJORA AGREGADA (punto 12): descargar el reporte en Excel real.
+      // Respeta los MISMOS filtros que la consulta de pantalla y el mismo
+      // criterio de roles: la encargada nunca recibe montos y la operaria
+      // solo recibe lo suyo (eso lo controla tambien el servidor).
+      // Va en try/catch: si algo falla, no afecta el resto de la pantalla.
+      // ===================================================================
+      try {
+        const btnDescargarExcel = document.getElementById("btn-descargar-excel");
+        const avisoExcel = document.getElementById("aviso-excel");
+
+        const mostrarAvisoExcel = (texto, esError) => {
+          if (!avisoExcel) return;
+          avisoExcel.textContent = texto;
+          avisoExcel.style.display = texto ? "block" : "none";
+          avisoExcel.style.color = esError ? "#ff9b8f" : "";
+          if (texto && !esError) setTimeout(() => { avisoExcel.style.display = "none"; }, 5000);
+        };
+
+        if (btnDescargarExcel) {
+          btnDescargarExcel.addEventListener("click", () => {
+            try {
+              const porDia = tipoDia.checked;
+              let url = "";
+
+              if (porDia) {
+                const fecha = inputFecha.value;
+                if (!fecha) { mostrarAvisoExcel("Selecciona una fecha primero.", true); return; }
+                url = "/api/exportar/produccion?desde=" + encodeURIComponent(fecha) +
+                      "&hasta=" + encodeURIComponent(fecha);
+                if (esAdmin) {
+                  const opId = selectOperariaFiltro.value;
+                  if (opId) url += "&operariaId=" + encodeURIComponent(opId);
+                }
+              } else {
+                const semanaCodigo = selectSemana.value;
+                if (!semanaCodigo) { mostrarAvisoExcel("Selecciona una semana primero.", true); return; }
+                const estado = esEncargada ? "todos" : selectEstadoPago.value;
+                url = "/api/exportar/reporte-semanal?semana=" + encodeURIComponent(semanaCodigo) +
+                      "&estadoPago=" + encodeURIComponent(estado);
+                if (esEncargada) {
+                  url += "&fuente=encargada";
+                } else if (esAdmin) {
+                  const opId = selectOperariaFiltro.value;
+                  if (opId) url += "&operariaId=" + encodeURIComponent(opId);
+                  const fuente = selectFuente.value;
+                  url += "&fuente=" + encodeURIComponent(fuente);
+                } else {
+                  url += "&fuente=todos";
+                }
+              }
+
+              mostrarAvisoExcel("Preparando el archivo...", false);
+              window.location.href = url;
+            } catch (eDesc) {
+              console.error("Error preparando la descarga:", eDesc);
+              mostrarAvisoExcel("No se pudo preparar la descarga.", true);
+            }
+          });
+        }
+
+        // Excel del reporte anual (esta seccion ya es solo para el admin)
+        const btnDescargarAnual = document.getElementById("btn-descargar-anual");
+        if (btnDescargarAnual) {
+          btnDescargarAnual.addEventListener("click", () => {
+            try {
+              const selAnio = document.getElementById("select-anio-reporte");
+              const anio = (selAnio && selAnio.value) || new Date().getFullYear();
+              window.location.href = "/api/exportar/reporte-anual?anio=" + encodeURIComponent(anio);
+            } catch (eAnual) {
+              console.error("Error descargando el reporte anual:", eAnual);
+            }
+          });
+        }
+      } catch (eBloqueExcel) {
+        console.warn("No se pudo activar la descarga de Excel:", eBloqueExcel);
+      }
 
       // Consultar por día
       async function consultarPorDia() {

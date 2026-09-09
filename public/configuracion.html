@@ -313,6 +313,19 @@
     .comparacion-stat strong {
       color: var(--text-main);
     }
+
+    /* MEJORA AGREGADA (puntos 15 y 16): boton de editar en los catalogos */
+    .btn-editar-cat {
+      background: rgba(59,130,246,0.20);
+      color: #93c5fd;
+      border: 1px solid rgba(59,130,246,0.32);
+      border-radius: 8px;
+      padding: 7px 11px;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-editar-cat:hover { background: rgba(59,130,246,0.32); }
   </style>
 </head>
 <body>
@@ -420,6 +433,14 @@
         <button class="btn-primary" id="btn-backup" style="width: 100%;">
           📦 Crear Backup Ahora
         </button>
+
+        <!-- MEJORA AGREGADA (punto 12): descargar los catálogos en Excel real -->
+        <button class="btn-secondary" id="btn-descargar-catalogos" style="width: 100%; margin-top: 10px;">
+          📥 Descargar Catálogos en Excel
+        </button>
+        <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted); text-align: center;">
+          Incluye máquinas, prendas, costuras, operarias y plantillas, con el número de pedidos que usa cada una
+        </div>
         
         <div style="margin-top: 12px; font-size: 12px; color: var(--text-muted); text-align: center;">
           El backup se guardará en el servidor con la fecha y hora actual
@@ -573,7 +594,10 @@
           lista.innerHTML = maquinas.map(m => `
             <div class="maquina-item">
               <span class="maquina-nombre">🔧 ${m}</span>
-              <button class="btn-danger" onclick="eliminarMaquina('${m}')">🗑️ Eliminar</button>
+              <span style="display:flex; gap:6px; flex-shrink:0;">
+                <button class="btn-editar-cat" onclick="editarMaquina('${String(m).replace(/'/g, "\\'")}')">✏️</button>
+                <button class="btn-danger" onclick="eliminarMaquina('${String(m).replace(/'/g, "\\'")}')">🗑️</button>
+              </span>
             </div>
           `).join("");
         } catch (err) {
@@ -590,6 +614,19 @@
           alert("⚠️ Escribe el nombre de la máquina");
           return;
         }
+
+        // MEJORA AGREGADA (punto 15): no permitir nombres repetidos
+        // (ignora mayusculas, acentos y espacios de sobra)
+        try {
+          const rDup = await fetch("/api/maquinas");
+          if (rDup.ok) {
+            const yaHay = await rDup.json();
+            if (yaHay.some(m => _normNombre(m) === _normNombre(nombre))) {
+              alert("\u274C Ya existe una máquina llamada \"" + nombre + "\"");
+              return;
+            }
+          }
+        } catch (eDup) { /* si falla la revision, el servidor decide */ }
 
         try {
           const res = await fetch("/api/maquinas", {
@@ -610,7 +647,9 @@
 
       // Eliminar máquina
       window.eliminarMaquina = async function(nombre) {
-        if (!confirm(`¿Eliminar la máquina "${nombre}"?`)) return;
+        // MEJORA AGREGADA (punto 16): avisa en cuántos pedidos se usa
+        const seguir = await _confirmarBorrado("maquina", nombre, nombre);
+        if (!seguir) return;
 
         try {
           const res = await fetch(`/api/maquinas/${encodeURIComponent(nombre)}`, {
@@ -663,7 +702,10 @@
           listaPrendas.innerHTML = prendas.map(p => `
             <div class="maquina-item">
               <span class="maquina-nombre">${p.nombre}</span>
-              <button class="btn-danger" onclick="eliminarPrenda(${p.id})">🗑️</button>
+              <span style="display:flex; gap:6px; flex-shrink:0;">
+                <button class="btn-editar-cat" onclick="editarPrendaNombre(${p.id})">✏️</button>
+                <button class="btn-danger" onclick="eliminarPrenda(${p.id})">🗑️</button>
+              </span>
             </div>
           `).join("");
         } catch (err) {
@@ -679,6 +721,18 @@
           alert("❌ Ingresa el nombre de la prenda");
           return;
         }
+
+        // MEJORA AGREGADA (punto 15): aviso claro de nombre repetido
+        try {
+          const rDup = await fetch("/api/prendas");
+          if (rDup.ok) {
+            const yaHay = await rDup.json();
+            if (yaHay.some(x => _normNombre(x.nombre) === _normNombre(nombre))) {
+              alert("\u274C Ya existe una prenda llamada \"" + nombre + "\"");
+              return;
+            }
+          }
+        } catch (eDup) {}
 
         try {
           const res = await fetch("/api/prendas", {
@@ -703,7 +757,18 @@
 
       // Eliminar prenda (global)
       window.eliminarPrenda = async function(id) {
-        if (!confirm("¿Eliminar esta prenda? Los registros antiguos conservarán esta prenda, pero no estará disponible para nuevos pedidos.")) return;
+        // MEJORA AGREGADA (punto 16): avisa en cuántos pedidos se usa
+        let _nombrePrenda = "esta prenda";
+        try {
+          const rp = await fetch("/api/prendas");
+          if (rp.ok) {
+            const lp = await rp.json();
+            const enc = lp.find(x => Number(x.id) === Number(id));
+            if (enc) _nombrePrenda = enc.nombre;
+          }
+        } catch (e) {}
+        const seguir = await _confirmarBorrado("prenda", id, _nombrePrenda);
+        if (!seguir) return;
 
         try {
           const res = await fetch(`/api/prendas/${id}`, {
@@ -736,7 +801,10 @@
           lista.innerHTML = costuras.map(c => `
             <div class="maquina-item">
               <span class="maquina-nombre">✂️ ${c.nombre}</span>
-              <button class="btn-danger" onclick="eliminarCostura(${c.id})">🗑️</button>
+              <span style="display:flex; gap:6px; flex-shrink:0;">
+                <button class="btn-editar-cat" onclick="editarCosturaNombre(${c.id})">✏️</button>
+                <button class="btn-danger" onclick="eliminarCostura(${c.id})">🗑️</button>
+              </span>
             </div>
           `).join("");
         } catch (err) { console.error("Error cargando costuras:", err); }
@@ -745,6 +813,19 @@
       async function agregarCostura() {
         const nombre = document.getElementById("input-nueva-costura").value.trim();
         if (!nombre) { alert("❌ Ingresa el nombre"); return; }
+
+        // MEJORA AGREGADA (punto 15): aviso claro de nombre repetido
+        try {
+          const rDup = await fetch("/api/costuras");
+          if (rDup.ok) {
+            const yaHay = await rDup.json();
+            if (yaHay.some(x => _normNombre(x.nombre) === _normNombre(nombre))) {
+              alert("\u274C Ya existe una costura llamada \"" + nombre + "\"");
+              return;
+            }
+          }
+        } catch (eDup) {}
+
         try {
           const res = await fetch("/api/costuras", {
             method: "POST",
@@ -760,7 +841,18 @@
       }
 
       window.eliminarCostura = async function(id) {
-        if (!confirm("¿Eliminar esta costura del catálogo?")) return;
+        // MEJORA AGREGADA (punto 16): avisa en cuántos pedidos se usa
+        let _nombreCostura = "esta costura";
+        try {
+          const rc = await fetch("/api/costuras");
+          if (rc.ok) {
+            const lc = await rc.json();
+            const enc = lc.find(x => Number(x.id) === Number(id));
+            if (enc) _nombreCostura = enc.nombre;
+          }
+        } catch (e) {}
+        const seguir = await _confirmarBorrado("costura", _nombreCostura, _nombreCostura);
+        if (!seguir) return;
         try {
           const res = await fetch(`/api/costuras/${id}`, { method: "DELETE" });
           if (!res.ok) throw new Error("Error");
@@ -768,6 +860,177 @@
           await cargarCosturas();
         } catch (err) { alert("❌ " + err.message); }
       };
+
+
+      // ===================================================================
+      // MEJORA AGREGADA (puntos 15 y 16)
+      //  15. Editar los nombres de maquinas, prendas y costuras, con
+      //      renombrado en cascada y sin permitir nombres repetidos.
+      //  16. Antes de eliminar, avisa en cuantos pedidos y plantillas se usa.
+      // Nada de esto reemplaza los botones que ya existian.
+      // ===================================================================
+
+      // Compara ignorando mayusculas, acentos y espacios de sobra
+      function _normNombre(t) {
+        return String(t == null ? "" : t)
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase().replace(/\s+/g, " ").trim();
+      }
+
+      // Consulta al servidor dónde se usa un elemento del catálogo
+      async function _consultarUso(tipo, valor) {
+        try {
+          const clave = (tipo === "prenda") ? "id" : "nombre";
+          const r = await fetch("/api/catalogos/uso?tipo=" + encodeURIComponent(tipo) +
+                                "&" + clave + "=" + encodeURIComponent(valor));
+          if (!r.ok) return null;
+          const d = await r.json();
+          return (d && d.ok) ? d.uso : null;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      // Texto legible del uso, para mostrarlo en el confirm
+      function _textoUso(tipo, uso) {
+        if (!uso) return "";
+        const partes = [];
+        if (tipo === "prenda") {
+          if (uso.totalPedidos) partes.push(uso.totalPedidos + " pedido(s)");
+          if (uso.enRegistros) partes.push(uso.enRegistros + " registro(s) de producción");
+          if (uso.tienePlantilla) partes.push("1 plantilla de costuras");
+        } else {
+          if (uso.totalPedidos) partes.push(uso.totalPedidos + " pedido(s)");
+          if (uso.enOperaciones) partes.push(uso.enOperaciones + " operacion(es)");
+          if (uso.enPlantillas) partes.push(uso.enPlantillas + " plantilla(s)");
+          if (uso.enRegistros) partes.push(uso.enRegistros + " registro(s) de producción");
+        }
+        if (partes.length === 0) return "";
+        let txt = "Se está usando en: " + partes.join(", ") + ".";
+        if (uso.pedidos && uso.pedidos.length) {
+          txt += "\nFolios: " + uso.pedidos.slice(0, 8).join(", ") +
+                 (uso.pedidos.length > 8 ? " y " + (uso.pedidos.length - 8) + " mas" : "");
+        }
+        return txt;
+      }
+
+      // PUNTO 16: pregunta al usuario mostrandole el uso real
+      async function _confirmarBorrado(tipo, valor, etiqueta) {
+        const uso = await _consultarUso(tipo, valor);
+        const detalle = _textoUso(tipo, uso);
+        if (detalle) {
+          return confirm(
+            "\u26A0\uFE0F Ojo: \"" + etiqueta + "\" NO está libre.\n\n" + detalle +
+            "\n\nLos pedidos y registros que ya existen NO se borran, pero el nombre" +
+            "\nse quedará escrito en ellos y ya no lo verás en el catálogo." +
+            "\n\nSi solo quieres corregir el nombre, cancela y usa el botón \u270F\uFE0F." +
+            "\n\n\u00BFEliminar de todas formas?"
+          );
+        }
+        return confirm("\u00BFEliminar \"" + etiqueta + "\" del catálogo?\n\nNo se está usando en ningún pedido.");
+      }
+
+      // PUNTO 15: renombrar (el servidor actualiza todo en cascada)
+      async function _renombrarCatalogo(cuerpo, recargar) {
+        try {
+          const r = await fetch("/api/catalogos/renombrar", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(cuerpo)
+          });
+          const d = await r.json();
+          if (!r.ok || d.ok !== true) throw new Error(d.error || "No se pudo renombrar");
+
+          let msg = "\u2705 " + d.mensaje;
+          if (d.lugaresActualizados > 0) {
+            msg += "\n\nSe actualizó el nombre en " + d.lugaresActualizados +
+                   " lugar(es): pedidos, plantillas y registros.";
+          }
+          alert(msg);
+          if (typeof recargar === "function") await recargar();
+        } catch (e) {
+          alert("\u274C " + (e.message || "No se pudo renombrar"));
+        }
+      }
+
+      window.editarMaquina = async function(nombreActual) {
+        try {
+          const nuevo = prompt("Nuevo nombre para la máquina:", nombreActual);
+          if (nuevo === null) return;
+          const limpio = String(nuevo).trim();
+          if (!limpio) { alert("\u274C El nombre no puede quedar vacío"); return; }
+          if (_normNombre(limpio) === _normNombre(nombreActual)) return; // sin cambios
+
+          const r = await fetch("/api/maquinas");
+          const lista = r.ok ? await r.json() : [];
+          if (lista.some(m => _normNombre(m) === _normNombre(limpio))) {
+            alert("\u274C Ya existe una máquina llamada \"" + limpio + "\"");
+            return;
+          }
+          await _renombrarCatalogo({ tipo: "maquina", nombreActual, nombreNuevo: limpio }, cargarMaquinas);
+        } catch (e) { alert("\u274C " + e.message); }
+      };
+
+      window.editarPrendaNombre = async function(id) {
+        try {
+          const r = await fetch("/api/prendas");
+          const lista = r.ok ? await r.json() : [];
+          const actual = lista.find(x => Number(x.id) === Number(id));
+          if (!actual) { alert("\u274C No se encontró la prenda"); return; }
+
+          const nuevo = prompt("Nuevo nombre para la prenda:", actual.nombre);
+          if (nuevo === null) return;
+          const limpio = String(nuevo).trim();
+          if (!limpio) { alert("\u274C El nombre no puede quedar vacío"); return; }
+          if (_normNombre(limpio) === _normNombre(actual.nombre)) return;
+
+          if (lista.some(x => Number(x.id) !== Number(id) && _normNombre(x.nombre) === _normNombre(limpio))) {
+            alert("\u274C Ya existe una prenda llamada \"" + limpio + "\"");
+            return;
+          }
+          await _renombrarCatalogo({ tipo: "prenda", id: Number(id), nombreNuevo: limpio }, async () => {
+            await cargarPrendas();
+            try { await cargarSelectPrendasPlantilla(); } catch (e2) {}
+          });
+        } catch (e) { alert("\u274C " + e.message); }
+      };
+
+      window.editarCosturaNombre = async function(id) {
+        try {
+          const r = await fetch("/api/costuras");
+          const lista = r.ok ? await r.json() : [];
+          const actual = lista.find(x => Number(x.id) === Number(id));
+          if (!actual) { alert("\u274C No se encontró la costura"); return; }
+
+          const nuevo = prompt("Nuevo nombre para la costura:", actual.nombre);
+          if (nuevo === null) return;
+          const limpio = String(nuevo).trim();
+          if (!limpio) { alert("\u274C El nombre no puede quedar vacío"); return; }
+          if (_normNombre(limpio) === _normNombre(actual.nombre)) return;
+
+          if (lista.some(x => Number(x.id) !== Number(id) && _normNombre(x.nombre) === _normNombre(limpio))) {
+            alert("\u274C Ya existe una costura llamada \"" + limpio + "\"");
+            return;
+          }
+          await _renombrarCatalogo({ tipo: "costura", id: Number(id), nombreNuevo: limpio }, async () => {
+            await cargarCosturas();
+            try { await cargarPlantilla(); } catch (e2) {}
+          });
+        } catch (e) { alert("\u274C " + e.message); }
+      };
+
+      // PUNTO 12: descargar los catálogos en Excel
+      try {
+        const btnDescCat = document.getElementById("btn-descargar-catalogos");
+        if (btnDescCat) {
+          btnDescCat.addEventListener("click", () => {
+            try { window.location.href = "/api/exportar/catalogos"; }
+            catch (e) { console.error("Error descargando catálogos:", e); }
+          });
+        }
+      } catch (eDescCat) {
+        console.warn("No se pudo activar la descarga de catálogos:", eDescCat);
+      }
 
       // ========== PLANTILLAS ==========
       async function cargarSelectPrendasPlantilla() {

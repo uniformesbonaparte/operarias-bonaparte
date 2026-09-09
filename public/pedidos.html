@@ -62,6 +62,11 @@
     .pedido-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
     .pedido-escuela { font-weight: 700; font-size: 15px; }
     .pedido-folio { font-size: 12px; color: var(--text-muted); }
+    /* MEJORA AGREGADA: aviso de fecha de entrega */
+    .chip-entrega { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; margin-left:6px; }
+    .chip-entrega.vencido { background:rgba(239,68,68,0.22); color:#fca5a5; }
+    .chip-entrega.cerca { background:rgba(245,158,11,0.22); color:#fcd34d; }
+    .chip-entrega.ok { background:rgba(34,197,94,0.18); color:#86efac; }
     .badge { padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; }
     .badge-proceso { background: rgba(59,130,246,0.2); color: #93c5fd; }
     .badge-terminado { background: rgba(16,185,129,0.2); color: #6ee7b7; }
@@ -191,6 +196,12 @@
           <label for="input-folio">📄 Folio</label>
           <input type="text" id="input-folio" placeholder="Folio del pedido" />
         </div>
+        <!-- MEJORA AGREGADA (fecha de entrega OPCIONAL).
+             Si se deja vacia, el pedido se guarda igual que siempre. -->
+        <div class="form-row">
+          <label for="input-fecha-entrega">📅 Fecha de entrega <span style="opacity:.6; font-weight:400;">(opcional)</span></label>
+          <input type="date" id="input-fecha-entrega" />
+        </div>
         <div class="form-row">
           <label>🧥 Prendas del Pedido</label>
           <button class="btn-add-item" id="btn-agregar-item">➕ Agregar Prenda</button>
@@ -207,6 +218,10 @@
           <button class="btn-secondary" id="filtro-terminado">Terminados</button>
           <button class="btn-secondary" id="filtro-todos">Todos</button>
         </div>
+        <!-- MEJORA AGREGADA (punto 12): descargar la lista en Excel real -->
+        <button class="btn-secondary" id="btn-descargar-pedidos" style="margin-top:10px; width:100%;">
+          📥 Descargar Excel
+        </button>
       </section>
 
       <!-- Lista -->
@@ -661,12 +676,23 @@ async function cargarPlantilla(card, prendaId) {
         const btn = document.getElementById("btn-guardar-pedido");
         btn.disabled = true; btn.textContent = "⏳ Guardando...";
         try {
-          const res = await fetch("/api/pedidos", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({escuela, folio, items}) });
+          // MEJORA AGREGADA: fecha de entrega opcional
+          let fechaEntrega = null;
+          try {
+            const inpFE = document.getElementById("input-fecha-entrega");
+            if (inpFE && inpFE.value) fechaEntrega = inpFE.value;
+          } catch (eFE) { fechaEntrega = null; }
+
+          const cuerpoPedido = { escuela, folio, items };
+          if (fechaEntrega) cuerpoPedido.fechaEntrega = fechaEntrega;
+
+          const res = await fetch("/api/pedidos", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(cuerpoPedido) });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error);
           mostrarExito("✅ Pedido creado");
           document.getElementById("input-escuela").value = "";
           document.getElementById("input-folio").value = "";
+          try { document.getElementById("input-fecha-entrega").value = ""; } catch (eLimpiar) {}
           document.getElementById("items-nuevo-pedido").innerHTML = "";
           await cargarPedidos();
         } catch(e) { mostrarError("❌ " + e.message); }
@@ -773,12 +799,14 @@ async function cargarPlantilla(card, prendaId) {
               <div class="pedido-quick-stats">📦 ${p.totalPiezas||0} pzs${!esEnc?` · 💵 $${(p.totalPagado||0).toFixed(2)}`:''}</div>
               <div class="pedido-card-body oculto" id="pedido-cuerpo-${p.id}">
               ${itemsHTML}
+              ${_lineaEntrega(p)}
               <div class="pedido-info">📦 Piezas registradas: <strong>${p.totalPiezas||0}</strong></div>
               <div class="pedido-info">👥 Operarias: <strong>${p.numeroOperarias||0}</strong></div>
               ${!esEnc ? `<div class="pedido-info">💵 Pagado: <strong>$${(p.totalPagado||0).toFixed(2)}</strong>${costo>0?` <span style="color:var(--text-muted);font-size:11px;">/ Est: $${costo.toFixed(2)}</span>`:''}</div>${desglose}` : ''}
               ${(esAdmin||esEnc) ? `<div class="pedido-actions">
                 ${p.items&&p.items.length>0?`<button class="btn-edit" onclick="verAvance(${p.id})" style="background:rgba(59,130,246,0.2);color:#93c5fd;border:1px solid rgba(59,130,246,0.3);">📊 Avance</button>`:''}
                 <button class="btn-edit" onclick="abrirModalEditar(${p.id})">✏️ Editar</button>
+                <button class="btn-edit" onclick="editarFechaEntrega(${p.id})" style="background:rgba(168,85,247,0.18);color:#d8b4fe;border:1px solid rgba(168,85,247,0.3);">📅 Entrega</button>
                 ${p.estado==='activo'?`<button class="btn-warning" onclick="marcarTerminado(${p.id})">✅ Terminado</button>`:`<button class="btn-success" onclick="marcarActivo(${p.id})">🔄 Reactivar</button>`}
                 ${esAdmin?`<button class="btn-danger" onclick="eliminarPedido(${p.id})">🗑️</button>`:''}
               </div>` : ''}
@@ -797,6 +825,80 @@ async function cargarPlantilla(card, prendaId) {
         if (abierto) { cuerpo.classList.add("oculto"); if (flecha) flecha.classList.remove("abierto"); }
         else { cuerpo.classList.remove("oculto"); if (flecha) flecha.classList.add("abierto"); }
       };
+
+
+      // ===================================================================
+      // MEJORA AGREGADA: fecha de entrega (opcional) y descarga en Excel.
+      // Si un pedido no tiene fecha, se ve igual que siempre.
+      // ===================================================================
+      function _lineaEntrega(p) {
+        try {
+          if (!p || !p.fechaEntrega) return "";
+          const fe = String(p.fechaEntrega).slice(0, 10);
+          const partes = fe.split("-");
+          const legible = partes.length === 3 ? (partes[2] + "/" + partes[1] + "/" + partes[0]) : fe;
+
+          let chip = "";
+          if ((p.estado || "activo") !== "terminado") {
+            // Se usa la fecha LOCAL del dispositivo (igual que el resto de la app)
+            const hoyYMD = new Date().toLocaleDateString("en-CA");
+            const hoy = new Date(hoyYMD + "T12:00:00");
+            const dest = new Date(fe + "T12:00:00");
+            const dias = Math.round((dest - hoy) / 86400000);
+            if (dias < 0) chip = '<span class="chip-entrega vencido">Vencido hace ' + Math.abs(dias) + ' d</span>';
+            else if (dias === 0) chip = '<span class="chip-entrega vencido">Se entrega hoy</span>';
+            else if (dias <= 3) chip = '<span class="chip-entrega cerca">Faltan ' + dias + ' d</span>';
+            else chip = '<span class="chip-entrega ok">Faltan ' + dias + ' d</span>';
+          }
+          return '<div class="pedido-info">\u{1F4C5} Entrega: <strong>' + legible + '</strong>' + chip + '</div>';
+        } catch (eLinea) {
+          return "";
+        }
+      }
+
+      window.editarFechaEntrega = async function(id) {
+        try {
+          const actual = (pedidosCache.find(x => x.id === id) || {}).fechaEntrega || "";
+          const valor = prompt(
+            "Fecha de entrega en formato AAAA-MM-DD.\nDéjalo vacío para quitarla.",
+            String(actual).slice(0, 10)
+          );
+          if (valor === null) return; // canceló
+
+          const limpio = String(valor).trim();
+          if (limpio && !/^\d{4}-\d{2}-\d{2}$/.test(limpio)) {
+            mostrarError("\u274C Usa el formato AAAA-MM-DD, por ejemplo 2026-09-30");
+            return;
+          }
+
+          const r = await fetch("/api/pedidos/" + id + "/fecha-entrega", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fechaEntrega: limpio || null })
+          });
+          const d = await r.json();
+          if (!r.ok || d.ok !== true) throw new Error(d.error || "No se pudo guardar");
+          mostrarExito("\u2705 " + d.mensaje);
+          await cargarPedidos();
+        } catch (eFecha) {
+          mostrarError("\u274C " + (eFecha.message || "No se pudo guardar la fecha"));
+        }
+      };
+
+      try {
+        const btnDescPedidos = document.getElementById("btn-descargar-pedidos");
+        if (btnDescPedidos) {
+          btnDescPedidos.addEventListener("click", () => {
+            try {
+              window.location.href = "/api/exportar/pedidos?estado=" + encodeURIComponent(filtroActual || "todos");
+            } catch (eDesc) {
+              console.error("Error descargando pedidos:", eDesc);
+            }
+          });
+        }
+      } catch (eBtnDesc) {
+        console.warn("No se pudo activar la descarga de pedidos:", eBtnDesc);
+      }
 
       // ========== ACCIONES ==========
       window.marcarTerminado = async function(id) {

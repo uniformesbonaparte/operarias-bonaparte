@@ -248,6 +248,85 @@
         grid-template-columns: 1fr;
       }
     }
+
+    /* MEJORA AGREGADA (puntos 13 y 14): tarjetas de resumen y alertas */
+    .resumen-wrap { margin-bottom: 18px; }
+    .resumen-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      align-items: stretch;
+    }
+    .resumen-card {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 14px;
+      padding: 14px 10px;
+      text-align: center;
+      color: #fff;
+    }
+    .resumen-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      opacity: 0.75;
+      line-height: 1.25;
+      margin-bottom: 6px;
+      min-height: 28px;
+    }
+    .resumen-valor { font-size: 26px; font-weight: 700; line-height: 1.1; }
+    .resumen-extra { font-size: 10.5px; opacity: 0.7; margin-top: 4px; min-height: 15px; }
+    .resumen-extra.sube { color: #6ee7a8; opacity: 1; }
+    .resumen-extra.baja { color: #ffb4a8; opacity: 1; }
+
+    .alertas-box {
+      margin-top: 12px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 14px;
+      padding: 12px 14px;
+      color: #fff;
+    }
+    .alertas-titulo {
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .alertas-conteo {
+      background: rgba(255,255,255,0.18);
+      border-radius: 999px;
+      padding: 2px 9px;
+      font-size: 12px;
+    }
+    .alertas-lista { margin-top: 10px; }
+    .alerta-item {
+      background: rgba(0,0,0,0.20);
+      border-left: 3px solid rgba(255,255,255,0.35);
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 7px;
+      font-size: 12.5px;
+      line-height: 1.35;
+    }
+    .alerta-item:last-child { margin-bottom: 0; }
+    .alerta-item.alta { border-left-color: #ff6b6b; }
+    .alerta-item.media { border-left-color: #ffd166; }
+    .alerta-item.baja { border-left-color: #6ee7a8; }
+    .alerta-item strong { display: block; margin-bottom: 2px; }
+    .alerta-item span { opacity: 0.8; }
+    .oculto { display: none !important; }
+
+    @media (max-width: 380px) {
+      .resumen-valor { font-size: 22px; }
+      .resumen-label { font-size: 10px; }
+    }
   </style>
 </head>
 <body>
@@ -288,6 +367,38 @@
       <div class="user-name" id="user-name">Usuario</div>
       <span class="user-role" id="user-role">Cargando...</span>
     </header>
+
+
+    <!-- MEJORA AGREGADA (puntos 13 y 14): resumen del negocio y alertas.
+         Arranca oculto y solo se muestra si el servidor responde bien,
+         asi el menu de siempre nunca se ve afectado. -->
+    <div class="resumen-wrap oculto" id="resumen-wrap">
+      <div class="resumen-grid">
+        <div class="resumen-card">
+          <div class="resumen-label">Producción hoy</div>
+          <div class="resumen-valor" id="rc-hoy">-</div>
+          <div class="resumen-extra" id="rc-hoy-extra"></div>
+        </div>
+        <div class="resumen-card">
+          <div class="resumen-label">Pedidos por terminar</div>
+          <div class="resumen-valor" id="rc-pedidos">-</div>
+          <div class="resumen-extra" id="rc-pedidos-extra"></div>
+        </div>
+        <div class="resumen-card">
+          <div class="resumen-label">Producción semana</div>
+          <div class="resumen-valor" id="rc-semana">-</div>
+          <div class="resumen-extra" id="rc-semana-extra"></div>
+        </div>
+      </div>
+
+      <div class="alertas-box oculto" id="alertas-box">
+        <div class="alertas-titulo" id="alertas-titulo">
+          <span>&#128276; Avisos importantes</span>
+          <span class="alertas-conteo" id="alertas-conteo">0</span>
+        </div>
+        <div class="alertas-lista" id="alertas-lista"></div>
+      </div>
+    </div>
 
     <div class="menu-grid">
       <!-- REGISTRAR COSTURA - Solo Operarias y Encargada -->
@@ -376,6 +487,94 @@
           btn.classList.add("visible");
         }
       });
+
+
+      // ===================================================================
+      // MEJORA AGREGADA (puntos 13 y 14)
+      // Resumen del negocio + avisos. Todo va dentro de try/catch y solo
+      // se muestra si el servidor responde bien. Si algo falla, el menu
+      // de siempre queda intacto y no se ve ningun error al usuario.
+      // ===================================================================
+      (function cargarResumenYAlertas() {
+        try {
+          const wrap = document.getElementById("resumen-wrap");
+          if (!wrap) return;
+
+          const fmt = (n) => {
+            const v = Number(n || 0);
+            return v.toLocaleString("es-MX");
+          };
+
+          fetch("/api/dashboard/resumen", { credentials: "same-origin" })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+              if (!data || data.ok !== true) return;
+
+              document.getElementById("rc-hoy").textContent = fmt(data.hoy.piezas) + " pzs";
+              const extraHoy = document.getElementById("rc-hoy-extra");
+              if (tipo === "operaria") {
+                extraHoy.textContent = data.hoy.registros + " registro(s)";
+              } else {
+                extraHoy.textContent = data.hoy.operariasActivas + " operaria(s)";
+              }
+
+              document.getElementById("rc-pedidos").textContent = fmt(data.pedidos.porTerminar);
+              document.getElementById("rc-pedidos-extra").textContent =
+                data.pedidos.activos + " activo(s)";
+
+              document.getElementById("rc-semana").textContent = fmt(data.semana.piezas) + " pzs";
+              const extraSem = document.getElementById("rc-semana-extra");
+              if (data.semana.variacionPorcentaje === null || data.semana.variacionPorcentaje === undefined) {
+                extraSem.textContent = "sem. " + (data.semana.codigo || "");
+              } else {
+                const v = Number(data.semana.variacionPorcentaje);
+                extraSem.textContent = (v >= 0 ? "\u25b2 +" : "\u25bc ") + v + "% vs ant.";
+                extraSem.classList.add(v >= 0 ? "sube" : "baja");
+              }
+
+              wrap.classList.remove("oculto");
+            })
+            .catch(() => {});
+
+          // ---- Avisos ----
+          fetch("/api/alertas", { credentials: "same-origin" })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+              if (!data || data.ok !== true) return;
+              const lista = Array.isArray(data.alertas) ? data.alertas : [];
+              if (lista.length === 0) return;
+
+              const box = document.getElementById("alertas-box");
+              const cont = document.getElementById("alertas-lista");
+              document.getElementById("alertas-conteo").textContent = lista.length;
+
+              const esc = (t) => String(t == null ? "" : t)
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+              cont.innerHTML = lista.slice(0, 8).map(a =>
+                '<div class="alerta-item ' + esc(a.prioridad) + '">' +
+                  '<strong>' + esc(a.titulo) + '</strong>' +
+                  '<span>' + esc(a.detalle) + '</span>' +
+                '</div>'
+              ).join("");
+
+              if (lista.length > 8) {
+                cont.innerHTML += '<div class="alerta-item baja"><span>y ' +
+                  (lista.length - 8) + ' aviso(s) mas...</span></div>';
+              }
+
+              // Se puede plegar tocando el titulo
+              const titulo = document.getElementById("alertas-titulo");
+              titulo.addEventListener("click", () => cont.classList.toggle("oculto"));
+
+              box.classList.remove("oculto");
+              wrap.classList.remove("oculto");
+            })
+            .catch(() => {});
+        } catch (eResumen) {
+          console.warn("No se pudo cargar el resumen del dashboard:", eResumen);
+        }
+      })();
 
       // Navegación
       document.getElementById("btn-registrar-costura")?.addEventListener("click", () => {
