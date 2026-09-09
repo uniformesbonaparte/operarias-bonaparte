@@ -12,6 +12,7 @@
   <meta name="theme-color" content="#0E0F12">
 
   <style>
+    /* MEJORA AGREGADA (punto 25): tamanos de letra secundaria subidos para mejor lectura en el taller. Solo cambia el tamano visual; no se toco ninguna logica ni el CSS de los recibos impresos. */
     :root {
       --bg-dark: #0a0e27;
       --bg-darker: #050811;
@@ -130,7 +131,7 @@
     }
 
     .header-info span {
-      font-size: 13px;
+      font-size: 14px;
       color: var(--text-muted);
     }
 
@@ -158,7 +159,7 @@
     }
 
     .subtext {
-      font-size: 12px;
+      font-size: 13px;
       color: var(--text-muted);
       margin-bottom: 16px;
     }
@@ -171,7 +172,7 @@
     }
 
     label {
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
       color: var(--text-muted);
       text-transform: uppercase;
@@ -253,7 +254,7 @@
       border: 1px solid var(--glass-border);
       background: rgba(59, 130, 246, 0.2);
       color: #93c5fd;
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.3s;
@@ -269,7 +270,7 @@
       border: 1px solid var(--glass-border);
       background: rgba(16, 185, 129, 0.2);
       color: #6ee7b7;
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.3s;
@@ -285,7 +286,7 @@
       border: 1px solid var(--glass-border);
       background: rgba(245, 158, 11, 0.2);
       color: #fcd34d;
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.3s;
@@ -314,7 +315,7 @@
       grid-template-columns: repeat(2, 1fr);
       gap: 8px;
       margin: 12px 0;
-      font-size: 13px;
+      font-size: 14px;
       color: var(--text-muted);
     }
 
@@ -339,7 +340,7 @@
     }
 
     .total-general-label {
-      font-size: 12px;
+      font-size: 13px;
       color: var(--text-muted);
       margin-bottom: 4px;
     }
@@ -364,7 +365,7 @@
     }
 
     .desglose-pedido-subtitulo {
-      font-size: 11px;
+      font-size: 12.5px;
       font-weight: 500;
       color: var(--text-muted);
     }
@@ -394,7 +395,7 @@
     }
 
     .pedido-item-meta {
-      font-size: 11px;
+      font-size: 12.5px;
       color: var(--text-muted);
       margin-top: 3px;
     }
@@ -407,7 +408,7 @@
     }
 
     .pedido-item-pct {
-      font-size: 10px;
+      font-size: 12px;
       color: var(--text-muted);
       text-align: right;
       margin-top: 2px;
@@ -418,7 +419,7 @@
       border-radius: 14px;
       margin-bottom: 16px;
       display: none;
-      font-size: 13px;
+      font-size: 14px;
     }
 
     .mensaje-error {
@@ -662,7 +663,7 @@
       padding: 18px; border-radius: 14px;
       background: rgba(255, 255, 255, 0.04);
       border: 1px dashed rgba(255, 255, 255, 0.14);
-      color: #94a3b8; font-size: 13px;
+      color: #94a3b8; font-size: 14px;
     }
     .uic-rueda {
       width: 18px; height: 18px; flex: 0 0 18px;
@@ -1303,7 +1304,7 @@
               </div>
               <div style="margin-top: 12px;">
                 ${registros.map(r => `
-                  <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 8px; font-size: 13px;">
+                  <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 8px; font-size: 14px;">
                     <strong>${r.escuela}</strong>${r.talla ? ` · T-${r.talla}` : ''}<br>
                     ${r.descripcion} | ${r.cantidad} pzs × $${(r.pagoPorPieza || 0).toFixed(2)} = $${(r.totalGanado || 0).toFixed(2)}
                   </div>
@@ -1331,7 +1332,7 @@
               </div>
               <div style="margin-top: 12px;">
                 ${op.regs.map(r => `
-                  <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 8px; font-size: 13px;">
+                  <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 8px; font-size: 14px;">
                     <strong>${r.escuela}</strong>${r.talla ? ` · T-${r.talla}` : ''}<br>
                     ${r.descripcion} | ${r.cantidad} pzs | 🔧 ${r.maquina}
                   </div>
@@ -1424,7 +1425,7 @@
           <div class="total-general" style="margin-bottom: 16px;">
             <div class="total-general-label">Total Piezas Registradas</div>
             <div class="total-general-valor" style="color: #93c5fd;">${totalPiezas} pzs</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">${totalRegistros} registros</div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">${totalRegistros} registros</div>
           </div>
         ` + datos.map(op => `
           <div class="operaria-item">
@@ -1778,7 +1779,7 @@
                       </div>
                       <div class="detalle-calculo">
                         <span class="detalle-cantidad">${reg.cantidad} piezas</span>
-                        <span style="color: var(--text-muted); font-size: 12px;">🔧 ${reg.maquina || 'N/A'}</span>
+                        <span style="color: var(--text-muted); font-size: 13px;">🔧 ${reg.maquina || 'N/A'}</span>
                       </div>
                     </div>
                   `).join('')}
@@ -2408,14 +2409,14 @@
 
                     reporteAnualLista.innerHTML = lista.map(op => {
                       const etiquetaInactiva = op.activa === false
-                        ? `<span style="display:inline-block; white-space:nowrap; font-size:10.5px; color:#f87171; background:rgba(248,113,113,0.12); border-radius:6px; padding:2px 7px; margin-top:4px;">Dada de baja</span>`
+                        ? `<span style="display:inline-block; white-space:nowrap; font-size: 12px; color:#f87171; background:rgba(248,113,113,0.12); border-radius:6px; padding:2px 7px; margin-top:4px;">Dada de baja</span>`
                         : "";
                       return `
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.08);">
                           <div style="min-width:0;">
                             <div style="font-weight:600; overflow-wrap:break-word;">${op.nombre}</div>
                             ${etiquetaInactiva}
-                            <div style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">${op.piezas} piezas · ${op.registros} registros</div>
+                            <div style="font-size: 13px; color:var(--text-muted); margin-top:4px;">${op.piezas} piezas · ${op.registros} registros</div>
                           </div>
                           <div style="font-weight:700; color:#4ade80; white-space:nowrap;">${formatoMoneda(op.totalPagado)}</div>
                         </div>
@@ -2466,5 +2467,181 @@
       </div>
     </div>
   </div>
+    <!-- MEJORA AGREGADA (punto 27): botones con nombre accesible y area de toque comoda.
+         Componente aislado y autocontenido. Solo AGREGA atributos de accesibilidad y un
+         tamano minimo a los botones que resultan demasiado chicos para el dedo.
+         No cambia el texto visible, ni los estilos de color, ni ninguna funcion existente.
+         Si algo falla, se cancela solo y la pantalla sigue funcionando igual. -->
+    <style>
+      /* solo se aplica a los botones que el propio componente detecta como chicos */
+      .a11y-toque {
+        min-width: 40px !important;
+        min-height: 40px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+      /* foco visible al navegar con teclado (antes no se veia en varios botones) */
+      .a11y-foco:focus-visible {
+        outline: 2px solid #93c5fd !important;
+        outline-offset: 2px !important;
+      }
+    </style>
+    <script>
+      (function () {
+        "use strict";
+        try {
+          // ---- nombres para los botones que son solo un icono ----
+          var NOMBRES = {
+            "\u2190": "Volver", "\u2b05": "Volver", "\u2190\ufe0f": "Volver",
+            "\u2715": "Cerrar", "\u2716": "Cerrar", "\u00d7": "Cerrar", "\u274c": "Cerrar",
+            "\u2717": "Cerrar", "\u2718": "Cerrar",
+            "\u270f\ufe0f": "Editar", "\u270f": "Editar", "\u1f4dd": "Editar",
+            "\ud83d\udcdd": "Editar",
+            "\ud83d\uddd1\ufe0f": "Eliminar", "\ud83d\uddd1": "Eliminar",
+            "\ud83d\udd11": "Restablecer contrase\u00f1a",
+            "\ud83d\udcc5": "Fecha de entrega",
+            "\ud83d\udce5": "Descargar",
+            "\ud83d\udd0d": "Buscar",
+            "\u2795": "Agregar", "\u2b06": "Subir", "\u2b07": "Bajar",
+            "\ud83d\udccb": "Copiar",
+            "\ud83d\udd04": "Actualizar",
+            "\ud83d\udda8\ufe0f": "Imprimir", "\ud83d\udda8": "Imprimir",
+            "\ud83d\udc41\ufe0f": "Ver detalle", "\ud83d\udc41": "Ver detalle",
+            "\u2705": "Confirmar", "\u2714\ufe0f": "Confirmar", "\u2714": "Confirmar",
+            "\u2699\ufe0f": "Configuraci\u00f3n", "\u2699": "Configuraci\u00f3n",
+            "\u2b50": "Destacar",
+            "\u25b6": "Continuar", "\u25c0": "Anterior",
+            "\u22ee": "M\u00e1s opciones", "\u2026": "M\u00e1s opciones"
+          };
+
+          // quita emojis y simbolos para saber si queda texto de verdad
+          function soloTexto(t) {
+            try {
+              return String(t || "")
+                .replace(/[\u2190-\u21ff\u2300-\u27bf\u2b00-\u2bff\ufe0f\u200d]/g, "")
+                .replace(/[\ud800-\udbff][\udc00-\udfff]/g, "")
+                .replace(/\s+/g, " ")
+                .trim();
+            } catch (e) { return String(t || "").trim(); }
+          }
+
+          // hay texto de verdad solo si aparece alguna letra o numero
+          function tieneLetras(t) {
+            try { return /[a-zA-Z0-9\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u024f]/.test(String(t || "")); }
+            catch (e) { return false; }
+          }
+
+          function nombrePara(btn) {
+            var visible = (btn.textContent || "").replace(/\s+/g, " ").trim();
+            if (!visible) {
+              // boton sin texto: intentar por su clase
+              var cl = btn.className || "";
+              if (/cerrar|close/i.test(cl)) return "Cerrar";
+              if (/back|volver/i.test(cl)) return "Volver";
+              return "";
+            }
+            var limpio = soloTexto(visible);
+            if (limpio && tieneLetras(limpio)) return limpio;   // tiene palabras: usamos las palabras
+            if (NOMBRES[visible]) return NOMBRES[visible];
+            // probar quitando el selector de variacion
+            var sinVar = visible.replace(/\ufe0f/g, "");
+            if (NOMBRES[sinVar]) return NOMBRES[sinVar];
+            return "";
+          }
+
+          function esChico(btn) {
+            try {
+              var r = btn.getBoundingClientRect();
+              if (!r || (r.width === 0 && r.height === 0)) return false; // oculto: no medimos
+              return r.height < 40 || r.width < 40;
+            } catch (e) { return false; }
+          }
+
+          function arreglar(raiz) {
+            var lista;
+            try {
+              lista = (raiz || document).querySelectorAll(
+                'button:not([data-a11y]), [role="button"]:not([data-a11y]), ' +
+                '.modal-close:not([data-a11y])'
+              );
+            } catch (e) { return; }
+            for (var i = 0; i < lista.length; i++) {
+              var b = lista[i];
+              try {
+                b.setAttribute("data-a11y", "1");
+                b.classList.add("a11y-foco");
+
+                // si es una "X" de cerrar hecha con div, se le da rol de boton y
+                // se puede usar con el teclado. El clic de siempre sigue igual.
+                if (b.tagName !== "BUTTON" && !b.getAttribute("role")) {
+                  b.setAttribute("role", "button");
+                  if (b.getAttribute("tabindex") === null) b.setAttribute("tabindex", "0");
+                  b.addEventListener("keydown", function (ev) {
+                    try {
+                      if (ev.key === "Enter" || ev.key === " " || ev.key === "Spacebar") {
+                        ev.preventDefault();
+                        b.click();
+                      }
+                    } catch (e) {}
+                  });
+                }
+
+                var nom = nombrePara(b);
+                if (nom) {
+                  if (!b.getAttribute("aria-label")) b.setAttribute("aria-label", nom);
+                  if (!b.getAttribute("title")) b.setAttribute("title", nom);
+                }
+                // los iconos decorativos no deben leerse dos veces
+                var visible = (b.textContent || "").replace(/\s+/g, " ").trim();
+                if (visible && !tieneLetras(visible) && b.getAttribute("aria-label")) {
+                  // es solo icono: lo marcamos para el lector de pantalla
+                  var hijos = b.children;
+                  if (hijos.length === 0) b.setAttribute("data-icono", "1");
+                }
+                if (esChico(b)) b.classList.add("a11y-toque");
+              } catch (e) { /* un boton problematico no detiene el resto */ }
+            }
+          }
+
+          function arrancar() {
+            arreglar(document);
+            try {
+              if (typeof MutationObserver === "function") {
+                var obs = new MutationObserver(function (muts) {
+                  try {
+                    for (var i = 0; i < muts.length; i++) {
+                      var añadidos = muts[i].addedNodes || [];
+                      for (var j = 0; j < añadidos.length; j++) {
+                        var n = añadidos[j];
+                        if (n && n.nodeType === 1) arreglar(n.parentNode || document);
+                      }
+                    }
+                  } catch (e) {}
+                });
+                obs.observe(document.body, { childList: true, subtree: true });
+              } else {
+                // navegador viejo: repaso periodico acotado
+                var veces = 0;
+                var t = setInterval(function () {
+                  try { arreglar(document); } catch (e) {}
+                  if (++veces > 40) clearInterval(t);
+                }, 1500);
+              }
+            } catch (e) {}
+          }
+
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", function () {
+              try { arrancar(); } catch (e) {}
+            });
+          } else {
+            arrancar();
+          }
+        } catch (e) {
+          /* si el componente falla, la pantalla queda exactamente como antes */
+        }
+      })();
+    </script>
 </body>
 </html>

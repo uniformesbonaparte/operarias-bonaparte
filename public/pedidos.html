@@ -12,6 +12,7 @@
   <meta name="theme-color" content="#0E0F12">
 
   <style>
+    /* MEJORA AGREGADA (punto 25): tamanos de letra secundaria subidos para mejor lectura en el taller. Solo cambia el tamano visual; no se toco ninguna logica ni el CSS de los recibos impresos. */
     :root {
       --bg-dark: #0a0e27;
       --bg-darker: #050811;
@@ -33,14 +34,14 @@
     .shell { width: 100%; max-width: 600px; margin: 0 auto; padding: 24px; position: relative; z-index: 1; }
     header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding: 16px 20px; background: var(--glass); border-radius: 20px; border: 1px solid var(--glass-border); backdrop-filter: blur(20px); }
     .header-info h1 { font-size: 20px; font-weight: 700; background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .header-info span { font-size: 12px; color: var(--text-muted); }
+    .header-info span { font-size: 13px; color: var(--text-muted); }
     .btn-back { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.3); color: var(--text-main); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s; font-size: 20px; }
     .btn-back:hover { background: rgba(255,255,255,0.1); }
     .card { background: var(--glass); border-radius: 20px; border: 1px solid var(--glass-border); padding: 20px; margin-bottom: 16px; backdrop-filter: blur(20px); }
     .card-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
-    .subtext { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+    .subtext { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
     .form-row { margin-bottom: 12px; }
-    .form-row label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .form-row label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
     input[type="text"], input[type="number"], select, textarea { width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: var(--text-main); font-size: 14px; outline: none; transition: border 0.3s; }
     input:focus, select:focus, textarea:focus { border-color: var(--accent); }
     button { padding: 12px 20px; border: none; border-radius: 12px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s; }
@@ -55,13 +56,13 @@
     .btn-warning { background: var(--warning); color: #000; }
     .btn-edit { background: rgba(139,92,246,0.2); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); }
     .oculto { display: none !important; }
-    .mensaje-error, .mensaje-exito { display: none; padding: 12px; border-radius: 12px; margin-bottom: 12px; font-size: 13px; font-weight: 600; text-align: center; }
+    .mensaje-error, .mensaje-exito { display: none; padding: 12px; border-radius: 12px; margin-bottom: 12px; font-size: 14px; font-weight: 600; text-align: center; }
     .mensaje-error { background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
     .mensaje-exito { background: rgba(16,185,129,0.2); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
     .pedido-item { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 16px; margin-bottom: 12px; }
     .pedido-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
     .pedido-escuela { font-weight: 700; font-size: 15px; }
-    .pedido-folio { font-size: 12px; color: var(--text-muted); }
+    .pedido-folio { font-size: 13px; color: var(--text-muted); }
     /* MEJORA AGREGADA (punto 19): marcar en rojo el campo que falta */
     .campo-falta {
       border-color: #ef4444 !important;
@@ -69,29 +70,29 @@
     }
     .campo-falta-aviso {
       display: block; margin-top: 6px;
-      font-size: 12px; color: #fca5a5;
+      font-size: 13px; color: #fca5a5;
     }
     /* MEJORA AGREGADA: aviso de fecha de entrega */
-    .chip-entrega { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; margin-left:6px; }
+    .chip-entrega { display:inline-block; font-size: 12.5px; padding:2px 8px; border-radius:999px; margin-left:6px; }
     .chip-entrega.vencido { background:rgba(239,68,68,0.22); color:#fca5a5; }
     .chip-entrega.cerca { background:rgba(245,158,11,0.22); color:#fcd34d; }
     .chip-entrega.ok { background:rgba(34,197,94,0.18); color:#86efac; }
-    .badge { padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; }
+    .badge { padding: 4px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 700; }
     .badge-proceso { background: rgba(59,130,246,0.2); color: #93c5fd; }
     .badge-terminado { background: rgba(16,185,129,0.2); color: #6ee7b7; }
-    .pedido-info { font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
+    .pedido-info { font-size: 14px; color: var(--text-muted); margin-bottom: 6px; }
     .pedido-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-    .pedido-actions button { flex: 1; min-width: 80px; padding: 8px; font-size: 12px; }
+    .pedido-actions button { flex: 1; min-width: 80px; padding: 8px; font-size: 13px; }
     .filtros-row { display: flex; gap: 12px; margin-bottom: 16px; }
     .filtros-row button { flex: 1; }
     .prendas-lista { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .prenda-tag { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; background: rgba(59,130,246,0.2); color: #93c5fd; }
+    .prenda-tag { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 12.5px; font-weight: 600; background: rgba(59,130,246,0.2); color: #93c5fd; }
 
     /* MEJORA AGREGADA: acordeón de pedidos + buscador */
     .pedido-header.pedido-header-toggle { cursor: pointer; }
-    .pedido-toggle-arrow { font-size: 12px; color: var(--text-muted); display: inline-block; transition: transform 0.2s; margin-top: 3px; }
+    .pedido-toggle-arrow { font-size: 13px; color: var(--text-muted); display: inline-block; transition: transform 0.2s; margin-top: 3px; }
     .pedido-toggle-arrow.abierto { transform: rotate(90deg); }
-    .pedido-quick-stats { font-size: 12px; color: var(--text-muted); margin: -4px 0 12px 26px; }
+    .pedido-quick-stats { font-size: 13px; color: var(--text-muted); margin: -4px 0 12px 26px; }
     #input-buscar-pedido { margin-bottom: 14px; }
 
     /* Items (nuevo) */
@@ -101,15 +102,15 @@
     .item-header-left select { flex: 1; }
     .item-header-left input[type="number"] { width: 80px; }
     .btn-remove-item { background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid rgba(239,68,68,0.2); width: 32px; height: 32px; border-radius: 8px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; min-width: 32px; }
-    .ops-table { width: 100%; font-size: 12px; border-collapse: collapse; margin-top: 8px; }
-    .ops-table th { text-align: left; color: var(--text-muted); font-weight: 600; font-size: 10px; text-transform: uppercase; padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .ops-table { width: 100%; font-size: 13px; border-collapse: collapse; margin-top: 8px; }
+    .ops-table th { text-align: left; color: var(--text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,0.1); }
     .ops-table td { padding: 5px 4px; border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--text-main); }
-    .ops-table input[type="number"] { width: 65px; padding: 6px; font-size: 12px; border-radius: 8px; }
-    .ops-table .op-costura-input { width: 100%; padding: 6px 8px; font-size: 12px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: var(--text-main); }
-    .ops-table .op-maquina-select { width: 100px; padding: 6px; font-size: 11px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: var(--text-main); }
+    .ops-table input[type="number"] { width: 65px; padding: 6px; font-size: 13px; border-radius: 8px; }
+    .ops-table .op-costura-input { width: 100%; padding: 6px 8px; font-size: 13px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: var(--text-main); }
+    .ops-table .op-maquina-select { width: 100px; padding: 6px; font-size: 12.5px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: var(--text-main); }
     .ops-table .btn-remove-op { background: none; border: none; color: #fca5a5; cursor: pointer; font-size: 14px; padding: 2px 6px; }
-    .btn-add-op { background: rgba(59,130,246,0.15); color: #93c5fd; border: 1px dashed rgba(59,130,246,0.3); font-size: 11px; padding: 6px 12px; margin-top: 6px; border-radius: 8px; }
-    .btn-add-item { background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px dashed rgba(16,185,129,0.3); width: 100%; padding: 12px; margin-bottom: 14px; font-size: 13px; }
+    .btn-add-op { background: rgba(59,130,246,0.15); color: #93c5fd; border: 1px dashed rgba(59,130,246,0.3); font-size: 12.5px; padding: 6px 12px; margin-top: 6px; border-radius: 8px; }
+    .btn-add-item { background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px dashed rgba(16,185,129,0.3); width: 100%; padding: 12px; margin-bottom: 14px; font-size: 14px; }
     
     /* Acordeón de prendas */
     .item-card { padding: 0; overflow: hidden; }
@@ -119,27 +120,27 @@
     .item-card.expanded .item-accordion-toggle { transform: rotate(90deg); }
     .item-accordion-info { flex: 1; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .item-accordion-info .prenda-nombre { font-weight: 600; font-size: 14px; color: var(--text-main); }
-    .item-accordion-info .item-stats { display: flex; gap: 8px; font-size: 12px; color: var(--text-muted); }
+    .item-accordion-info .item-stats { display: flex; gap: 8px; font-size: 13px; color: var(--text-muted); }
     .item-accordion-info .item-stats span { background: rgba(255,255,255,0.06); padding: 3px 8px; border-radius: 6px; }
-    .item-accordion-info .item-warning { color: #fbbf24; font-size: 12px; }
+    .item-accordion-info .item-warning { color: #fbbf24; font-size: 13px; }
     .item-accordion-body { display: none; padding: 0 14px 14px 14px; border-top: 1px solid rgba(255,255,255,0.06); }
     .item-card.expanded .item-accordion-body { display: block; }
-    .item-section-title { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin: 12px 0 8px 0; display: flex; align-items: center; gap: 8px; }
+    .item-section-title { font-size: 12.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin: 12px 0 8px 0; display: flex; align-items: center; gap: 8px; }
     .item-section-title button { margin-left: auto; }
 
     .progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin-top: 6px; overflow: hidden; }
     .progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--success)); transition: width 0.3s; }
     .items-resumen { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); }
-    .items-resumen-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 12px; }
+    .items-resumen-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 13px; }
     .items-resumen-item .prenda-name { color: var(--text-main); font-weight: 600; }
     .items-resumen-item .cant { color: var(--text-muted); }
     .desglose-prendas { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); }
-    .desglose-titulo { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; }
-    .desglose-item { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+    .desglose-titulo { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; }
+    .desglose-item { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; }
     .desglose-prenda { color: var(--text-muted); }
     .desglose-monto { color: var(--success); font-weight: 600; }
     /* MEJORA AGREGADA: línea de mano de obra por prenda (costo unitario) */
-    .desglose-manoobra { font-size: 11px; color: #fbbf24; margin: -2px 0 6px 0; padding-left: 2px; }
+    .desglose-manoobra { font-size: 12.5px; color: #fbbf24; margin: -2px 0 6px 0; padding-left: 2px; }
 
     /* Modales */
     .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
@@ -200,7 +201,7 @@
       background: rgba(0, 0, 0, 0.28);
       border: 1px solid rgba(255, 255, 255, 0.09);
       border-radius: 12px;
-      font-size: 13px; color: #94a3b8; line-height: 1.6;
+      font-size: 14px; color: #94a3b8; line-height: 1.6;
       white-space: pre-wrap; word-break: break-word;
     }
     .uiw-campo {
@@ -278,7 +279,7 @@
       padding: 18px; border-radius: 14px;
       background: rgba(255, 255, 255, 0.04);
       border: 1px dashed rgba(255, 255, 255, 0.14);
-      color: #94a3b8; font-size: 13px;
+      color: #94a3b8; font-size: 14px;
     }
     .uic-rueda {
       width: 18px; height: 18px; flex: 0 0 18px;
@@ -299,7 +300,13 @@
       0%   { background-position: 100% 50%; }
       100% { background-position: 0 50%; }
     }
-  </style>
+      /* MEJORA AGREGADA (punto 25): las etiquetas de estado y los filtros no se
+       parten en dos lineas al tener la letra un poco mas grande. Solo visual. */
+    .badge { white-space: nowrap; }
+    .chip-entrega { white-space: nowrap; }
+    .filtros-row { gap: 8px; }
+    .filtros-row > button { white-space: nowrap; min-width: 0; padding-left: 10px; padding-right: 10px; }
+</style>
 </head>
 <body>
 <!-- MEJORA AGREGADA: si la sesion expira, la app regresa sola al login -->
@@ -939,25 +946,25 @@ async function cargarPlantilla(card, prendaId) {
             <td><input type="text" class="op-costura-input" value="${op.costura||op.descripcion||''}" readonly style="opacity:0.9;" /></td>
             <td><input type="text" class="op-maquina-select" value="${op.maquina||''}" readonly style="opacity:0.9;" /></td>
             <td><input type="number" class="op-precio" value="${op.precio||0}" min="0" step="0.5" /></td>
-            <td style="color:rgba(255,255,255,0.35);font-size:12px;">catálogo</td>
+            <td style="color:rgba(255,255,255,0.35);font-size: 13px;">catálogo</td>
           </tr>`;
         });
-        h += `</tbody></table><div style="margin-top:6px;color:rgba(255,255,255,0.55);font-size:12px;">Operaciones cargadas del catálogo (no se pueden editar).</div>`;
+        h += `</tbody></table><div style="margin-top:6px;color:rgba(255,255,255,0.55);font-size: 13px;">Operaciones cargadas del catálogo (no se pueden editar).</div>`;
         // MEJORA AGREGADA: permite agregar una operación (costura + máquina) nueva sin salir a Configuración
         h += `<button type="button" class="btn-add-op btn-agregar-operacion-nueva" style="margin-top:8px;width:100%;">✂️ + Agregar operación nueva</button>
         <div class="form-nueva-operacion oculto" style="margin-top:8px;padding:10px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
-          <input type="text" class="input-nueva-costura" placeholder="Nombre de la costura/operación" style="width:100%;margin-bottom:6px;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:var(--text-main);font-size:12px;box-sizing:border-box;" />
-          <input type="text" class="input-nueva-maquina" list="datalist-maquinas" placeholder="Máquina (existente o escribe una nueva)" style="width:100%;margin-bottom:6px;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:var(--text-main);font-size:12px;box-sizing:border-box;" />
-          <input type="number" class="input-nueva-precio" placeholder="Precio" min="0" step="0.5" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:var(--text-main);font-size:12px;box-sizing:border-box;" />
+          <input type="text" class="input-nueva-costura" placeholder="Nombre de la costura/operación" style="width:100%;margin-bottom:6px;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:var(--text-main);font-size: 13px;box-sizing:border-box;" />
+          <input type="text" class="input-nueva-maquina" list="datalist-maquinas" placeholder="Máquina (existente o escribe una nueva)" style="width:100%;margin-bottom:6px;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:var(--text-main);font-size: 13px;box-sizing:border-box;" />
+          <input type="number" class="input-nueva-precio" placeholder="Precio" min="0" step="0.5" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:var(--text-main);font-size: 13px;box-sizing:border-box;" />
           <div style="display:flex;gap:8px;">
-            <button type="button" class="btn-confirmar-nueva-operacion" style="flex:1;background:rgba(34,197,94,0.15);color:#86efac;border:1px solid rgba(34,197,94,0.3);padding:7px;border-radius:8px;font-size:12px;">✓ Agregar</button>
-            <button type="button" class="btn-cancelar-nueva-operacion" style="flex:1;background:rgba(255,255,255,0.05);color:var(--text-muted);border:1px solid rgba(255,255,255,0.1);padding:7px;border-radius:8px;font-size:12px;">Cancelar</button>
+            <button type="button" class="btn-confirmar-nueva-operacion" style="flex:1;background:rgba(34,197,94,0.15);color:#86efac;border:1px solid rgba(34,197,94,0.3);padding:7px;border-radius:8px;font-size: 13px;">✓ Agregar</button>
+            <button type="button" class="btn-cancelar-nueva-operacion" style="flex:1;background:rgba(255,255,255,0.05);color:var(--text-muted);border:1px solid rgba(255,255,255,0.1);padding:7px;border-radius:8px;font-size: 13px;">Cancelar</button>
           </div>
-          <div class="msg-nueva-operacion" style="font-size:11px;margin-top:6px;"></div>
+          <div class="msg-nueva-operacion" style="font-size: 12.5px;margin-top:6px;"></div>
         </div>`;
         // MEJORA AGREGADA: suma en vivo de la mano de obra de esta prenda mientras capturas precios
         h += `<div class="suma-mano-obra" style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:10px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.25);">
-          <span style="font-size:12px;color:#fcd34d;font-weight:600;">🧵 Mano de obra por prenda</span>
+          <span style="font-size: 13px;color:#fcd34d;font-weight:600;">🧵 Mano de obra por prenda</span>
           <span class="suma-mano-obra-valor" style="font-size:14px;color:#fbbf24;font-weight:700;">$0.00</span>
         </div>`;
         c.innerHTML = h;
@@ -1058,7 +1065,7 @@ async function cargarPlantilla(card, prendaId) {
                 <td><input type="text" class="op-costura-input" value="${costura}" readonly style="opacity:0.9;" /></td>
                 <td><input type="text" class="op-maquina-select" value="${maquina}" readonly style="opacity:0.9;" /></td>
                 <td><input type="number" class="op-precio" value="${precio}" min="0" step="0.5" /></td>
-                <td style="color:#86efac;font-size:12px;">nueva</td>`;
+                <td style="color:#86efac;font-size: 13px;">nueva</td>`;
               tbody.appendChild(tr);
               tr.querySelector(".op-precio").addEventListener("input", () => actualizarSumaManoObra(card));
               actualizarSumaManoObra(card);
@@ -1308,7 +1315,7 @@ async function cargarPlantilla(card, prendaId) {
                   // MEJORA AGREGADA: si la prenda aún no tiene producción, en vez de "$0.00"
                   // mostramos una etiqueta clara; igual se muestra su mano de obra.
                   const montoDerecha = d.sinProduccion
-                    ? `<span class="desglose-monto" style="color:var(--text-muted);font-weight:500;font-size:12px;">Sin producción</span>`
+                    ? `<span class="desglose-monto" style="color:var(--text-muted);font-weight:500;font-size: 13px;">Sin producción</span>`
                     : `<span class="desglose-monto">$${d.total.toFixed(2)}</span>`;
                   return `<div class="desglose-item"><span class="desglose-prenda">${d.prenda}</span>${montoDerecha}</div>${manoObra}`;
                 }).join('')}</div>`;
@@ -1344,7 +1351,7 @@ async function cargarPlantilla(card, prendaId) {
               ${_lineaEntrega(p)}
               <div class="pedido-info">📦 Piezas registradas: <strong>${p.totalPiezas||0}</strong></div>
               <div class="pedido-info">👥 Operarias: <strong>${p.numeroOperarias||0}</strong></div>
-              ${!esEnc ? `<div class="pedido-info">💵 Pagado: <strong>$${(p.totalPagado||0).toFixed(2)}</strong>${costo>0?` <span style="color:var(--text-muted);font-size:11px;">/ Est: $${costo.toFixed(2)}</span>`:''}</div>${desglose}` : ''}
+              ${!esEnc ? `<div class="pedido-info">💵 Pagado: <strong>$${(p.totalPagado||0).toFixed(2)}</strong>${costo>0?` <span style="color:var(--text-muted);font-size: 12.5px;">/ Est: $${costo.toFixed(2)}</span>`:''}</div>${desglose}` : ''}
               ${(esAdmin||esEnc) ? `<div class="pedido-actions">
                 ${p.items&&p.items.length>0?`<button class="btn-edit" onclick="verAvance(${p.id})" style="background:rgba(59,130,246,0.2);color:#93c5fd;border:1px solid rgba(59,130,246,0.3);">📊 Avance</button>`:''}
                 <button class="btn-edit" onclick="abrirModalEditar(${p.id})">✏️ Editar</button>
@@ -1595,11 +1602,11 @@ async function cargarPlantilla(card, prendaId) {
           const lista = (item && item.operacionesSinPrecio) || [];
           if (lista.length === 0) return "";
           const conPiezas = lista.filter(o => Number(o.piezasHechas) > 0);
-          let txt = `<div style="margin-top:8px;font-size:11px;color:var(--text-muted);">
+          let txt = `<div style="margin-top:8px;font-size: 12.5px;color:var(--text-muted);">
             \u{1F515} ${lista.length} operación(es) sin precio no se muestran aquí:
             ${lista.map(o => o.costura).join(", ")}</div>`;
           if (conPiezas.length > 0) {
-            txt += `<div style="margin-top:6px;font-size:11px;color:#fbbf24;">
+            txt += `<div style="margin-top:6px;font-size: 12.5px;color:#fbbf24;">
               \u26A0\uFE0F Ojo: ${conPiezas.map(o => o.costura + " (" + o.piezasHechas + " pzas)").join(", ")}
               ya tiene piezas registradas pero sigue en $0. Ponle precio para que cuente en el reporte.</div>`;
           }
@@ -1618,19 +1625,19 @@ async function cargarPlantilla(card, prendaId) {
           const data = await r.json();
           // MEJORA AGREGADA: la encargada no debe ver montos/estimados de dinero en el avance
           let h = `<div style="margin-bottom:12px;"><strong>${data.escuela}</strong> · Folio: ${data.folio}<br>
-            ${!esEnc ? `<span style="font-size:12px;color:var(--text-muted);">Estimado: $${(data.costoEstimadoTotal||0).toFixed(2)} · Avance: $${(data.costoAvanceTotal||0).toFixed(2)}</span>` : ''}</div>`;
+            ${!esEnc ? `<span style="font-size: 13px;color:var(--text-muted);">Estimado: $${(data.costoEstimadoTotal||0).toFixed(2)} · Avance: $${(data.costoAvanceTotal||0).toFixed(2)}</span>` : ''}</div>`;
           (data.avance||[]).forEach(item => {
             h += `<div class="item-card">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                 <strong style="font-size:14px;">${item.prenda}</strong>
-                <span style="font-size:12px;color:${item.porcentajeGeneral>=100?'var(--success)':'var(--accent)'};font-weight:700;">${item.porcentajeGeneral}%</span>
+                <span style="font-size: 13px;color:${item.porcentajeGeneral>=100?'var(--success)':'var(--accent)'};font-weight:700;">${item.porcentajeGeneral}%</span>
               </div>
               <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(item.porcentajeGeneral,100)}%"></div></div>
-              <div style="font-size:11px;color:var(--text-muted);margin:6px 0;">${item.cantidad} pzas · ${item.operacionesCompletas}/${item.totalOperaciones} ops completas</div>
+              <div style="font-size: 12.5px;color:var(--text-muted);margin:6px 0;">${item.cantidad} pzas · ${item.operacionesCompletas}/${item.totalOperaciones} ops completas</div>
               <table class="ops-table"><thead><tr><th>Operación</th><th>Máquina</th><th>Avance</th><th>%</th></tr></thead><tbody>
               ${item.operaciones.map(op => `<tr>
                 <td>${op.costura}</td>
-                <td style="font-size:11px;color:var(--text-muted);">${op.maquina}</td>
+                <td style="font-size: 12.5px;color:var(--text-muted);">${op.maquina}</td>
                 <td>${op.piezasHechas}/${op.cantidadTotal}</td>
                 <td style="color:${op.porcentaje>=100?'var(--success)':op.porcentaje>0?'var(--accent)':'var(--text-muted)'};font-weight:700;">${op.porcentaje}%</td>
               </tr>`).join("")}
@@ -1653,5 +1660,181 @@ async function cargarPlantilla(card, prendaId) {
       await cargarPedidos();
     });
   </script>
+    <!-- MEJORA AGREGADA (punto 27): botones con nombre accesible y area de toque comoda.
+         Componente aislado y autocontenido. Solo AGREGA atributos de accesibilidad y un
+         tamano minimo a los botones que resultan demasiado chicos para el dedo.
+         No cambia el texto visible, ni los estilos de color, ni ninguna funcion existente.
+         Si algo falla, se cancela solo y la pantalla sigue funcionando igual. -->
+    <style>
+      /* solo se aplica a los botones que el propio componente detecta como chicos */
+      .a11y-toque {
+        min-width: 40px !important;
+        min-height: 40px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+      /* foco visible al navegar con teclado (antes no se veia en varios botones) */
+      .a11y-foco:focus-visible {
+        outline: 2px solid #93c5fd !important;
+        outline-offset: 2px !important;
+      }
+    </style>
+    <script>
+      (function () {
+        "use strict";
+        try {
+          // ---- nombres para los botones que son solo un icono ----
+          var NOMBRES = {
+            "\u2190": "Volver", "\u2b05": "Volver", "\u2190\ufe0f": "Volver",
+            "\u2715": "Cerrar", "\u2716": "Cerrar", "\u00d7": "Cerrar", "\u274c": "Cerrar",
+            "\u2717": "Cerrar", "\u2718": "Cerrar",
+            "\u270f\ufe0f": "Editar", "\u270f": "Editar", "\u1f4dd": "Editar",
+            "\ud83d\udcdd": "Editar",
+            "\ud83d\uddd1\ufe0f": "Eliminar", "\ud83d\uddd1": "Eliminar",
+            "\ud83d\udd11": "Restablecer contrase\u00f1a",
+            "\ud83d\udcc5": "Fecha de entrega",
+            "\ud83d\udce5": "Descargar",
+            "\ud83d\udd0d": "Buscar",
+            "\u2795": "Agregar", "\u2b06": "Subir", "\u2b07": "Bajar",
+            "\ud83d\udccb": "Copiar",
+            "\ud83d\udd04": "Actualizar",
+            "\ud83d\udda8\ufe0f": "Imprimir", "\ud83d\udda8": "Imprimir",
+            "\ud83d\udc41\ufe0f": "Ver detalle", "\ud83d\udc41": "Ver detalle",
+            "\u2705": "Confirmar", "\u2714\ufe0f": "Confirmar", "\u2714": "Confirmar",
+            "\u2699\ufe0f": "Configuraci\u00f3n", "\u2699": "Configuraci\u00f3n",
+            "\u2b50": "Destacar",
+            "\u25b6": "Continuar", "\u25c0": "Anterior",
+            "\u22ee": "M\u00e1s opciones", "\u2026": "M\u00e1s opciones"
+          };
+
+          // quita emojis y simbolos para saber si queda texto de verdad
+          function soloTexto(t) {
+            try {
+              return String(t || "")
+                .replace(/[\u2190-\u21ff\u2300-\u27bf\u2b00-\u2bff\ufe0f\u200d]/g, "")
+                .replace(/[\ud800-\udbff][\udc00-\udfff]/g, "")
+                .replace(/\s+/g, " ")
+                .trim();
+            } catch (e) { return String(t || "").trim(); }
+          }
+
+          // hay texto de verdad solo si aparece alguna letra o numero
+          function tieneLetras(t) {
+            try { return /[a-zA-Z0-9\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u024f]/.test(String(t || "")); }
+            catch (e) { return false; }
+          }
+
+          function nombrePara(btn) {
+            var visible = (btn.textContent || "").replace(/\s+/g, " ").trim();
+            if (!visible) {
+              // boton sin texto: intentar por su clase
+              var cl = btn.className || "";
+              if (/cerrar|close/i.test(cl)) return "Cerrar";
+              if (/back|volver/i.test(cl)) return "Volver";
+              return "";
+            }
+            var limpio = soloTexto(visible);
+            if (limpio && tieneLetras(limpio)) return limpio;   // tiene palabras: usamos las palabras
+            if (NOMBRES[visible]) return NOMBRES[visible];
+            // probar quitando el selector de variacion
+            var sinVar = visible.replace(/\ufe0f/g, "");
+            if (NOMBRES[sinVar]) return NOMBRES[sinVar];
+            return "";
+          }
+
+          function esChico(btn) {
+            try {
+              var r = btn.getBoundingClientRect();
+              if (!r || (r.width === 0 && r.height === 0)) return false; // oculto: no medimos
+              return r.height < 40 || r.width < 40;
+            } catch (e) { return false; }
+          }
+
+          function arreglar(raiz) {
+            var lista;
+            try {
+              lista = (raiz || document).querySelectorAll(
+                'button:not([data-a11y]), [role="button"]:not([data-a11y]), ' +
+                '.modal-close:not([data-a11y])'
+              );
+            } catch (e) { return; }
+            for (var i = 0; i < lista.length; i++) {
+              var b = lista[i];
+              try {
+                b.setAttribute("data-a11y", "1");
+                b.classList.add("a11y-foco");
+
+                // si es una "X" de cerrar hecha con div, se le da rol de boton y
+                // se puede usar con el teclado. El clic de siempre sigue igual.
+                if (b.tagName !== "BUTTON" && !b.getAttribute("role")) {
+                  b.setAttribute("role", "button");
+                  if (b.getAttribute("tabindex") === null) b.setAttribute("tabindex", "0");
+                  b.addEventListener("keydown", function (ev) {
+                    try {
+                      if (ev.key === "Enter" || ev.key === " " || ev.key === "Spacebar") {
+                        ev.preventDefault();
+                        b.click();
+                      }
+                    } catch (e) {}
+                  });
+                }
+
+                var nom = nombrePara(b);
+                if (nom) {
+                  if (!b.getAttribute("aria-label")) b.setAttribute("aria-label", nom);
+                  if (!b.getAttribute("title")) b.setAttribute("title", nom);
+                }
+                // los iconos decorativos no deben leerse dos veces
+                var visible = (b.textContent || "").replace(/\s+/g, " ").trim();
+                if (visible && !tieneLetras(visible) && b.getAttribute("aria-label")) {
+                  // es solo icono: lo marcamos para el lector de pantalla
+                  var hijos = b.children;
+                  if (hijos.length === 0) b.setAttribute("data-icono", "1");
+                }
+                if (esChico(b)) b.classList.add("a11y-toque");
+              } catch (e) { /* un boton problematico no detiene el resto */ }
+            }
+          }
+
+          function arrancar() {
+            arreglar(document);
+            try {
+              if (typeof MutationObserver === "function") {
+                var obs = new MutationObserver(function (muts) {
+                  try {
+                    for (var i = 0; i < muts.length; i++) {
+                      var añadidos = muts[i].addedNodes || [];
+                      for (var j = 0; j < añadidos.length; j++) {
+                        var n = añadidos[j];
+                        if (n && n.nodeType === 1) arreglar(n.parentNode || document);
+                      }
+                    }
+                  } catch (e) {}
+                });
+                obs.observe(document.body, { childList: true, subtree: true });
+              } else {
+                // navegador viejo: repaso periodico acotado
+                var veces = 0;
+                var t = setInterval(function () {
+                  try { arreglar(document); } catch (e) {}
+                  if (++veces > 40) clearInterval(t);
+                }, 1500);
+              }
+            } catch (e) {}
+          }
+
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", function () {
+              try { arrancar(); } catch (e) {}
+            });
+          } else {
+            arrancar();
+          }
+        } catch (e) {
+          /* si el componente falla, la pantalla queda exactamente como antes */
+        }
+      })();
+    </script>
 </body>
 </html>
