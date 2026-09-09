@@ -5025,7 +5025,8 @@ app.get("/api/alertas", (req, res) => {
           avisos.push({
             tipo: "pedido_vencido", prioridad: "alta", pedidoId: p.id,
             titulo: `Pedido vencido: ${p.escuela}`,
-            detalle: `Folio ${p.folio} · se venció hace ${Math.abs(dias)} día(s) · avance ${av.porcentaje}%`
+            detalle: `Folio ${p.folio} · se venció hace ${Math.abs(dias)} día(s) · avance ${av.porcentaje}%`,
+            sello: `venc-${Math.abs(dias)}`
           });
         } else if (dias <= 3) {
           avisos.push({
@@ -5033,7 +5034,8 @@ app.get("/api/alertas", (req, res) => {
             titulo: `Entrega cerca: ${p.escuela}`,
             detalle: dias === 0
               ? `Folio ${p.folio} · se entrega HOY · avance ${av.porcentaje}%`
-              : `Folio ${p.folio} · faltan ${dias} día(s) · avance ${av.porcentaje}%`
+              : `Folio ${p.folio} · faltan ${dias} día(s) · avance ${av.porcentaje}%`,
+            sello: `faltan-${dias}`
           });
         }
       }
@@ -5043,7 +5045,8 @@ app.get("/api/alertas", (req, res) => {
         avisos.push({
           tipo: "pedido_casi_listo", prioridad: "baja", pedidoId: p.id,
           titulo: `Casi listo: ${p.escuela}`,
-          detalle: `Folio ${p.folio} · ${av.porcentaje}% · faltan ${av.piezasMeta - av.piezasHechas} pieza(s)`
+          detalle: `Folio ${p.folio} · ${av.porcentaje}% · faltan ${av.piezasMeta - av.piezasHechas} pieza(s)`,
+          sello: "casi"
         });
       }
       // Terminado al 100% pero sin cerrar
@@ -5051,21 +5054,32 @@ app.get("/api/alertas", (req, res) => {
         avisos.push({
           tipo: "pedido_completo_sin_cerrar", prioridad: "media", pedidoId: p.id,
           titulo: `Listo para cerrar: ${p.escuela}`,
-          detalle: `Folio ${p.folio} · producción al 100%, sigue marcado como activo`
+          detalle: `Folio ${p.folio} · producción al 100%, sigue marcado como activo`,
+          sello: "listo"
         });
       }
 
-      // Operaciones sin precio (solo para quien administra precios)
+      // MEJORA AGREGADA (avisos): antes se avisaba de CUALQUIER operacion en $0.
+      // En este taller es normal dejar en $0 las costuras que la prenda no lleva,
+      // asi que ese aviso salia en casi todos los pedidos y tapaba lo importante.
+      // Ahora solo avisa cuando una operacion sin precio YA TIENE piezas
+      // registradas: ahi si hay trabajo hecho que nadie va a cobrar.
       if (rol === "admin" || rol === "encargada") {
-        let sinPrecio = 0;
+        let opsSinPagar = 0;
+        let piezasSinPagar = 0;
         (p.items || []).forEach(i => (i.operaciones || []).forEach(o => {
-          if (!(Number(o.precio) > 0)) sinPrecio++;
+          if (Number(o.precio) > 0) return;
+          const hechas = registros
+            .filter(r => r.pedidoId === p.id && r.operacionId === o.opId)
+            .reduce((sum, r) => sum + (Number(r.cantidad) || 0), 0);
+          if (hechas > 0) { opsSinPagar++; piezasSinPagar += hechas; }
         }));
-        if (sinPrecio > 0) {
+        if (opsSinPagar > 0) {
           avisos.push({
-            tipo: "operacion_sin_precio", prioridad: "media", pedidoId: p.id,
-            titulo: `Falta capturar precio: ${p.escuela}`,
-            detalle: `Folio ${p.folio} · ${sinPrecio} operación(es) en $0, no cuentan para el avance ni para la nómina`
+            tipo: "operacion_sin_precio", prioridad: "alta", pedidoId: p.id,
+            titulo: `Trabajo sin pagar: ${p.escuela}`,
+            detalle: `Folio ${p.folio} · ${piezasSinPagar} pieza(s) ya cosidas en ${opsSinPagar} operación(es) que siguen en $0`,
+            sello: `${opsSinPagar}-${piezasSinPagar}`
           });
         }
       }
@@ -5073,6 +5087,16 @@ app.get("/api/alertas", (req, res) => {
 
     const orden = { alta: 0, media: 1, baja: 2 };
     avisos.sort((a, b) => orden[a.prioridad] - orden[b.prioridad]);
+
+    // MEJORA AGREGADA (avisos): clave fija por aviso, para que la pantalla pueda
+    // recordar cuales ya se revisaron. El sello cambia solo si el aviso empeora
+    // (mas dias de retraso, mas piezas sin pagar), y entonces vuelve a aparecer.
+    avisos.forEach(a => {
+      try {
+        a.clave = String(a.tipo) + ":" + String(a.pedidoId);
+        if (!a.sello) a.sello = "1";
+      } catch (eClave) {}
+    });
 
     return res.json({
       ok: true,
