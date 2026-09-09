@@ -36,6 +36,66 @@ const supabase = SUPABASE_ENABLED ? createClient(SUPABASE_URL, SUPABASE_SERVICE_
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// ===================== MEJORA AGREGADA (punto 31) =====================
+// Manejo de errores homogeneo. Todo esto es ADITIVO: no cambia ni una sola
+// ruta existente. Lo que hace es envolver el registro de rutas para que, si
+// alguna falla de forma inesperada, el usuario reciba un mensaje amable en
+// vez de informacion tecnica interna, y el detalle quede en el log del servidor.
+const _erroresVistos = [];
+function _registrarFalla(origen, err, req) {
+  try {
+    const ref = "E" + Date.now().toString(36).toUpperCase().slice(-6);
+    const detalle = {
+      ref: ref,
+      cuando: new Date().toISOString(),
+      origen: origen,
+      ruta: req ? (req.method + " " + (req.originalUrl || req.url || "")) : "-",
+      usuario: (req && req.usuario && req.usuario.nombre) ? req.usuario.nombre : "-",
+      mensaje: (err && (err.message || err.toString())) || "desconocido"
+    };
+    console.error("❗ Falla [" + ref + "] " + detalle.origen + " " + detalle.ruta +
+                  " (usuario: " + detalle.usuario + "): " + detalle.mensaje);
+    if (err && err.stack) console.error(err.stack);
+    _erroresVistos.push(detalle);
+    if (_erroresVistos.length > 50) _erroresVistos.shift();
+    return ref;
+  } catch (e) {
+    try { console.error("Falla al registrar una falla:", e && e.message); } catch (e2) {}
+    return "E000000";
+  }
+}
+
+// Envuelve app.get/post/put/patch/delete para atrapar tanto errores sincronos
+// como promesas rechazadas (Express 4 no atrapa las promesas por si solo).
+try {
+  ["get", "post", "put", "patch", "delete", "all"].forEach(function (metodo) {
+    const original = app[metodo].bind(app);
+    app[metodo] = function (ruta) {
+      const args = Array.prototype.slice.call(arguments, 1).map(function (fn) {
+        if (typeof fn !== "function" || fn.length >= 4) return fn;   // no tocar middlewares de error
+        const envuelto = function (req, res, next) {
+          try {
+            const r = fn.call(this, req, res, next);
+            if (r && typeof r.then === "function" && typeof r.catch === "function") {
+              return r.catch(function (err) { next(err); });
+            }
+            return r;
+          } catch (err) {
+            return next(err);
+          }
+        };
+        // conservar la aridad original para que Express siga tratandolo igual
+        Object.defineProperty(envuelto, "length", { value: fn.length, configurable: true });
+        return envuelto;
+      });
+      return original.apply(app, [ruta].concat(args));
+    };
+  });
+} catch (eEnv) {
+  console.error("Aviso: no se pudo instalar la red de seguridad de rutas:", eEnv && eEnv.message);
+}
+// =================== FIN MEJORA AGREGADA (punto 31) ===================
+
 app.use(express.json());
 
 // Evitar que el navegador cachee respuestas de la API
@@ -5278,6 +5338,65 @@ app.put("/api/pedidos/:id/fecha-entrega", (req, res) => {
   }
 });
 
+// ===================== MEJORA AGREGADA (punto 31) =====================
+// Estas dos redes van AL FINAL, despues de todas las rutas, para que solo
+// actuen cuando ninguna ruta existente respondio o cuando algo fallo.
+
+// a) Una direccion de API que no existe responde en JSON, no con una pagina de error
+app.use("/api", (req, res, next) => {
+  try {
+    if (res.headersSent) return next();
+    return res.status(404).json({
+      ok: false,
+      error: "Esa operacion no existe en el servidor.",
+      ruta: req.originalUrl || req.url || ""
+    });
+  } catch (e) { return next(e); }
+});
+
+// b) Red final: cualquier error que llegue hasta aca se convierte en un mensaje
+//    amable con un codigo de referencia. El detalle tecnico queda en el log.
+app.use((err, req, res, next) => {
+  const ref = _registrarFalla("ruta", err, req);
+  try {
+    if (res.headersSent) {
+      try { res.end(); } catch (e) {}
+      return;
+    }
+    const codigo = (err && (err.status || err.statusCode)) || 500;
+    const esApi = String(req.originalUrl || req.url || "").indexOf("/api") === 0;
+    // errores de JSON mal formado que manda el propio express.json()
+    if (err && err.type === "entity.parse.failed") {
+      return res.status(400).json({ ok: false, error: "Los datos enviados no se pudieron leer." });
+    }
+    if (esApi) {
+      return res.status(codigo >= 400 && codigo < 600 ? codigo : 500).json({
+        ok: false,
+        error: "Ocurrio un problema en el servidor. Vuelve a intentarlo.",
+        referencia: ref
+      });
+    }
+    return res.status(500).send(
+      "<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"utf-8\">" +
+      "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" +
+      "<title>Problema temporal</title></head>" +
+      "<body style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;" +
+      "background:#0a0e27;color:#f8fafc;margin:0;display:flex;align-items:center;" +
+      "justify-content:center;min-height:100vh;padding:24px;text-align:center\">" +
+      "<div><h1 style=\"font-size:20px;margin:0 0 10px\">Problema temporal</h1>" +
+      "<p style=\"color:#94a3b8;font-size:14px;margin:0 0 16px\">No se pudo abrir esta pantalla. " +
+      "Vuelve a intentarlo en un momento.</p>" +
+      "<p style=\"color:#94a3b8;font-size:12.5px;margin:0 0 20px\">Referencia: " + ref + "</p>" +
+      "<a href=\"/dashboard\" style=\"display:inline-block;background:#3b82f6;color:#fff;" +
+      "text-decoration:none;padding:12px 20px;border-radius:10px;font-size:14px\">Volver al inicio</a>" +
+      "</div></body></html>"
+    );
+  } catch (e2) {
+    try { res.status(500).end(); } catch (e3) {}
+  }
+});
+// =================== FIN MEJORA AGREGADA (punto 31) ===================
+
 app.listen(PORT, () => {
   console.log("╔════════════════════════════════════════════════╗");
   console.log("║  🚀 Servidor V5 - Producción y Nómina        ║");
@@ -5287,3 +5406,14 @@ app.listen(PORT, () => {
   console.log("║  ✅ Sistema completo con pagos y gestión     ║");
   console.log("╚════════════════════════════════════════════════╝");
 });
+
+// ===================== MEJORA AGREGADA (punto 31) =====================
+// Si un error inesperado escapa de todo lo anterior, se registra y el servidor
+// sigue de pie, en vez de caerse y dejar al taller sin sistema.
+process.on("unhandledRejection", (razon) => {
+  _registrarFalla("promesa sin atender", razon instanceof Error ? razon : new Error(String(razon)), null);
+});
+process.on("uncaughtException", (err) => {
+  _registrarFalla("excepcion no atrapada", err, null);
+});
+// =================== FIN MEJORA AGREGADA (punto 31) ===================
