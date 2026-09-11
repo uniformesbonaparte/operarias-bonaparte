@@ -743,6 +743,17 @@
           // MEJORA AGREGADA (avisos): se pueden ver todos y marcarlos como
           // revisados. Lo revisado se guarda en este dispositivo; si el aviso
           // empeora (cambia su sello) vuelve a aparecer solo.
+          // MEJORA AGREGADA: las operarias no necesitan ver los avisos
+          // importantes, solo admin y encargada. El resumen de arriba
+          // (produccion de hoy, pedidos, semana) sigue igual para todos.
+          if (tipo === "operaria") {
+            try {
+              const boxOp = document.getElementById("alertas-box");
+              if (boxOp) boxOp.classList.add("oculto");
+            } catch (eOp) {}
+            return;
+          }
+
           fetch("/api/alertas", { credentials: "same-origin" })
             .then(r => r.ok ? r.json() : null)
             .then(data => {
