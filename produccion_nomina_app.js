@@ -1267,6 +1267,24 @@ process.on('SIGTERM', () => {
   inicializarPlantillasCosturas();
   // MEJORA AGREGADA: cifrar de una sola vez las contraseñas que sigan en texto plano
   try { migrarPasswordsAHash(); } catch (e) { console.error("⚠️  Migración de contraseñas omitida:", e.message || e); }
+  // MEJORA AGREGADA (modelos): dar un id de renglon a los pedidos que ya existian.
+  // Es determinista (respeta el orden guardado) y solo AGREGA un campo, por eso no
+  // hace falta guardar aqui ni tocar la base de datos.
+  try {
+    let renglonesNumerados = 0;
+    pedidos.forEach(p => {
+      if (Array.isArray(p.items) && p.items.length > 0) {
+        const faltaban = p.items.some(it => !it || it.itemId === undefined || it.itemId === null);
+        asignarItemIds(p.items);
+        if (faltaban) renglonesNumerados++;
+      }
+    });
+    if (renglonesNumerados > 0) {
+      console.log(`🧵 ${renglonesNumerados} pedido(s) preparados para manejar modelos por renglon.`);
+    }
+  } catch (e) {
+    console.error("⚠️  Numeracion de renglones omitida:", e.message || e);
+  }
 })();
 // =========================
 // CREDENCIALES (compatibilidad)
@@ -2021,6 +2039,133 @@ app.get("/api/pedidos", (req, res) => {
   res.json(pedidosFiltrados);
 });
 
+// ==========================================================================
+// MEJORA AGREGADA (modelos por renglon)
+// Permite tener la MISMA prenda varias veces en un pedido, diferenciada por
+// un texto libre "modelo" (ejemplo: "rojo bies blanco" / "marino bies rojo").
+// Todo es aditivo y tolerante: los pedidos que ya existen no tienen modelo ni
+// itemId y siguen funcionando exactamente igual que antes.
+// El itemId solo necesita ser unico DENTRO del pedido, asi que no requiere
+// contadores globales ni columnas nuevas en la base de datos (los items ya se
+// guardan como JSON).
+// ==========================================================================
+
+/** Normaliza un texto de modelo para comparar (sin acentos, minusculas). */
+function normalizarModelo(txt) {
+  try {
+    return (txt === null || txt === undefined ? "" : String(txt))
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/\s+/g, " ").trim();
+  } catch (e) {
+    return "";
+  }
+}
+
+/** Limpia el modelo que llega del cliente (texto corto, opcional). */
+function limpiarModelo(txt) {
+  try {
+    if (txt === null || txt === undefined) return "";
+    return String(txt).replace(/\s+/g, " ").trim().slice(0, 60);
+  } catch (e) {
+    return "";
+  }
+}
+
+/**
+ * Asigna un itemId a los renglones que no lo traigan, conservando los que ya
+ * existen. Unico dentro del pedido. Nunca lanza error.
+ */
+function asignarItemIds(items) {
+  try {
+    if (!Array.isArray(items)) return items;
+    let max = 0;
+    items.forEach(it => {
+      const n = Number(it && it.itemId);
+      if (Number.isFinite(n) && n > max) max = n;
+    });
+    const usados = new Set();
+    items.forEach(it => {
+      if (!it || typeof it !== "object") return;
+      const n = Number(it.itemId);
+      if (Number.isFinite(n) && n > 0 && !usados.has(n)) {
+        it.itemId = n;
+        usados.add(n);
+      } else {
+        max++;
+        it.itemId = max;
+        usados.add(max);
+      }
+    });
+  } catch (e) { /* si algo falla, se queda sin itemId y todo sigue como antes */ }
+  return items;
+}
+
+/**
+ * Revisa que no queden dos renglones de la misma prenda imposibles de
+ * distinguir. Devuelve un mensaje en espanol o null si todo esta bien.
+ */
+function validarModelosRepetidos(items) {
+  try {
+    if (!Array.isArray(items) || items.length < 2) return null;
+    const porPrenda = new Map();
+    items.forEach(it => {
+      const pid = Number(it && it.prendaId);
+      if (!Number.isFinite(pid) || pid <= 0) return;
+      if (!porPrenda.has(pid)) porPrenda.set(pid, []);
+      porPrenda.get(pid).push(normalizarModelo(it && it.modelo));
+    });
+    for (const [pid, lista] of porPrenda) {
+      if (lista.length < 2) continue;
+      const prendaObj = prendas.find(p => Number(p.id) === pid);
+      const nombre = prendaObj ? prendaObj.nombre : "esa prenda";
+      if (lista.some(m => !m)) {
+        return `La prenda "${nombre}" esta repetida en el pedido. Escribe el modelo de cada renglon para poder diferenciarlos (por ejemplo: "rojo bies blanco").`;
+      }
+      if (new Set(lista).size !== lista.length) {
+        return `La prenda "${nombre}" tiene dos renglones con el mismo modelo. Cambia el modelo de uno para poder diferenciarlos.`;
+      }
+    }
+  } catch (e) { return null; }
+  return null;
+}
+
+/** Busca el renglon del pedido al que pertenece una operacion (por opId). */
+function itemDeOperacion(pedido, operacionId) {
+  try {
+    if (!pedido || !Array.isArray(pedido.items)) return null;
+    const opId = Number(operacionId);
+    if (!Number.isFinite(opId) || opId <= 0) return null;
+    return pedido.items.find(it =>
+      Array.isArray(it.operaciones) && it.operaciones.some(op => Number(op.opId) === opId)
+    ) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** Modelo que le corresponde a un registro de costura ya capturado. */
+function modeloDeRegistro(pedido, registro) {
+  try {
+    if (!pedido || !registro) return "";
+    const it = itemDeOperacion(pedido, registro.operacionId);
+    if (it) return limpiarModelo(it.modelo);
+    // Registros antiguos sin operacionId: solo se puede resolver si la prenda
+    // aparece una sola vez en el pedido.
+    const mismos = (pedido.items || []).filter(x => Number(x.prendaId) === Number(registro.prendaId));
+    if (mismos.length === 1) return limpiarModelo(mismos[0].modelo);
+    return "";
+  } catch (e) {
+    return "";
+  }
+}
+
+/** "Pants" o "Pants - rojo bies blanco" segun tenga modelo o no. */
+function etiquetaPrenda(nombrePrenda, modelo) {
+  const base = nombrePrenda || "Prenda";
+  const m = limpiarModelo(modelo);
+  return m ? base + " - " + m : base;
+}
+
 /**
  * POST /api/pedidos
  * Crea un nuevo pedido
@@ -2063,6 +2208,12 @@ app.post("/api/pedidos", (req, res) => {
 
   // Si vienen items detallados (nuevo formato)
   if (Array.isArray(items) && items.length > 0) {
+    // MEJORA AGREGADA (modelos): avisar si quedan dos renglones imposibles de distinguir
+    const errorModelos = validarModelosRepetidos(items);
+    if (errorModelos) {
+      return res.status(400).json({ error: errorModelos });
+    }
+
     nuevo.items = items.map(item => {
       const prendaId = Number(item.prendaId);
       const cantidad = Number(item.cantidad) || 0;
@@ -2152,8 +2303,17 @@ app.post("/api/pedidos", (req, res) => {
 
       const cantidadTotal = tallas.length > 0 ? tallas.reduce((s,t)=>s+t.cantidad,0) : cantidad;
 
-      return { prendaId, cantidad: cantidadTotal, tallas, operaciones: opsConId };
+      // MEJORA AGREGADA (modelos): se conserva el texto libre del modelo
+      const resultado = { prendaId, cantidad: cantidadTotal, tallas, operaciones: opsConId };
+      try {
+        const modeloTxt = limpiarModelo(item.modelo);
+        if (modeloTxt) resultado.modelo = modeloTxt;
+      } catch (eMod) { /* sin modelo se comporta igual que antes */ }
+      return resultado;
     });
+
+    // MEJORA AGREGADA (modelos): id de renglon unico dentro del pedido
+    asignarItemIds(nuevo.items);
 
     // Asegurar backward compat: llenar prendas[] desde items
     nuevo.prendas = [...new Set(nuevo.items.map(i => i.prendaId))];
@@ -2229,13 +2389,30 @@ app.put("/api/pedidos/:id", (req, res) => {
   // actualizar automáticamente los registros PENDIENTES de pago si el precio cambia
   let registrosActualizadosPorPrecio = 0;
   if (Array.isArray(items)) {
+    // MEJORA AGREGADA (modelos): avisar si quedan dos renglones imposibles de distinguir
+    const errorModelosEdit = validarModelosRepetidos(items);
+    if (errorModelosEdit) {
+      return res.status(400).json({ error: errorModelosEdit });
+    }
+
+    // MEJORA AGREGADA (modelos): los renglones nuevos reciben su itemId antes de
+    // reconstruir el pedido, para poder emparejar operaciones renglon por renglon.
+    asignarItemIds(items);
+
     // Indexar operaciones existentes por prendaId+costura para preservar opIds
     const opsExistentes = {};
+    // MEJORA AGREGADA (modelos): indice por RENGLON (itemId). Antes, dos renglones
+    // de la misma prenda con la misma costura compartian clave y al editar se
+    // fusionaba la produccion de los dos modelos. Este indice lo evita.
+    const opsPorRenglon = {};
     const precioAnteriorPorOpId = {}; // MEJORA AGREGADA
     (pedido.items || []).forEach(item => {
       (item.operaciones || []).forEach(op => {
         const key = `${item.prendaId}|${op.costura}|${op.maquina}`;
         opsExistentes[key] = op.opId;
+        if (item.itemId !== undefined && item.itemId !== null) {
+          opsPorRenglon[`${item.itemId}|${op.costura}|${op.maquina}`] = op.opId;
+        }
         if (op.opId) precioAnteriorPorOpId[op.opId] = Number(op.precio) || 0;
       });
     });
@@ -2250,7 +2427,16 @@ app.put("/api/pedidos/:id", (req, res) => {
       const operaciones = (item.operaciones || []).map(op => {
         // Preservar opId existente si la operación ya existía, generar nuevo solo si es nueva
         const key = `${prendaId}|${op.costura || op.descripcion || ''}|${op.maquina || ''}`;
-        const existingOpId = op.opId || opsExistentes[key];
+        // MEJORA AGREGADA (modelos): primero se busca dentro del MISMO renglon; si no
+        // aparece, se usa la busqueda de siempre (pedidos anteriores sin itemId).
+        let opIdDelRenglon = null;
+        try {
+          if (item.itemId !== undefined && item.itemId !== null) {
+            const keyRenglon = `${item.itemId}|${op.costura || op.descripcion || ''}|${op.maquina || ''}`;
+            if (opsPorRenglon[keyRenglon]) opIdDelRenglon = opsPorRenglon[keyRenglon];
+          }
+        } catch (eKey) { opIdDelRenglon = null; }
+        const existingOpId = op.opId || opIdDelRenglon || opsExistentes[key];
         const precioNuevo = Number(op.precio) || 0;
         // MEJORA AGREGADA: si esta operación ya existía y su precio cambió, registrar el cambio
         if (existingOpId && precioAnteriorPorOpId[existingOpId] !== undefined && precioAnteriorPorOpId[existingOpId] !== precioNuevo) {
@@ -2263,8 +2449,18 @@ app.put("/api/pedidos/:id", (req, res) => {
           precio: precioNuevo
         };
       });
-      return { prendaId, cantidad: cantidadTotal, tallas, operaciones };
+      // MEJORA AGREGADA (modelos): conservar modelo e id de renglon al editar
+      const resultadoEdit = { prendaId, cantidad: cantidadTotal, tallas, operaciones };
+      try {
+        const modeloTxt = limpiarModelo(item.modelo);
+        if (modeloTxt) resultadoEdit.modelo = modeloTxt;
+        const idRenglon = Number(item.itemId);
+        if (Number.isFinite(idRenglon) && idRenglon > 0) resultadoEdit.itemId = idRenglon;
+      } catch (eMod) { /* sin modelo se comporta igual que antes */ }
+      return resultadoEdit;
     });
+    // MEJORA AGREGADA (modelos): asegurar que todos los renglones queden con itemId
+    asignarItemIds(pedido.items);
     // Sync prendas[] desde items
     pedido.prendas = [...new Set(pedido.items.map(i => i.prendaId))];
 
@@ -2406,7 +2602,7 @@ app.get("/api/registros", (req, res) => {
     const op = operarias.find(o => o.id === r.operariaId);
     const ped = pedidos.find(p => p.id === r.pedidoId);
     const prenda = prendas.find(p => p.id === r.prendaId);
-    return {
+    const fila = {
       ...r,
       operariaNombre: op ? op.nombre : "N/A",
       escuela: ped ? ped.escuela : "N/A",
@@ -2414,6 +2610,17 @@ app.get("/api/registros", (req, res) => {
       pedidoEstado: ped ? (ped.estado || "activo") : "N/A",
       prenda: prenda ? prenda.nombre : "N/A"
     };
+    // MEJORA AGREGADA (modelos): se resuelve el modelo del renglon al que pertenece
+    // esta costura. No se guarda en el registro, se deduce por la operacion, asi que
+    // no hace falta ninguna columna nueva en la base de datos.
+    try {
+      const m = modeloDeRegistro(ped, r);
+      if (m) {
+        fila.modelo = m;
+        fila.prendaEtiqueta = etiquetaPrenda(fila.prenda, m);
+      }
+    } catch (eMod) { /* sin modelo se ve igual que antes */ }
+    return fila;
   });
 
   res.json(registrosEnriquecidos);
@@ -3070,6 +3277,8 @@ app.get("/api/reporte-semanal/por-pedido", (req, res) => {
  */
 app.get("/api/buscar-trabajo", (req, res) => {
   const { pedidoId, prendaId, operacion, incluirActivos, fuente } = req.query;
+  // MEJORA AGREGADA: se renombra para no confundirlo con el estado de cada pedido
+  const estadoPedidoPedido = req.query.estadoPedido;
 
   if (!pedidoId && !prendaId) {
     return res.status(400).json({ error: "Indica un pedido o una prenda para buscar." });
@@ -3077,6 +3286,13 @@ app.get("/api/buscar-trabajo", (req, res) => {
 
   // Por defecto se incluyen finalizados Y activos; si incluirActivos="0" -> solo finalizados
   const soloFinalizados = (incluirActivos === "0");
+
+  // MEJORA AGREGADA: permite pedir SOLO activos (en proceso) o SOLO finalizados
+  // (terminados) con estadoPedido="activo" / "finalizado". Si no se manda nada,
+  // se comporta exactamente como antes (activos + finalizados).
+  const filtroEstadoPedido = (estadoPedidoPedido === "activo" || estadoPedidoPedido === "finalizado")
+    ? estadoPedidoPedido
+    : null;
 
   let data = registros.slice();
 
@@ -3105,10 +3321,13 @@ app.get("/api/buscar-trabajo", (req, res) => {
     const estadoPedido = ped ? (ped.estado || "activo") : "N/A";
 
     // Filtro de estado del pedido (finalizado/terminado vs activo)
+    const esFinalizadoPedido = (estadoPedido === "finalizado" || estadoPedido === "terminado");
     if (soloFinalizados) {
-      const esFinalizado = (estadoPedido === "finalizado" || estadoPedido === "terminado");
-      if (!esFinalizado) return;
+      if (!esFinalizadoPedido) return;
     }
+    // MEJORA AGREGADA: separar activos y terminados
+    if (filtroEstadoPedido === "finalizado" && !esFinalizadoPedido) return;
+    if (filtroEstadoPedido === "activo" && esFinalizadoPedido) return;
 
     const op = operarias.find(o => o.id === r.operariaId);
     const prenda = prendas.find(p => p.id === r.prendaId);
@@ -3756,7 +3975,7 @@ app.get("/api/pedidos/:id/avance", (req, res) => {
         };
       });
 
-    return {
+    const filaAvance = {
       prendaId: item.prendaId,
       prenda: prenda ? prenda.nombre : "Desconocida",
       cantidad: item.cantidad,
@@ -3767,6 +3986,16 @@ app.get("/api/pedidos/:id/avance", (req, res) => {
       operacionesCompletas: opsCompletas,
       porcentajeGeneral: totalOps > 0 ? Math.round(operaciones.reduce((s, o) => s + o.porcentaje, 0) / totalOps) : 0
     };
+    // MEJORA AGREGADA (modelos): identificar el renglon cuando la prenda se repite
+    try {
+      if (item.itemId !== undefined && item.itemId !== null) filaAvance.itemId = item.itemId;
+      const m = limpiarModelo(item.modelo);
+      if (m) {
+        filaAvance.modelo = m;
+        filaAvance.prendaEtiqueta = etiquetaPrenda(filaAvance.prenda, m);
+      }
+    } catch (eAv) { /* sin modelo se ve igual que antes */ }
+    return filaAvance;
   });
 
   const costoEstimadoTotal = avance.reduce((s, a) => s + a.operaciones.reduce((s2, o) => s2 + o.costoEstimado, 0), 0);
@@ -3796,6 +4025,14 @@ app.get("/api/pedidos/:id/operaciones", (req, res) => {
   }
 
   const prendaIdFiltro = req.query.prendaId ? Number(req.query.prendaId) : null;
+  // MEJORA AGREGADA (modelos): se puede pedir un RENGLON exacto del pedido, para
+  // distinguir dos veces la misma prenda con modelos distintos. Si no se manda,
+  // se comporta igual que siempre (filtro por prendaId).
+  let itemIdFiltro = null;
+  try {
+    const n = Number(req.query.itemId);
+    if (Number.isFinite(n) && n > 0) itemIdFiltro = n;
+  } catch (eIt) { itemIdFiltro = null; }
   const tallaFiltro = (req.query.talla !== undefined && req.query.talla !== null && String(req.query.talla).trim() !== '') ? String(req.query.talla).trim() : null;
   const fuenteFiltro = req.query.fuente || null; // "operaria" | "encargada" | null (todas)
   const soloConPrecio = req.query.soloConPrecio === "true"; // Solo operaciones con precio asignado
@@ -3807,7 +4044,12 @@ app.get("/api/pedidos/:id/operaciones", (req, res) => {
 
   const resultado = [];
   pedido.items.forEach(item => {
-    if (prendaIdFiltro && item.prendaId !== prendaIdFiltro) return;
+    // MEJORA AGREGADA (modelos): si viene itemId, manda ese filtro
+    if (itemIdFiltro !== null) {
+      if (Number(item.itemId) !== itemIdFiltro) return;
+    } else if (prendaIdFiltro && item.prendaId !== prendaIdFiltro) {
+      return;
+    }
     const prenda = prendas.find(p => p.id === item.prendaId);
 
     (item.operaciones || []).forEach(op => {
@@ -3839,7 +4081,7 @@ app.get("/api/pedidos/:id/operaciones", (req, res) => {
 
       const cantidadFaltante = Math.max(0, limite - piezasOperaria);
 
-      resultado.push({
+      const filaOperacion = {
         prendaId: item.prendaId,
         prenda: prenda ? prenda.nombre : "Desconocida",
         cantidadPedido: item.cantidad,
@@ -3850,7 +4092,17 @@ app.get("/api/pedidos/:id/operaciones", (req, res) => {
         precio: op.precio,
         piezasHechas,
         cantidadFaltante
-      });
+      };
+      // MEJORA AGREGADA (modelos): informacion extra del renglon
+      try {
+        if (item.itemId !== undefined && item.itemId !== null) filaOperacion.itemId = item.itemId;
+        const m = limpiarModelo(item.modelo);
+        if (m) {
+          filaOperacion.modelo = m;
+          filaOperacion.prendaEtiqueta = etiquetaPrenda(filaOperacion.prenda, m);
+        }
+      } catch (eExtra) { /* sin datos extra, se ve igual que antes */ }
+      resultado.push(filaOperacion);
     });
   });
 
@@ -4035,7 +4287,12 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
   const registrosSemana = registros.filter(r => {
     const f = toMexicoYMD(new Date(r.fecha));
     
-    const estadoMatch = estadoPago ? (r.estadoPago || 'pendiente') === estadoPago : true;
+    // MEJORA AGREGADA (arreglo): "todos" significa sin filtro. Antes, al elegir
+    // "Todas" en Estado de Pago, el detalle salia vacio porque ningun registro
+    // tiene el estado literal "todos".
+    const estadoMatch = (estadoPago && estadoPago !== 'todos')
+      ? (r.estadoPago || 'pendiente') === estadoPago
+      : true;
     
     // Si se especifica fuente, filtrar por ella; si no, excluir encargada (default)
     let fuenteMatch;
@@ -4075,7 +4332,7 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
     const pedido = pedidos.find(p => p.id === reg.pedidoId);
     const prenda = prendas.find(p => p.id === reg.prendaId);
     
-    registrosPorDia[fecha].registros.push({
+    const filaDetalle = {
       id: reg.id,
       escuela: pedido ? pedido.escuela : 'N/A',
       prenda: prenda ? prenda.nombre : 'N/A',
@@ -4085,7 +4342,16 @@ app.get("/api/reporte-semanal/detalle", (req, res) => {
       maquina: reg.maquina,
       pagoPorPieza: reg.pagoPorPieza || 0,
       totalGanado: reg.totalGanado || (reg.cantidad * (reg.pagoPorPieza || 0))
-    });
+    };
+    // MEJORA AGREGADA (modelos): en el recibo se distingue el modelo de la prenda
+    try {
+      const m = modeloDeRegistro(pedido, reg);
+      if (m) {
+        filaDetalle.modelo = m;
+        filaDetalle.prendaEtiqueta = etiquetaPrenda(filaDetalle.prenda, m);
+      }
+    } catch (eMod) { /* sin modelo se ve igual que antes */ }
+    registrosPorDia[fecha].registros.push(filaDetalle);
     
     registrosPorDia[fecha].subtotal += reg.totalGanado;
   });
