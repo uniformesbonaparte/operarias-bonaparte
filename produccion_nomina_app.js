@@ -5270,6 +5270,13 @@ app.get("/api/dashboard/resumen", (req, res) => {
 app.get("/api/alertas", (req, res) => {
   try {
     const rol = rolDe(req);
+
+    // MEJORA AGREGADA: los avisos importantes son solo para admin y encargada.
+    // A las operarias se les responde una lista vacia (no un error), asi la
+    // pantalla no muestra el bloque y nada se rompe.
+    if (rol === "operaria") {
+      return res.json({ ok: true, alertas: [], total: 0 });
+    }
     const hoyStr = toMexicoYMD(new Date());
     const avisos = [];
 
