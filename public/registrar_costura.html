@@ -872,7 +872,13 @@
                 if (prenda) {
                   const opt = document.createElement("option");
                   opt.value = prenda.id;
-                  opt.textContent = `${prenda.nombre} (${item.cantidad} pzas)`;
+                  // MEJORA AGREGADA (modelos): el texto incluye el modelo y se guarda
+                  // el id de renglon, para que dos renglones de la misma prenda no se
+                  // confundan al capturar.
+                  opt.textContent = window._etiquetaItem(prenda.nombre, item);
+                  try {
+                    if (item.itemId !== undefined && item.itemId !== null) opt.dataset.itemId = item.itemId;
+                  } catch (eDs) {}
                   selectPrenda.appendChild(opt);
                 }
               });
@@ -887,10 +893,11 @@
           const prendaId = e.target.value;
           const pedidoId = document.getElementById("select-pedido").value;
           if (!prendaId || !pedidoId) { ocultarMultiSelect(); return; }
-          await cargarCosturasYTallasOp(pedidoId, prendaId);
+          // MEJORA AGREGADA (modelos): se envia el renglon exacto que se eligio
+          await cargarCosturasYTallasOp(pedidoId, prendaId, window._itemIdDeSelect(e.target));
         });
 
-        async function cargarCosturasYTallasOp(pedidoId, prendaId) {
+        async function cargarCosturasYTallasOp(pedidoId, prendaId, itemId) {
           try {
             // Re-pedir pedido fresco (por si admin actualizó cantidades)
             const resPed = await fetch(`/api/pedidos/${pedidoId}`);
@@ -900,14 +907,17 @@
 
             // Actualizar texto del dropdown de prenda con cantidad actualizada
             const selectPrenda = document.getElementById("select-prenda");
-            const itemActual = pedidoFresco.items ? pedidoFresco.items.find(i => Number(i.prendaId) === Number(prendaId)) : null;
+            // MEJORA AGREGADA (modelos): se ubica el renglon exacto (no solo la prenda)
+            const itemActual = window._buscarItem(pedidoFresco, prendaId, itemId);
             if (itemActual && selectPrenda.selectedOptions[0]) {
               const nombrePrenda = itemActual.prenda || "Prenda";
-              selectPrenda.selectedOptions[0].textContent = `${nombrePrenda} (${itemActual.cantidad} pzas)`;
+              selectPrenda.selectedOptions[0].textContent = window._etiquetaItem(nombrePrenda, itemActual);
             }
 
             // Fetch operaciones con precio > 0
-            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}&soloConPrecio=true&fuente=operaria`);
+            // MEJORA AGREGADA (modelos): si se conoce el renglon, se piden solo SUS operaciones
+            const filtroRenglonOp = itemId ? `itemId=${itemId}` : `prendaId=${prendaId}`;
+            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?${filtroRenglonOp}&soloConPrecio=true&fuente=operaria`);
             const ops = await res.json();
             operacionesCache = ops;
 
@@ -936,7 +946,8 @@
             document.getElementById("costuras-container").classList.remove("oculto");
 
             // Render tallas
-            const item = pedidoCache && pedidoCache.items ? pedidoCache.items.find(i => Number(i.prendaId) === Number(prendaId)) : null;
+            // MEJORA AGREGADA (modelos): tallas del renglon exacto
+            const item = window._buscarItem(pedidoCache, prendaId, itemId);
             const listaTallas = document.getElementById("lista-tallas-check");
             if (item && Array.isArray(item.tallas) && item.tallas.length > 0) {
               listaTallas.innerHTML = item.tallas.map(t => `
@@ -967,9 +978,11 @@
 
         // Exponer para recargar después de eliminar/editar
         window._recargarOperacionesOp = async function() {
-          const prendaId = document.getElementById("select-prenda").value;
+          const selPrenda = document.getElementById("select-prenda");
+          const prendaId = selPrenda.value;
           const pedidoId = document.getElementById("select-pedido").value;
-          if (prendaId && pedidoId) await cargarCosturasYTallasOp(pedidoId, prendaId);
+          // MEJORA AGREGADA (modelos): conservar el renglon elegido al recargar
+          if (prendaId && pedidoId) await cargarCosturasYTallasOp(pedidoId, prendaId, window._itemIdDeSelect(selPrenda));
         };
 
         // Manual mode toggle
@@ -997,6 +1010,48 @@
           document.getElementById("check-manual").checked = false;
         }
       }
+
+      // ====================================================================
+      // MEJORA AGREGADA (modelos): ayudas para distinguir dos renglones de la
+      // MISMA prenda dentro de un mismo pedido (ejemplo: "Pants rojo bies
+      // blanco" y "Pants marino bies rojo"). Si el pedido no usa modelos, todo
+      // se comporta exactamente igual que antes.
+      // ====================================================================
+      window._etiquetaItem = function(nombrePrenda, item) {
+        try {
+          const base = nombrePrenda || "Prenda";
+          const modelo = (item && item.modelo) ? String(item.modelo).trim() : "";
+          const conModelo = modelo ? (base + " - " + modelo) : base;
+          const cant = (item && item.cantidad !== undefined) ? item.cantidad : "?";
+          return conModelo + " (" + cant + " pzas)";
+        } catch (e) {
+          return (nombrePrenda || "Prenda");
+        }
+      };
+
+      window._itemIdDeSelect = function(sel) {
+        try {
+          if (!sel || !sel.selectedOptions || !sel.selectedOptions[0]) return null;
+          const v = Number(sel.selectedOptions[0].dataset.itemId);
+          return (Number.isFinite(v) && v > 0) ? v : null;
+        } catch (e) {
+          return null;
+        }
+      };
+
+      /** Busca el renglon exacto: primero por itemId, si no por prenda (como antes). */
+      window._buscarItem = function(pedido, prendaId, itemId) {
+        try {
+          if (!pedido || !Array.isArray(pedido.items)) return null;
+          if (itemId) {
+            const exacto = pedido.items.find(i => Number(i.itemId) === Number(itemId));
+            if (exacto) return exacto;
+          }
+          return pedido.items.find(i => Number(i.prendaId) === Number(prendaId)) || null;
+        } catch (e) {
+          return null;
+        }
+      };
 
       // Helpers globales para operaria
       window.toggleTallaCantOp = function(cb) {
@@ -1196,7 +1251,13 @@
                 if (prenda) {
                   const opt = document.createElement("option");
                   opt.value = prenda.id;
-                  opt.textContent = `${prenda.nombre} (${item.cantidad} pzas)`;
+                  // MEJORA AGREGADA (modelos): el texto incluye el modelo y se guarda
+                  // el id de renglon, para que dos renglones de la misma prenda no se
+                  // confundan al capturar.
+                  opt.textContent = window._etiquetaItem(prenda.nombre, item);
+                  try {
+                    if (item.itemId !== undefined && item.itemId !== null) opt.dataset.itemId = item.itemId;
+                  } catch (eDs) {}
                   selectPrenda.appendChild(opt);
                 }
               });
@@ -1210,10 +1271,11 @@
           const prendaId = e.target.value;
           const pedidoId = document.getElementById("select-pedido-enc").value;
           if (!prendaId || !pedidoId) { ocultarMultiSelectEnc(); return; }
-          await cargarCosturasYTallasEnc(pedidoId, prendaId);
+          // MEJORA AGREGADA (modelos): se envia el renglon exacto que se eligio
+          await cargarCosturasYTallasEnc(pedidoId, prendaId, window._itemIdDeSelect(e.target));
         });
 
-        async function cargarCosturasYTallasEnc(pedidoId, prendaId) {
+        async function cargarCosturasYTallasEnc(pedidoId, prendaId, itemId) {
           try {
             // Re-pedir pedido fresco (por si admin actualizó cantidades)
             const resPed = await fetch(`/api/pedidos/${pedidoId}`);
@@ -1223,13 +1285,16 @@
 
             // Actualizar texto del dropdown de prenda con cantidad actualizada
             const selectPrenda = document.getElementById("select-prenda-enc");
-            const itemActual = pedidoFresco.items ? pedidoFresco.items.find(i => Number(i.prendaId) === Number(prendaId)) : null;
+            // MEJORA AGREGADA (modelos): se ubica el renglon exacto (no solo la prenda)
+            const itemActual = window._buscarItem(pedidoFresco, prendaId, itemId);
             if (itemActual && selectPrenda.selectedOptions[0]) {
               const nombrePrenda = itemActual.prenda || "Prenda";
-              selectPrenda.selectedOptions[0].textContent = `${nombrePrenda} (${itemActual.cantidad} pzas)`;
+              selectPrenda.selectedOptions[0].textContent = window._etiquetaItem(nombrePrenda, itemActual);
             }
 
-            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?prendaId=${prendaId}&soloConPrecio=true&fuente=encargada`);
+            // MEJORA AGREGADA (modelos): si se conoce el renglon, se piden solo SUS operaciones
+            const filtroRenglonEnc = itemId ? `itemId=${itemId}` : `prendaId=${prendaId}`;
+            const res = await fetch(`/api/pedidos/${pedidoId}/operaciones?${filtroRenglonEnc}&soloConPrecio=true&fuente=encargada`);
             const ops = await res.json();
 
             const costurasUnicas = [];
@@ -1251,7 +1316,8 @@
             }
             document.getElementById("costuras-container-enc").classList.remove("oculto");
 
-            const item = pedidoCacheEnc && pedidoCacheEnc.items ? pedidoCacheEnc.items.find(i => Number(i.prendaId) === Number(prendaId)) : null;
+            // MEJORA AGREGADA (modelos): tallas del renglon exacto
+            const item = window._buscarItem(pedidoCacheEnc, prendaId, itemId);
             const listaTallas = document.getElementById("lista-tallas-check-enc");
             if (item && Array.isArray(item.tallas) && item.tallas.length > 0) {
               listaTallas.innerHTML = item.tallas.map(t => `
@@ -1281,9 +1347,11 @@
         }
 
         window._recargarOperacionesEnc = async function() {
-          const prendaId = document.getElementById("select-prenda-enc").value;
+          const selPrendaEnc = document.getElementById("select-prenda-enc");
+          const prendaId = selPrendaEnc.value;
           const pedidoId = document.getElementById("select-pedido-enc").value;
-          if (prendaId && pedidoId) await cargarCosturasYTallasEnc(pedidoId, prendaId);
+          // MEJORA AGREGADA (modelos): conservar el renglon elegido al recargar
+          if (prendaId && pedidoId) await cargarCosturasYTallasEnc(pedidoId, prendaId, window._itemIdDeSelect(selPrendaEnc));
         };
 
         document.getElementById("check-manual-enc").addEventListener("change", (e) => {

@@ -815,11 +815,23 @@
         const cantidadTotal = itemData ? (itemData.cantidad || 0) : 0;
         const numOps = itemData && itemData.operaciones ? itemData.operaciones.length : 0;
         
+        // MEJORA AGREGADA (modelos): se guarda el id de renglon para no confundir
+        // dos veces la misma prenda dentro del mismo pedido.
+        try {
+          if (itemData && itemData.itemId !== undefined && itemData.itemId !== null) {
+            div.dataset.itemId = itemData.itemId;
+          }
+        } catch (eId) {}
+        // MEJORA AGREGADA (modelos): texto libre para diferenciar modelos
+        const modeloActual = (itemData && itemData.modelo) ? String(itemData.modelo) : '';
+        const modeloEscapado = modeloActual.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
         div.innerHTML = `
           <div class="item-accordion-header" onclick="window._toggleAccordion(this)">
             <span class="item-accordion-toggle">▶</span>
             <div class="item-accordion-info">
               <span class="prenda-nombre">${prendaNombre}</span>
+              <span class="prenda-modelo" style="display:${modeloActual ? 'block' : 'none'};font-size:12px;color:var(--text-muted);font-weight:600;">${modeloEscapado}</span>
               <div class="item-stats">
                 <span class="lbl-total-pzs">${cantidadTotal} pzs</span>
                 <span class="lbl-total-ops">${numOps} ops</span>
@@ -835,6 +847,17 @@
             <select class="sel-prenda" onchange="window._cargarPlantilla(this); window._updateAccordionHeader(this);">
               <option value="">-- Seleccionar --</option>${opts}
             </select>
+
+            <!-- MEJORA AGREGADA (modelos): permite tener la misma prenda varias veces
+                 en un pedido, diferenciada por este texto. Es opcional y solo se vuelve
+                 obligatorio cuando la prenda se repite. -->
+            <div class="item-section-title">
+              <span>🏷️ Modelo <span style="font-weight:400;color:var(--text-muted);">(opcional)</span></span>
+            </div>
+            <input type="text" class="inp-modelo" maxlength="60" value="${modeloEscapado}"
+                   placeholder="Ej: rojo bies blanco"
+                   oninput="window._updateModeloHeader(this)" />
+
             
             <div class="item-section-title">
               <span>📐 Tallas</span>
@@ -866,6 +889,18 @@
         const card = sel.closest('.item-card');
         const nombre = sel.options[sel.selectedIndex]?.text || 'Nueva prenda';
         card.querySelector('.prenda-nombre').textContent = nombre;
+      };
+
+      // MEJORA AGREGADA (modelos): refleja el modelo en el encabezado del renglon
+      window._updateModeloHeader = function(inp) {
+        try {
+          const card = inp.closest('.item-card');
+          const lbl = card.querySelector('.prenda-modelo');
+          if (!lbl) return;
+          const txt = (inp.value || '').trim();
+          lbl.textContent = txt;
+          lbl.style.display = txt ? 'block' : 'none';
+        } catch (e) {}
       };
 
       window._cargarPlantilla = function(sel) {
@@ -1110,7 +1145,16 @@ async function cargarPlantilla(card, prendaId) {
             const precio = Number(tr.querySelector(".op-precio").value) || 0;
             if (costura && maquina) operaciones.push({costura, maquina, precio});
           });
-          items.push({prendaId, cantidad, tallas, operaciones});
+          // MEJORA AGREGADA (modelos): se manda el modelo y el id de renglon
+          const nuevoItem = {prendaId, cantidad, tallas, operaciones};
+          try {
+            const inpModelo = card.querySelector(".inp-modelo");
+            const modeloTxt = inpModelo ? inpModelo.value.replace(/\s+/g, " ").trim() : "";
+            if (modeloTxt) nuevoItem.modelo = modeloTxt;
+            const idRenglon = Number(card.dataset ? card.dataset.itemId : 0);
+            if (Number.isFinite(idRenglon) && idRenglon > 0) nuevoItem.itemId = idRenglon;
+          } catch (eMod) {}
+          items.push(nuevoItem);
         });
         return items;
       }
@@ -1202,6 +1246,51 @@ async function cargarPlantilla(card, prendaId) {
             };
           }
         }
+
+        // MEJORA AGREGADA (modelos): si la misma prenda aparece dos veces, cada
+        // renglon necesita un modelo distinto para poder diferenciarlos.
+        try {
+          const normaliza = (txt) => (txt || "")
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase().replace(/\s+/g, " ").trim();
+          const porPrenda = new Map();
+          cards.forEach(card => {
+            const sel = card.querySelector(".sel-prenda");
+            const pid = sel ? sel.value : "";
+            if (!pid) return;
+            if (!porPrenda.has(pid)) porPrenda.set(pid, []);
+            const inp = card.querySelector(".inp-modelo");
+            porPrenda.get(pid).push({ card, inp, modelo: normaliza(inp ? inp.value : "") });
+          });
+          for (const [pid, lista] of porPrenda) {
+            if (lista.length < 2) continue;
+            const nombrePrenda = lista[0].card.querySelector(".prenda-nombre").textContent;
+            const sinModelo = lista.find(x => !x.modelo);
+            if (sinModelo) {
+              try { sinModelo.card.classList.add("expanded"); } catch (eExp) {}
+              return {
+                ok: false,
+                error: `❌ "${nombrePrenda}" está repetida. Escribe el modelo de cada renglon para diferenciarlos`,
+                campo: sinModelo.inp,
+                aviso: 'Escribe el modelo, por ejemplo "rojo bies blanco"'
+              };
+            }
+            const vistos = new Map();
+            for (const x of lista) {
+              if (vistos.has(x.modelo)) {
+                try { x.card.classList.add("expanded"); } catch (eExp) {}
+                return {
+                  ok: false,
+                  error: `❌ Hay dos renglones de "${nombrePrenda}" con el mismo modelo`,
+                  campo: x.inp,
+                  aviso: "Cambia el modelo para que sean distintos"
+                };
+              }
+              vistos.set(x.modelo, true);
+            }
+          }
+        } catch (eMod) { /* si algo falla, el servidor tambien lo valida */ }
+
         return { ok: true };
       }
 
@@ -1629,7 +1718,7 @@ async function cargarPlantilla(card, prendaId) {
           (data.avance||[]).forEach(item => {
             h += `<div class="item-card">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <strong style="font-size:14px;">${item.prenda}</strong>
+                <strong style="font-size:14px;">${item.prendaEtiqueta || item.prenda}</strong>
                 <span style="font-size: 13px;color:${item.porcentajeGeneral>=100?'var(--success)':'var(--accent)'};font-weight:700;">${item.porcentajeGeneral}%</span>
               </div>
               <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(item.porcentajeGeneral,100)}%"></div></div>
@@ -1835,6 +1924,186 @@ async function cargarPlantilla(card, prendaId) {
           /* si el componente falla, la pantalla queda exactamente como antes */
         }
       })();
+    
+      // ====================================================================
+      // MEJORA AGREGADA (teclado): moverse con las flechas y con Enter al
+      // capturar o editar un pedido, sin tener que tocar la pantalla.
+      //   Enter        -> pasa al siguiente campo; si estas en la ultima
+      //                   cantidad de tallas, agrega otra talla y se pone ahi
+      //   Flecha abajo -> mismo campo, renglon de abajo
+      //   Flecha arriba-> mismo campo, renglon de arriba
+      //   Flecha derecha / izquierda -> campo de al lado (solo cuando el
+      //                   cursor ya esta al final o al inicio del texto,
+      //                   para no estorbar mientras escribes)
+      // Todo va dentro de try/catch: si algo falla, la captura sigue igual
+      // que antes con el teclado normal.
+      // ====================================================================
+      (function activarNavegacionTeclado() {
+        try {
+          var CONTENEDORES = ["items-nuevo-pedido", "items-edit-pedido"];
+          var NAVEGABLES = ".inp-modelo, .talla-input, .talla-cantidad, .op-precio";
+
+          function contenedorDe(el) {
+            for (var i = 0; i < CONTENEDORES.length; i++) {
+              var c = document.getElementById(CONTENEDORES[i]);
+              if (c && c.contains(el)) return c;
+            }
+            return null;
+          }
+
+          function listaDe(cont) {
+            return Array.prototype.slice.call(cont.querySelectorAll(NAVEGABLES))
+              .filter(function (el) { return !el.disabled && !el.readOnly && el.offsetParent !== null; });
+          }
+
+          function enfocar(el) {
+            if (!el) return false;
+            try {
+              el.focus();
+              try { el.select(); } catch (eSel) {}
+            } catch (eFoco) { return false; }
+            return true;
+          }
+
+          function claseNav(el) {
+            var clases = ["talla-input", "talla-cantidad", "op-precio", "inp-modelo"];
+            for (var i = 0; i < clases.length; i++) {
+              if (el.classList.contains(clases[i])) return clases[i];
+            }
+            return null;
+          }
+
+          /** Mismo campo, un renglon arriba o abajo dentro de la misma tabla. */
+          function vecinoVertical(el, direccion) {
+            var fila = el.closest("tr");
+            if (!fila) return null;
+            var clase = claseNav(el);
+            if (!clase) return null;
+            var siguiente = direccion > 0 ? fila.nextElementSibling : fila.previousElementSibling;
+            while (siguiente) {
+              var destino = siguiente.querySelector("." + clase);
+              if (destino && !destino.disabled && !destino.readOnly) return destino;
+              siguiente = direccion > 0 ? siguiente.nextElementSibling : siguiente.previousElementSibling;
+            }
+            return null;
+          }
+
+          function mover(cont, el, paso) {
+            var lista = listaDe(cont);
+            var i = lista.indexOf(el);
+            if (i === -1) return false;
+            return enfocar(lista[i + paso]);
+          }
+
+          /** ¿El cursor ya esta al inicio / al final del texto? */
+          function enExtremo(el, cual) {
+            try {
+              if (el.type === "number") return true; // los number no dan posicion de cursor
+              var pos = el.selectionStart;
+              if (pos === null || pos === undefined) return true;
+              if (el.selectionStart !== el.selectionEnd) return false;
+              return cual === "inicio" ? (pos === 0) : (pos === (el.value || "").length);
+            } catch (e) {
+              return true;
+            }
+          }
+
+          function botonAgregarTalla(card) {
+            var btn = null;
+            var candidatos = card.querySelectorAll("button.btn-add-op");
+            for (var b = 0; b < candidatos.length; b++) {
+              if (!candidatos[b].classList.contains("btn-agregar-operacion-nueva")) { btn = candidatos[b]; break; }
+            }
+            return btn;
+          }
+
+          /** Enter en el modelo cuando la prenda aun no tiene tallas: crea la primera. */
+          function primeraTallaSiFalta(el) {
+            try {
+              var card = el.closest(".item-card");
+              if (!card) return false;
+              var tbody = card.querySelector(".tallas-container tbody");
+              if (!tbody || tbody.children.length > 0) return false;
+              var btn = botonAgregarTalla(card);
+              if (typeof window._addTalla !== "function" || !btn) return false;
+              window._addTalla(btn);
+              var nueva = tbody.lastElementChild;
+              var destino = nueva ? nueva.querySelector(".talla-input") : null;
+              if (destino) { enfocar(destino); return true; }
+            } catch (e) {}
+            return false;
+          }
+
+          /** Enter en la ultima cantidad de tallas: agrega otro renglon de talla. */
+          function agregarTallaSiAplica(el) {
+            try {
+              if (!el.classList.contains("talla-cantidad")) return false;
+              var fila = el.closest("tr");
+              if (!fila || fila.nextElementSibling) return false;
+              // Solo se agrega otro renglon si el actual ya quedo lleno, para no
+              // dejar renglones vacios al presionar Enter de mas.
+              var inpTalla = fila.querySelector(".talla-input");
+              var tallaEscrita = inpTalla && String(inpTalla.value || "").trim() !== "";
+              var cantidadPuesta = (Number(el.value) || 0) > 0;
+              if (!tallaEscrita || !cantidadPuesta) return false;
+              var card = el.closest(".item-card");
+              if (!card) return false;
+              var btn = botonAgregarTalla(card);
+              if (typeof window._addTalla === "function" && btn) {
+                window._addTalla(btn);
+                var tbody = card.querySelector(".tallas-container tbody");
+                var nueva = tbody ? tbody.lastElementChild : null;
+                var destino = nueva ? nueva.querySelector(".talla-input") : null;
+                if (destino) { enfocar(destino); return true; }
+              }
+            } catch (e) {}
+            return false;
+          }
+
+          document.addEventListener("keydown", function (e) {
+            try {
+              var el = e.target;
+              if (!el || !el.matches || !el.matches(NAVEGABLES)) return;
+              if (e.ctrlKey || e.altKey || e.metaKey) return;
+              var cont = contenedorDe(el);
+              if (!cont) return;
+
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (agregarTallaSiAplica(el)) return;
+                if (primeraTallaSiFalta(el)) return;
+                mover(cont, el, 1);
+                return;
+              }
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                if (!enfocar(vecinoVertical(el, 1))) mover(cont, el, 1);
+                return;
+              }
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                if (!enfocar(vecinoVertical(el, -1))) mover(cont, el, -1);
+                return;
+              }
+              if (e.key === "ArrowRight") {
+                if (!enExtremo(el, "final")) return; // sigue moviendo el cursor normal
+                e.preventDefault();
+                mover(cont, el, 1);
+                return;
+              }
+              if (e.key === "ArrowLeft") {
+                if (!enExtremo(el, "inicio")) return;
+                e.preventDefault();
+                mover(cont, el, -1);
+                return;
+              }
+            } catch (eNav) { /* nunca bloquear la captura */ }
+          }, true);
+        } catch (eInit) {
+          console.warn("Navegacion con teclado no disponible:", eInit);
+        }
+      })();
+
     </script>
 </body>
 </html>

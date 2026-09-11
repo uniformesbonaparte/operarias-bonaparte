@@ -1700,7 +1700,7 @@
                     <div class="detalle-registro">
                       <div class="detalle-registro-header">
                         <div>
-                          <div class="detalle-escuela">${reg.escuela} - ${reg.prenda}${reg.talla ? ` (T-${reg.talla})` : ''}</div>
+                          <div class="detalle-escuela">${reg.escuela} - ${reg.prendaEtiqueta || reg.prenda}${reg.talla ? ` (T-${reg.talla})` : ''}</div>
                           <div class="detalle-descripcion">"${reg.descripcion}"</div>
                         </div>
                       </div>
@@ -1773,7 +1773,7 @@
                     <div class="detalle-registro">
                       <div class="detalle-registro-header">
                         <div>
-                          <div class="detalle-escuela">${reg.escuela} - ${reg.prenda}${reg.talla ? ` (T-${reg.talla})` : ''}</div>
+                          <div class="detalle-escuela">${reg.escuela} - ${reg.prendaEtiqueta || reg.prenda}${reg.talla ? ` (T-${reg.talla})` : ''}</div>
                           <div class="detalle-descripcion">"${reg.descripcion}"</div>
                         </div>
                       </div>
@@ -1865,7 +1865,7 @@
               </div>
               ${dia.registros.map(reg => `
                 <div class="registro-card" style="background: #f9fafb; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e5e7eb;">
-                  <div style="font-weight: 600; margin-bottom: 4px;">${reg.escuela} - ${reg.prenda}${reg.talla ? ` (T-${reg.talla})` : ''}</div>
+                  <div style="font-weight: 600; margin-bottom: 4px;">${reg.escuela} - ${reg.prendaEtiqueta || reg.prenda}${reg.talla ? ` (T-${reg.talla})` : ''}</div>
                   <div class="registro-desc" style="color: #6b7280; font-style: italic; font-size: 14px; margin-bottom: 8px;">"${reg.descripcion}"</div>
                   <div class="registro-line" style="display: flex; align-items: baseline; justify-content: flex-start; gap: 10px; padding: 6px 8px; background: rgba(37, 99, 235, 0.08); border-radius: 6px;">
                     <span style="color: #374151;">${reg.cantidad} piezas × $${(reg.pagoPorPieza || 0).toFixed(2)}</span>
@@ -2271,7 +2271,7 @@
                   <div class="dia-titulo">${dia.dia} ${fecha.getDate()} ${obtenerMesCorto(fecha.getMonth())}</div>
                   ${dia.registros.map(r => `
                     <div class="registro-item">
-                      ${r.escuela} - ${r.prenda}${r.talla ? ` (T-${r.talla})` : ''}<br>
+                      ${r.escuela} - ${r.prendaEtiqueta || r.prenda}${r.talla ? ` (T-${r.talla})` : ''}<br>
                       ${r.descripcion} | ${r.cantidad} pzs × $${(r.pagoPorPieza || 0).toFixed(2)} = $${(r.totalGanado || 0).toFixed(2)}
                     </div>
                   `).join('')}

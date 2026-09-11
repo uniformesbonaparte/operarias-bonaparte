@@ -802,7 +802,7 @@
           lista.innerHTML = registros.slice(0, 5).map(r => `
             <div class="costura-item">
               <div class="costura-info">
-                <strong>${r.escuela || "Pedido"}</strong> - ${r.prenda || r.prendaNombre || "Prenda"} - ${r.descripcion}
+                <strong>${r.escuela || "Pedido"}</strong> - ${r.prendaEtiqueta || r.prenda || r.prendaNombre || "Prenda"} - ${r.descripcion}
               </div>
               <div class="costura-info">
                 📦 Cantidad: <strong>${r.cantidad} piezas</strong> | 🔧 ${r.maquina}
@@ -897,7 +897,7 @@
               </div>
               
               <div class="costura-info">
-                <strong>${r.escuela || "Pedido"}</strong> - ${r.prenda || r.prendaNombre || "Prenda"} - ${r.descripcion}
+                <strong>${r.escuela || "Pedido"}</strong> - ${r.prendaEtiqueta || r.prenda || r.prendaNombre || "Prenda"} - ${r.descripcion}
               </div>
               <div class="costura-info">
                 📦 Cantidad: <strong>${r.cantidad} piezas</strong> | 🔧 ${r.maquina}
@@ -1012,7 +1012,7 @@
               </div>
               
               <div class="costura-info">
-                <strong>${r.escuela || "Pedido"}</strong> - ${r.prenda || r.prendaNombre || "Prenda"} - ${r.descripcion}
+                <strong>${r.escuela || "Pedido"}</strong> - ${r.prendaEtiqueta || r.prenda || r.prendaNombre || "Prenda"} - ${r.descripcion}
               </div>
               <div class="costura-info">
                 📦 Cantidad: <strong>${r.cantidad} piezas</strong> | 🔧 ${r.maquina}

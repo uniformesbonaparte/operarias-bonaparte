@@ -432,11 +432,22 @@
         <option value="encargada">Solo registros de encargada</option>
       </select>
 
-      <div class="checkbox-row">
+      <!-- MEJORA AGREGADA: se puede separar entre pedidos activos y terminados,
+           en lugar de solo poder marcar "finalizados". El selector de pedidos de
+           arriba tambien se reduce al estado elegido, para no buscar entre todos. -->
+      <label for="select-estado-pedido">Estado del pedido</label>
+      <select id="select-estado-pedido">
+        <option value="">-- Todos (activos y terminados) --</option>
+        <option value="activo">Solo activos (en proceso)</option>
+        <option value="finalizado">Solo terminados</option>
+      </select>
+      <div class="pista" id="pista-estado-pedido">Por defecto se muestran pedidos activos y terminados.</div>
+
+      <!-- Se conserva oculto por compatibilidad con el filtro anterior -->
+      <div class="checkbox-row oculto" style="display:none;">
         <input type="checkbox" id="chk-solo-finalizados" />
-        <label for="chk-solo-finalizados" style="margin:0; text-transform:none; letter-spacing:0; font-size: 14px; color:var(--text-secondary); font-weight:500;">Mostrar solo pedidos finalizados</label>
+        <label for="chk-solo-finalizados" style="margin:0;">Mostrar solo pedidos finalizados</label>
       </div>
-      <div class="pista">Por defecto se muestran pedidos finalizados y activos.</div>
 
       <button class="btn-primary" id="btn-buscar">🔍 Buscar</button>
       <div id="error-busqueda" class="mensaje-error oculto"></div>
@@ -484,6 +495,9 @@
     const selectOperacion = document.getElementById("select-operacion");
     const selectFuente = document.getElementById("select-fuente");
     const chkSoloFinalizados = document.getElementById("chk-solo-finalizados");
+    // MEJORA AGREGADA: selector para separar activos y terminados
+    const selectEstadoPedido = document.getElementById("select-estado-pedido");
+    const pistaEstadoPedido = document.getElementById("pista-estado-pedido");
     const btnBuscar = document.getElementById("btn-buscar");
     const errorBusqueda = document.getElementById("error-busqueda");
     const cardResumen = document.getElementById("card-resumen");
@@ -523,6 +537,52 @@
 
     // Guardamos todas las prendas para poder mostrarlas cuando NO hay pedido elegido
     let todasLasPrendas = [];
+    // MEJORA AGREGADA: se guardan los pedidos para filtrarlos por estado
+    let todosLosPedidos = [];
+
+    function esPedidoTerminado(p) {
+      return (p && (p.estado === "finalizado" || p.estado === "terminado"));
+    }
+
+    /** Llena el selector de pedidos mostrando solo los del estado elegido. */
+    function llenarPedidos() {
+      try {
+        const estadoElegido = selectEstadoPedido ? selectEstadoPedido.value : "";
+        const previo = selectPedido.value;
+        let lista = todosLosPedidos.slice();
+        if (estadoElegido === "activo") lista = lista.filter(p => !esPedidoTerminado(p));
+        if (estadoElegido === "finalizado") lista = lista.filter(p => esPedidoTerminado(p));
+
+        selectPedido.innerHTML = '<option value="">-- Todos los pedidos --</option>';
+        lista.forEach(p => {
+          const opt = document.createElement("option");
+          opt.value = p.id;
+          const estado = esPedidoTerminado(p) ? " ✅" : "";
+          const folio = p.folio ? " (" + p.folio + ")" : "";
+          opt.textContent = (p.escuela || "Sin nombre") + folio + estado;
+          selectPedido.appendChild(opt);
+        });
+
+        // Si el pedido que estaba elegido sigue en la lista, se conserva
+        if (previo && lista.some(p => String(p.id) === String(previo))) {
+          selectPedido.value = previo;
+        }
+
+        if (pistaEstadoPedido) {
+          const activos = todosLosPedidos.filter(p => !esPedidoTerminado(p)).length;
+          const terminados = todosLosPedidos.filter(p => esPedidoTerminado(p)).length;
+          if (estadoElegido === "activo") {
+            pistaEstadoPedido.textContent = "Mostrando " + activos + " pedido(s) activo(s).";
+          } else if (estadoElegido === "finalizado") {
+            pistaEstadoPedido.textContent = "Mostrando " + terminados + " pedido(s) terminado(s).";
+          } else {
+            pistaEstadoPedido.textContent = activos + " activo(s) y " + terminados + " terminado(s). Los terminados llevan ✅.";
+          }
+        }
+      } catch (e) {
+        console.warn("No se pudo filtrar los pedidos por estado:", e);
+      }
+    }
 
     // ===== Cargar pedidos y prendas en los selectores =====
     async function cargarOpciones() {
@@ -540,14 +600,10 @@
           return (a.escuela || "").localeCompare(b.escuela || "");
         });
 
-        ordenados.forEach(p => {
-          const opt = document.createElement("option");
-          opt.value = p.id;
-          const estado = (p.estado === "finalizado" || p.estado === "terminado") ? " ✅" : "";
-          const folio = p.folio ? " (" + p.folio + ")" : "";
-          opt.textContent = (p.escuela || "Sin nombre") + folio + estado;
-          selectPedido.appendChild(opt);
-        });
+        // MEJORA AGREGADA: se guardan para poder mostrar solo los activos o solo
+        // los terminados sin volver a pedirlos al servidor.
+        todosLosPedidos = ordenados;
+        llenarPedidos();
 
         // Al inicio (sin pedido elegido) mostramos todas las prendas
         llenarPrendas(todasLasPrendas);
@@ -632,6 +688,21 @@
     }
 
     selectPedido.addEventListener("change", alCambiarPedido);
+    // MEJORA AGREGADA: al cambiar el estado, el selector de pedidos se reduce a ese estado
+    if (selectEstadoPedido) {
+      selectEstadoPedido.addEventListener("change", function () {
+        try {
+          const antes = selectPedido.value;
+          llenarPedidos();
+          // Si el pedido elegido ya no esta en la lista, se limpian prendas/operaciones
+          if (antes && selectPedido.value !== antes) {
+            alCambiarPedido();
+          }
+        } catch (e) {
+          console.warn("No se pudo aplicar el filtro de estado:", e);
+        }
+      });
+    }
     selectPrenda.addEventListener("change", alCambiarPrenda);
 
     // ===== Buscar =====
@@ -662,7 +733,10 @@
         const fuente = selectFuente.value;
         if (fuente) params.push("fuente=" + encodeURIComponent(fuente));
         // incluirActivos: por defecto sí (no enviar); si marca "solo finalizados" -> incluirActivos=0
-        if (chkSoloFinalizados.checked) params.push("incluirActivos=0");
+        if (chkSoloFinalizados && chkSoloFinalizados.checked) params.push("incluirActivos=0");
+        // MEJORA AGREGADA: separar activos y terminados
+        const estadoPed = selectEstadoPedido ? selectEstadoPedido.value : "";
+        if (estadoPed) params.push("estadoPedido=" + encodeURIComponent(estadoPed));
         url += params.join("&");
 
         const res = await fetch(url);
@@ -716,7 +790,7 @@
       cardResumen.classList.remove("oculto");
 
       if (operarias.length === 0) {
-        resultados.innerHTML = '<div class="card"><div class="mensaje">No se encontraron registros para esta búsqueda.<br>Prueba quitando el filtro de "solo finalizados" o cambiando el pedido/prenda.</div></div>';
+        resultados.innerHTML = '<div class="card"><div class="mensaje">No se encontraron registros para esta búsqueda.<br>Prueba cambiando el Estado del pedido a "Todos", el filtro de "Registrado por", o el pedido/prenda.</div></div>';
         return;
       }
 
