@@ -1703,6 +1703,55 @@ async function cargarPlantilla(card, prendaId) {
         } catch (e) { return ""; }
       }
 
+      // ==================================================================
+      // MEJORA AGREGADA (faltantes por talla)
+      // Debajo de cada operacion que no llega al 100% se pone una linea corta
+      // que dice que talla y cuantas piezas faltan. Las operaciones completas
+      // no muestran nada. Si el servidor no manda el detalle (version vieja),
+      // devuelve texto vacio y la tabla se ve igual que siempre.
+      // ==================================================================
+      function _lineaFaltaTallas(op) {
+        try {
+          if (!op) return "";
+          const faltan = op.tallasFaltantes || [];
+          const fuera = op.piezasFueraDeTalla || [];
+          const enc = Number(op.piezasEncargada || 0);
+          if (faltan.length === 0 && fuera.length === 0 && enc === 0) return "";
+
+          let html = "";
+
+          if (faltan.length > 0) {
+            const chips = faltan.map(t =>
+              '<span style="display:inline-block;background:rgba(251,191,36,0.14);' +
+              'color:#fbbf24;border-radius:6px;padding:1px 6px;margin:1px 4px 1px 0;' +
+              'font-weight:700;white-space:nowrap;">' +
+              _esc(t.talla) + " " + Number(t.faltan) + "</span>"
+            ).join("");
+            html += '<div style="font-size:12.5px;color:var(--text-muted);margin:2px 0 0 0;">' +
+                    "Falta: " + chips + "</div>";
+          }
+
+          if (fuera.length > 0) {
+            const txt = fuera.map(f => _esc(f.talla) + " (" + Number(f.piezas) + " pzas)").join(", ");
+            html += '<div style="font-size:12.5px;color:#fbbf24;margin-top:3px;">' +
+                    "\u26A0\uFE0F Hay piezas registradas en tallas que ya no están en el pedido: " +
+                    txt + ". Revisa el pedido para no perder ese trabajo.</div>";
+          }
+
+          if (enc > 0) {
+            html += '<div style="font-size:12.5px;color:var(--text-muted);margin-top:3px;">' +
+                    "\u{1F4CB} La encargada registró " + enc + " pzas aparte (no cuentan en este avance).</div>";
+          }
+
+          return html;
+        } catch (e) { return ""; }
+      }
+
+      function _esc(x) {
+        return String(x == null ? "" : x)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+
       // ========== MODAL AVANCE ==========
       window.verAvance = async function(id) {
         try {
@@ -1724,12 +1773,16 @@ async function cargarPlantilla(card, prendaId) {
               <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(item.porcentajeGeneral,100)}%"></div></div>
               <div style="font-size: 12.5px;color:var(--text-muted);margin:6px 0;">${item.cantidad} pzas · ${item.operacionesCompletas}/${item.totalOperaciones} ops completas</div>
               <table class="ops-table"><thead><tr><th>Operación</th><th>Máquina</th><th>Avance</th><th>%</th></tr></thead><tbody>
-              ${item.operaciones.map(op => `<tr>
+              ${item.operaciones.map(op => {
+                // MEJORA AGREGADA: renglon extra con las tallas que faltan
+                const extra = _lineaFaltaTallas(op);
+                return `<tr>
                 <td>${op.costura}</td>
                 <td style="font-size: 12.5px;color:var(--text-muted);">${op.maquina}</td>
                 <td>${op.piezasHechas}/${op.cantidadTotal}</td>
                 <td style="color:${op.porcentaje>=100?'var(--success)':op.porcentaje>0?'var(--accent)':'var(--text-muted)'};font-weight:700;">${op.porcentaje}%</td>
-              </tr>`).join("")}
+              </tr>` + (extra ? `<tr class="fila-falta-tallas"><td colspan="4" style="padding-top:0;border-top:0;">${extra}</td></tr>` : "");
+              }).join("")}
               </tbody></table>
               ${_notaSinPrecio(item)}
             </div>`;
