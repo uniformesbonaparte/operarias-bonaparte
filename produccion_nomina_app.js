@@ -2704,9 +2704,31 @@ app.post("/api/registros", (req, res) => {
           const cantidadDisponible = Math.max(0, limite - piezasYaHechas);
 
           if (cant > cantidadDisponible) {
-            return res.status(400).json({
-              error: `Solo faltan ${cantidadDisponible} piezas por hacer en esta operación (ya se hicieron ${piezasYaHechas} de ${itemEncontrado.cantidad}).`
-            });
+            // MEJORA AGREGADA: el mensaje ahora dice de que talla se trata y
+            // cuantas piezas se piden de esa talla, en lugar de mezclarlo con
+            // el total del renglon (que confundia).
+            let detalleTalla = "";
+            try {
+              if (tallaNorm && Array.isArray(itemEncontrado.tallas) && itemEncontrado.tallas.length > 0) {
+                const tObj2 = itemEncontrado.tallas.find(t => String(t.talla || '').trim() === tallaNorm);
+                if (tObj2) {
+                  detalleTalla = ` de la talla ${tallaNorm}`;
+                }
+              }
+            } catch (eMsg) {}
+
+            const nombreOp = descFinal || "esta operación";
+            let msg;
+            if (cantidadDisponible === 0) {
+              msg = detalleTalla
+                ? `La talla ${tallaNorm} de "${nombreOp}" ya está completa: ya se registraron las ${limite} piezas.`
+                : `"${nombreOp}" ya está completa: ya se registraron las ${limite} piezas.`;
+            } else {
+              msg = detalleTalla
+                ? `Solo faltan ${cantidadDisponible} pieza(s)${detalleTalla} en "${nombreOp}" (se piden ${limite} y ya hay ${piezasYaHechas}).`
+                : `Solo faltan ${cantidadDisponible} pieza(s) en "${nombreOp}" (se piden ${limite} y ya hay ${piezasYaHechas}).`;
+            }
+            return res.status(400).json({ error: msg });
           }
         }
       }
@@ -2819,7 +2841,16 @@ app.post("/api/registros/lote", (req, res) => {
 
             const cantidadDisponible = Math.max(0, limite - piezasYaHechas);
             if (cant > cantidadDisponible) {
-              errores.push({ index: i, error: `${descFinal} talla ${tallaNorm || 'N/A'}: solo faltan ${cantidadDisponible} piezas` });
+              // MEJORA AGREGADA: mensaje mas detallado por talla
+              const detOp = descFinal || "operación";
+              const msgBulk = (cantidadDisponible === 0)
+                ? (tallaNorm
+                    ? `${detOp} · talla ${tallaNorm}: ya está completa (${limite} pzas registradas).`
+                    : `${detOp}: ya está completa (${limite} pzas registradas).`)
+                : (tallaNorm
+                    ? `${detOp} · talla ${tallaNorm}: solo faltan ${cantidadDisponible} de ${limite} (ya hay ${piezasYaHechas}).`
+                    : `${detOp}: solo faltan ${cantidadDisponible} de ${limite} (ya hay ${piezasYaHechas}).`);
+              errores.push({ index: i, error: msgBulk });
               itemRechazado = true;
             }
           }
@@ -3942,7 +3973,7 @@ app.get("/api/pedidos/:id/avance", (req, res) => {
         return { operaria: operaria ? operaria.nombre : "Desconocida", cantidad: cant };
       });
 
-      return {
+      const filaOp = {
         opId: op.opId,
         costura: op.costura || op.descripcion,
         maquina: op.maquina,
@@ -3955,6 +3986,69 @@ app.get("/api/pedidos/:id/avance", (req, res) => {
         costoAvance,
         desglose
       };
+
+      // ==================================================================
+      // MEJORA AGREGADA (faltantes por talla)
+      // Dice exactamente que talla y cuantas piezas faltan en cada operacion.
+      // Usa lo que ya se guarda: las tallas del pedido y la talla de cada
+      // registro. No cuenta lo capturado por la encargada (igual que el
+      // avance de siempre); eso se informa aparte, solo para comparar.
+      // Todo va en try/catch: si algo falla, la operacion se ve como antes.
+      // ==================================================================
+      try {
+        const normT = (x) => String(x == null ? "" : x).trim().toUpperCase();
+        const tallasItem = Array.isArray(item.tallas) ? item.tallas : [];
+
+        // Piezas hechas por talla (solo operarias, igual que piezasHechas)
+        const hechasPorTalla = {};
+        regsOp.forEach(r => {
+          const k = normT(r.talla) || "__SIN_TALLA__";
+          hechasPorTalla[k] = (hechasPorTalla[k] || 0) + Number(r.cantidad || 0);
+        });
+
+        // Detalle talla por talla, respetando el orden del pedido
+        const tallas = tallasItem.map(t => {
+          const k = normT(t.talla);
+          const pedidas = Number(t.cantidad || 0);
+          const hechas = Number(hechasPorTalla[k] || 0);
+          return {
+            talla: String(t.talla || "").trim(),
+            pedidas,
+            hechas,
+            faltan: Math.max(0, pedidas - hechas),
+            porcentaje: pedidas > 0 ? Math.round((hechas / pedidas) * 100) : 0
+          };
+        });
+
+        filaOp.tallas = tallas;
+        filaOp.tallasFaltantes = tallas.filter(x => x.faltan > 0);
+
+        // Aviso: piezas registradas en tallas que ya no estan en el pedido
+        // (por ejemplo si se edito el pedido y se quito una talla que ya
+        // tenia trabajo hecho). Se avisa para que nunca se pierda de vista.
+        const tallasDelPedido = tallasItem.map(t => normT(t.talla));
+        const fuera = [];
+        Object.keys(hechasPorTalla).forEach(k => {
+          if (k === "__SIN_TALLA__") {
+            fuera.push({ talla: "sin talla", piezas: hechasPorTalla[k] });
+          } else if (tallasDelPedido.indexOf(k) === -1) {
+            fuera.push({ talla: k, piezas: hechasPorTalla[k] });
+          }
+        });
+        filaOp.piezasFueraDeTalla = fuera;
+
+        // Solo informativo: lo capturado por la encargada NO suma al avance
+        const regsEnc = registros.filter(r =>
+          r.pedidoId === id &&
+          r.operacionId === op.opId &&
+          (r.fuente || "operaria") === "encargada"
+        );
+        filaOp.piezasEncargada = regsEnc.reduce((s, r) => s + Number(r.cantidad || 0), 0);
+      } catch (eTallas) {
+        // Sin desglose por talla la operacion se muestra igual que antes
+      }
+
+      return filaOp;
     });
 
     const totalOps = operaciones.length;
