@@ -133,6 +133,8 @@
     .items-resumen { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); }
     .items-resumen-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 13px; }
     .items-resumen-item .prenda-name { color: var(--text-main); font-weight: 600; }
+    /* MEJORA AGREGADA (modelo en la lista): se ve junto a la prenda pero mas discreto */
+    .modelo-en-lista { color: var(--accent); font-weight: 600; font-size: 12.5px; }
     .items-resumen-item .cant { color: var(--text-muted); }
     .desglose-prendas { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); }
     .desglose-titulo { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; }
@@ -1387,6 +1389,20 @@ async function cargarPlantilla(card, prendaId) {
       }
       if (inputBuscarPedido) inputBuscarPedido.addEventListener("input", aplicarFiltroBusquedaPedidos);
 
+      // ==================================================================
+      // MEJORA AGREGADA (modelo en la lista de pedidos)
+      // Devuelve " (modelo)" listo para mostrar, o "" si el renglon no trae
+      // modelo. Va en try/catch: si algo falla, la prenda se ve como antes.
+      // ==================================================================
+      function _etiquetaModelo(item) {
+        try {
+          if (!item) return "";
+          const m = String(item.modelo == null ? "" : item.modelo).replace(/\s+/g, " ").trim();
+          if (!m) return "";
+          return ' <span class="modelo-en-lista">(' + _esc(m) + ')</span>';
+        } catch (eMod) { return ""; }
+      }
+
       function renderListaPedidos(pedidos) {
         try {
           if (pedidos.length === 0) { listaPedidos.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;">No hay pedidos</p>'; return; }
@@ -1416,7 +1432,12 @@ async function cargarPlantilla(card, prendaId) {
                 ${p.items.map(it => {
                   const pr = prendasCache.find(x => x.id === it.prendaId);
                   const nm = pr ? pr.nombre : (it.prenda || "?");
-                  return `<div class="items-resumen-item"><span class="prenda-name">${nm}</span><span class="cant">${it.cantidad} pzas · ${(it.operaciones||[]).length} ops</span></div>`;
+                  // MEJORA AGREGADA (modelo en la lista): se muestra el modelo entre
+                  // parentesis junto a la prenda, para no tener que entrar a Avance
+                  // solo para saber cual es cual. Si el renglon no tiene modelo,
+                  // se ve exactamente igual que antes.
+                  const nmConModelo = nm + _etiquetaModelo(it);
+                  return `<div class="items-resumen-item"><span class="prenda-name">${nmConModelo}</span><span class="cant">${it.cantidad} pzas · ${(it.operaciones||[]).length} ops</span></div>`;
                 }).join('')}</div>`;
             } else if (p.prendas && p.prendas.length > 0) {
               itemsHTML = `<div class="pedido-info"><strong>Prendas:</strong><div class="prendas-lista">${p.prendas.map(x => `<span class="prenda-tag">${x}</span>`).join('')}</div></div>`;
