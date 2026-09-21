@@ -303,6 +303,19 @@
       color: var(--text-main);
     }
 
+    /* MEJORA AGREGADA (talla en el reporte de costuras): mismo estilo que se
+       usa en Buscar trabajo, para que se vea igual en toda la app. */
+    .talla-tag {
+      font-size: 12.5px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(52, 211, 153, 0.12);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+      color: #6ee7b7;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
     .costura-actions {
       display: flex;
       gap: 8px;
@@ -785,6 +798,28 @@
         document.getElementById("btn-guardar").addEventListener("click", () => guardarCostura(usuarioActual.id, "operaria"));
       }
 
+      // ==================================================================
+      // MEJORA AGREGADA (talla en el reporte de costuras)
+      // Muestra la talla que se registro en cada costura. Si un registro
+      // viejo no trae talla, devuelve texto vacio y la costura se ve
+      // exactamente igual que antes. Va en try/catch por seguridad.
+      // ==================================================================
+      function _escTxt(x) {
+        return String(x == null ? "" : x)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+
+      function _etiquetaTalla(reg) {
+        try {
+          if (!reg) return "";
+          const tl = String(reg.talla == null ? "" : reg.talla).trim();
+          if (!tl) return "";
+          // nowrap para que "Talla: M" nunca se separe en dos renglones
+          return ' | <span style="white-space:nowrap;">\u{1F4CF} Talla: <span class="talla-tag">'
+                 + _escTxt(tl) + '</span></span>';
+        } catch (eTalla) { return ""; }
+      }
+
       async function cargarMisCosturas() {
         try {
           // SOLO VER COSTURAS CON FUENTE: OPERARIA
@@ -805,7 +840,7 @@
                 <strong>${r.escuela || "Pedido"}</strong> - ${r.prendaEtiqueta || r.prenda || r.prendaNombre || "Prenda"} - ${r.descripcion}
               </div>
               <div class="costura-info">
-                📦 Cantidad: <strong>${r.cantidad} piezas</strong> | 🔧 ${r.maquina}
+                📦 Cantidad: <strong>${r.cantidad} piezas</strong>${_etiquetaTalla(r)} | 🔧 ${r.maquina}
               </div>
               <div class="costura-info">
                 📅 ${new Date(r.fecha).toLocaleDateString("es-MX")}
@@ -900,7 +935,7 @@
                 <strong>${r.escuela || "Pedido"}</strong> - ${r.prendaEtiqueta || r.prenda || r.prendaNombre || "Prenda"} - ${r.descripcion}
               </div>
               <div class="costura-info">
-                📦 Cantidad: <strong>${r.cantidad} piezas</strong> | 🔧 ${r.maquina}
+                📦 Cantidad: <strong>${r.cantidad} piezas</strong>${_etiquetaTalla(r)} | 🔧 ${r.maquina}
               </div>
               
               <div class="costura-actions">
@@ -1015,7 +1050,7 @@
                 <strong>${r.escuela || "Pedido"}</strong> - ${r.prendaEtiqueta || r.prenda || r.prendaNombre || "Prenda"} - ${r.descripcion}
               </div>
               <div class="costura-info">
-                📦 Cantidad: <strong>${r.cantidad} piezas</strong> | 🔧 ${r.maquina}
+                📦 Cantidad: <strong>${r.cantidad} piezas</strong>${_etiquetaTalla(r)} | 🔧 ${r.maquina}
               </div>
               
               ${r.pagoPorPieza === 0 ? `
